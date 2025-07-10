@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls.Fusion
+import QtQuick.Controls
 
 ApplicationWindow {
     id: mainWindow

@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Fusion
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
@@ -12,8 +11,9 @@ ApplicationWindow {
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
-    FileDialog {
+    FolderDialog {
         id: folderDialog
+        title: qsTr("AppImage Default Location")
         currentFolder: StandardPaths.writableLocation(StandardPaths.HomeLocation)
         onAccepted: {
             AppSettings.appImageDefaultLocation = folderDialog.selectedFolder
