@@ -11,38 +11,41 @@ ApplicationWindow {
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
-    ColumnLayout {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
+    ScrollView {
+        id: scrollView
+        anchors.fill: parent
         anchors.margins: 10
-        spacing: 10
 
-        GroupBox {
-            title: qsTr("General")
-            Layout.fillWidth: true
+        ColumnLayout {
+            width: scrollView.width
+            spacing: 10
 
-            ColumnLayout {
-                spacing: 5
-                anchors.fill: parent
+            GroupBox {
+                title: qsTr("General")
+                Layout.fillWidth: true
 
-                Label {
-                    text: qsTr("AppImage Default Location")
-                }
-                RowLayout {
+                ColumnLayout {
+                    anchors.fill: parent
                     spacing: 5
-                    Layout.fillWidth: true
 
-                    TextField {
-                        placeholderText: qsTr("AppImage default location")
-                        text: AppSettings.appImageDefaultLocation
-                        readOnly: true
-                        Layout.fillWidth: true
+                    Label {
+                        text: qsTr("AppImage Default Location")
                     }
-                    IconButton {
-                        text: "\uf07c"
-                        width: 65
-                        Layout.preferredWidth: 65
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        TextField {
+                            placeholderText: qsTr("AppImage default location")
+                            text: AppSettings.appImageDefaultLocation
+                            readOnly: true
+                            Layout.fillWidth: true
+                        }
+                        IconButton {
+                            text: "\uf07c"
+                            width: 65
+                            Layout.preferredWidth: 65
+                        }
                     }
                 }
             }
