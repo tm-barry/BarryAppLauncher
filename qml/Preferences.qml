@@ -1,3 +1,4 @@
+import QtCore
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -46,7 +47,7 @@ ApplicationWindow {
 
                         TextField {
                             placeholderText: qsTr("AppImage default location")
-                            text: AppSettings.appImageDefaultLocation
+                            text: Qt.resolvedUrl(AppSettings.appImageDefaultLocation).toString().replace("file://", "")
                             readOnly: true
                             Layout.fillWidth: true
                         }
