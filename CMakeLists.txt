@@ -4,19 +4,35 @@ project(BarryAppLauncher VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Quick Core)
+
+# libarchive
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBARCHIVE REQUIRED IMPORTED_TARGET libarchive)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
+qt_add_resources(RESOURCES
+    resources.qrc
+)
+
 qt_add_executable(appBarryAppLauncher
     main.cpp
+    ${RESOURCES}
+)
+
+set_source_files_properties(qml/AppSettings.qml PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
 )
 
 qt_add_qml_module(appBarryAppLauncher
     URI BarryAppLauncher
     VERSION 1.0
     QML_FILES
-        Main.qml
+        qml/AppSettings.qml
+        qml/Main.qml
+        qml/Preferences.qml
+        qml/IconButton.qml
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
@@ -31,7 +47,8 @@ set_target_properties(appBarryAppLauncher PROPERTIES
 )
 
 target_link_libraries(appBarryAppLauncher
-    PRIVATE Qt6::Quick
+    PRIVATE Qt6::Quick Qt6::Core
+    PkgConfig::LIBARCHIVE
 )
 
 include(GNUInstallDirs)

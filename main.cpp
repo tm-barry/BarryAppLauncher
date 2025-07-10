@@ -4,6 +4,8 @@
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+    app.setOrganizationName("tm-barry");
+    app.setApplicationName("BarryAppLauncher");
 
     QQmlApplicationEngine engine;
     QObject::connect(
