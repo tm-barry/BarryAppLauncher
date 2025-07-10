@@ -4,7 +4,7 @@ project(BarryAppLauncher VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Core)
+find_package(Qt6 REQUIRED COMPONENTS Quick Core QuickControls2 QuickDialogs2)
 
 # libarchive
 find_package(PkgConfig REQUIRED)
@@ -47,7 +47,7 @@ set_target_properties(appBarryAppLauncher PROPERTIES
 )
 
 target_link_libraries(appBarryAppLauncher
-    PRIVATE Qt6::Quick Qt6::Core
+    PRIVATE Qt6::Quick Qt6::Core Qt6::QuickControls2 Qt6::QuickDialogs2
     PkgConfig::LIBARCHIVE
 )
 

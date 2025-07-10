@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Fusion
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 ApplicationWindow {
@@ -10,6 +11,14 @@ ApplicationWindow {
     minimumHeight: 270
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
+
+    FileDialog {
+        id: folderDialog
+        currentFolder: StandardPaths.writableLocation(StandardPaths.HomeLocation)
+        onAccepted: {
+            AppSettings.appImageDefaultLocation = folderDialog.selectedFolder
+        }
+    }
 
     ScrollView {
         id: scrollView
@@ -45,6 +54,7 @@ ApplicationWindow {
                             text: "\uf07c"
                             width: 65
                             Layout.preferredWidth: 65
+                            onClicked: folderDialog.open()
                         }
                     }
                 }

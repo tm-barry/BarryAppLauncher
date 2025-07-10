@@ -4,8 +4,6 @@ import QtQuick.Controls.Fusion
 ApplicationWindow {
     id: mainWindow
 
-    palette: AppSettings.theme === "dark" ? palette.dark : palette.light
-
     width: 640
     height: 640
     visible: true
