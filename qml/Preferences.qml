@@ -15,7 +15,7 @@ ApplicationWindow {
     FolderDialog {
         id: folderDialog
         title: qsTr("AppImage Default Location")
-        currentFolder: StandardPaths.writableLocation(StandardPaths.HomeLocation)
+        currentFolder: Qt.resolvedUrl(AppSettings.appImageDefaultLocation.substring(0, AppSettings.appImageDefaultLocation.lastIndexOf("/")))
         onAccepted: {
             AppSettings.appImageDefaultLocation = folderDialog.selectedFolder
         }
