@@ -1,5 +1,7 @@
+import QtCore
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 
 ApplicationWindow {
     id: mainWindow
@@ -13,6 +15,7 @@ ApplicationWindow {
             title: qsTr("&File")
             Action {
                 text: qsTr("&Open AppImage...")
+                onTriggered: fileDialog.open()
             }
             MenuSeparator {}
             Action {
@@ -35,6 +38,17 @@ ApplicationWindow {
             Action {
                 text: qsTr("&About")
             }
+        }
+    }
+
+    FileDialog {
+        id: fileDialog
+        title: qsTr("Open AppImage")
+        currentFolder: StandardPaths.writableLocation(StandardPaths.HomeLocation)
+        nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
+        fileMode: FileDialog.OpenFile
+        onAccepted: {
+            console.log(fileDialog.selectedFile)
         }
     }
 
