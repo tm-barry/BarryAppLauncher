@@ -48,7 +48,8 @@ ApplicationWindow {
         nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
         fileMode: FileDialog.OpenFile
         onAccepted: {
-            console.log(fileDialog.selectedFile)
+            console.log(fileDialog.selectedFile);
+            console.log(AppImageManager.isAppImageType2(fileDialog.selectedFile));
         }
     }
 

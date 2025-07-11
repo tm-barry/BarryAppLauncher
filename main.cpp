@@ -1,5 +1,8 @@
+#include "managers/appimagemanager.h"
+
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QtQuickControls2/QQuickStyle>
 
 int main(int argc, char *argv[])
@@ -16,6 +19,10 @@ int main(int argc, char *argv[])
         &app,
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
+
+    AppImageManager appImageManager;
+    engine.rootContext()->setContextProperty("AppImageManager", &appImageManager);
+
     engine.loadFromModule("BarryAppLauncher", "Main");
 
     return app.exec();
