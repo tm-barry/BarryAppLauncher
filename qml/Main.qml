@@ -50,6 +50,7 @@ ApplicationWindow {
         onAccepted: {
             console.log(fileDialog.selectedFile);
             console.log(AppImageManager.isAppImageType2(fileDialog.selectedFile));
+            console.log(AppImageManager.findDesktopFileForExecutable(fileDialog.selectedFile));
         }
     }
 
