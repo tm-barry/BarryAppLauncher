@@ -32,10 +32,13 @@ AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
 
     QString desktopContent;
     if(integratedDesktopPath == nullptr) {
+        appImageMetadata.integrated = false;
         desktopContent = getInternalAppImageDesktopContent(path);
     }
     else
     {
+        appImageMetadata.integrated = true;
+        appImageMetadata.desktopFilePath = integratedDesktopPath;
         desktopContent = getExternalAppImageDesktopContent(integratedDesktopPath);
     }
     loadMetadataFromDesktopContent(appImageMetadata, desktopContent);

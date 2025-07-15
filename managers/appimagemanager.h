@@ -15,6 +15,7 @@ struct AppImageMetadata {
     Q_PROPERTY(QString md5 MEMBER md5)
     Q_PROPERTY(QString categories MEMBER categories)
     Q_PROPERTY(QString path MEMBER path)
+    Q_PROPERTY(bool integrated MEMBER integrated)
     Q_PROPERTY(QString desktopFilePath MEMBER desktopFilePath)
 public:
     QString name;
@@ -23,6 +24,7 @@ public:
     QString md5;
     QString categories;
     QString path;
+    bool integrated;
     QString desktopFilePath;
 };
 
