@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 REQUIRED COMPONENTS Quick Core QuickControls2 QuickDialogs2)
 find_package(Qt6 REQUIRED COMPONENTS Core)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBAPPIMAGE REQUIRED IMPORTED_TARGET libappimage)
+
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_resources(RESOURCES
@@ -15,7 +18,6 @@ qt_add_resources(RESOURCES
 
 qt_add_executable(appBarryAppLauncher
     main.cpp
-
     ${RESOURCES}
 )
 
@@ -49,6 +51,7 @@ set_target_properties(appBarryAppLauncher PROPERTIES
 
 target_link_libraries(appBarryAppLauncher
     PRIVATE Qt6::Quick Qt6::Core Qt6::QuickControls2 Qt6::QuickDialogs2
+    PkgConfig::LIBAPPIMAGE
 )
 
 include(GNUInstallDirs)

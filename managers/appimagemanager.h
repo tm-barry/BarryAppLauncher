@@ -12,12 +12,14 @@ struct AppImageMetadata {
     Q_PROPERTY(QString name MEMBER name)
     Q_PROPERTY(QString version MEMBER version)
     Q_PROPERTY(int type MEMBER type)
+    Q_PROPERTY(QString categories MEMBER categories)
     Q_PROPERTY(QString path MEMBER path)
     Q_PROPERTY(QString desktopFilePath MEMBER desktopFilePath)
 public:
     QString name;
     QString version;
     int type;
+    QString categories;
     QString path;
     QString desktopFilePath;
 };
@@ -32,11 +34,9 @@ public:
     Q_INVOKABLE AppImageMetadata getAppImageMetadata(const QString& path);
 
 private:
-    const QStringList searchPaths;
-
-    int getAppImageType(const QString &path);
-    QString findDesktopFileForExecutable(const QUrl& executableUrl);
-    QString findDesktopFileForExecutable(const QString& executablePath);
+    QString getInternalAppImageDesktopContent(const QString& appImagePath);
+    QString getExternalAppImageDesktopContent(const QString& desktopPath);
+    void loadMetadataFromDesktopContent(AppImageMetadata& appImageMetadata, const QString& desktopContent);
 
 signals:
 };
