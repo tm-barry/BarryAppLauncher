@@ -27,7 +27,8 @@ AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
     }
 
     char* md5 = appimage_get_md5(path.toUtf8().constData());
-    char* integratedDesktopPath = appimage_registered_desktop_file_path(path.toUtf8().constData(), md5, false);
+    appImageMetadata.md5 = QString::fromUtf8(md5);
+    QString integratedDesktopPath = getDesktopFileForExecutable(path);
 
     QString desktopContent;
     if(integratedDesktopPath == nullptr) {
@@ -41,6 +42,45 @@ AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
 
     qDebug() << appImageMetadata.name;
     return appImageMetadata;
+}
+
+QString AppImageManager::getDesktopFileForExecutable(const QString& executablePath) {
+    const QStringList searchPaths = {
+        "/usr/share/applications",
+        "/usr/local/share/applications",
+        QDir::homePath() + "/.local/share/applications"
+    };
+
+    for (const QString& dirPath : searchPaths) {
+        QDir dir(dirPath);
+        const QStringList desktopFiles = dir.entryList(QStringList() << "*.desktop", QDir::Files);
+
+        for (const QString& fileName : desktopFiles) {
+            QString filePath = dir.absoluteFilePath(fileName);
+            QFile file(filePath);
+
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+                continue;
+
+            QTextStream in(&file);
+            while (!in.atEnd()) {
+                QString line = in.readLine().trimmed();
+
+                if (line.startsWith("Exec=")) {
+                    QString execLine = line.mid(QString("Exec=").length());
+                    const QStringList execCommandParts = execLine.split(' ');
+
+                    for (const QString& execCommand : execCommandParts)
+                    {
+                        if (execCommand == executablePath) {
+                            return filePath;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return QString();
 }
 
 QString AppImageManager::getInternalAppImageDesktopContent(const QString& appImagePath)
