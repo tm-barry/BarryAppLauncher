@@ -29,21 +29,19 @@ AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
     char* md5 = appimage_get_md5(path.toUtf8().constData());
     appImageMetadata.md5 = QString::fromUtf8(md5);
     QString integratedDesktopPath = getDesktopFileForExecutable(path);
+    appImageMetadata.integrated = integratedDesktopPath != nullptr;
 
     QString desktopContent;
-    if(integratedDesktopPath == nullptr) {
-        appImageMetadata.integrated = false;
+    if(!appImageMetadata.integrated) {
         desktopContent = getInternalAppImageDesktopContent(path);
     }
     else
     {
-        appImageMetadata.integrated = true;
         appImageMetadata.desktopFilePath = integratedDesktopPath;
         desktopContent = getExternalAppImageDesktopContent(integratedDesktopPath);
     }
     loadMetadataFromDesktopContent(appImageMetadata, desktopContent);
 
-    qDebug() << appImageMetadata.name;
     return appImageMetadata;
 }
 
