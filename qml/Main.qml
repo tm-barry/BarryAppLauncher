@@ -10,11 +10,16 @@ ApplicationWindow {
     height: 640
     visible: true
 
+    QtObject {
+        id: modalManager
+        property var preferencesModal: null
+    }
+
     Connections {
         target: ErrorManager
         function onMessageOccurred(message, messageType) {
             errorDialog.text = message
-            switch(messageType) {
+            switch (messageType) {
             case ErrorManager.Error:
                 errorDialog.title = qsTr("Error")
                 break
@@ -64,10 +69,19 @@ ApplicationWindow {
             Action {
                 text: qsTr("&Preferences")
                 onTriggered: {
-                    var preferences = Qt.createComponent(
-                                "Preferences.qml").createObject()
-                    preferences.transientParent = mainWindow
-                    preferences.show()
+                    if (modalManager.preferencesModal == null) {
+                        modalManager.preferencesModal = Qt.createComponent(
+                                    "Preferences.qml").createObject(null)
+                        modalManager.preferencesModal.transientParent = mainWindow
+
+                        modalManager.preferencesModal.closing.connect(
+                                    function () {
+                                        modalManager.preferencesModal.destroy()
+                                        modalManager.preferencesModal = null
+                                    })
+                    }
+
+                    modalManager.preferencesModal.show()
                 }
             }
             MenuSeparator {}
