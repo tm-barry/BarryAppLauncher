@@ -15,7 +15,7 @@ QString ErrorManager::lastError() const {
 
 void ErrorManager::reportError(const QString& error) {
     m_lastError = error;
-    qWarning() << "Reported Error:" << error;
+    qCritical() << error;
     emit errorOccurred(error);
 }
 
