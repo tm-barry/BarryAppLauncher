@@ -1,4 +1,5 @@
 #include "appimagemanager.h"
+#include "errormanager.h"
 
 #include <appimage/appimage.h>
 #include <appimage/core/AppImage.h>
@@ -7,9 +8,34 @@
 #include <QObject>
 #include <QUrl>
 
-AppImageManager::AppImageManager(QObject *parent)
-    : QObject{parent}
-{}
+// ----------------- Public -----------------
+
+AppImageManager* AppImageManager::instance() {
+    static AppImageManager singleton;
+    return &singleton;
+}
+
+bool AppImageManager::busy() const {
+    return m_busy;
+}
+
+void AppImageManager::setBusy(bool value) {
+    if (m_busy == value)
+        return;
+    m_busy = value;
+    emit busyChanged(value);
+}
+
+AppImageManager::AppState AppImageManager::state() const {
+    return m_state;
+}
+
+void AppImageManager::setState(AppState value) {
+    if (m_state == value)
+        return;
+    m_state = value;
+    emit stateChanged(value);
+}
 
 AppImageMetadata AppImageManager::getAppImageMetadata(const QUrl& url) {
     return getAppImageMetadata(url.toLocalFile());
@@ -44,6 +70,12 @@ AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
 
     return appImageMetadata;
 }
+
+// ----------------- Private -----------------
+
+AppImageManager::AppImageManager(QObject *parent)
+    : QObject{parent}
+{}
 
 QString AppImageManager::getDesktopFileForExecutable(const QString& executablePath) {
     const QStringList searchPaths = {

@@ -10,6 +10,21 @@ ApplicationWindow {
     height: 640
     visible: true
 
+    Connections {
+        target: ErrorManager
+        onErrorOccurred: {
+            errorDialog.text = message
+            errorDialog.open()
+        }
+    }
+
+    MessageDialog {
+        id: errorDialog
+        title: "Error"
+        text: ""
+        buttons: MessageDialog.Ok
+    }
+
     menuBar: MenuBar {
         Menu {
             title: qsTr("&File")
@@ -44,17 +59,19 @@ ApplicationWindow {
     FileDialog {
         id: fileDialog
         title: qsTr("Open AppImage")
-        currentFolder: StandardPaths.writableLocation(StandardPaths.HomeLocation)
+        currentFolder: StandardPaths.writableLocation(
+                           StandardPaths.HomeLocation)
         nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
         fileMode: FileDialog.OpenFile
         onAccepted: {
-            console.log(fileDialog.selectedFile);
-            AppImageManager.getAppImageMetadata(fileDialog.selectedFile);
+            console.log(fileDialog.selectedFile)
+            AppImageManager.getAppImageMetadata(fileDialog.selectedFile)
         }
     }
 
     Loader {
         id: pageContent
         anchors.fill: parent
+        source: "AppList.qml"
     }
 }

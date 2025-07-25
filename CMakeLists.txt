@@ -5,7 +5,6 @@ project(BarryAppLauncher VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick Core QuickControls2 QuickDialogs2)
-find_package(Qt6 REQUIRED COMPONENTS Core)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBAPPIMAGE REQUIRED IMPORTED_TARGET libappimage)
@@ -29,6 +28,8 @@ qt_add_qml_module(appBarryAppLauncher
     URI BarryAppLauncher
     VERSION 1.0
     QML_FILES
+        qml/AppInfo.qml
+        qml/AppList.qml
         qml/AppSettings.qml
         qml/Main.qml
         qml/Preferences.qml
@@ -36,6 +37,8 @@ qt_add_qml_module(appBarryAppLauncher
     SOURCES
         managers/appimagemanager.h
         managers/appimagemanager.cpp
+        managers/errormanager.h
+        managers/errormanager.cpp
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

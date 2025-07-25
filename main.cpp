@@ -1,4 +1,5 @@
 #include "managers/appimagemanager.h"
+#include "managers/errormanager.h"
 
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -20,8 +21,23 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
 
-    AppImageManager appImageManager;
-    engine.rootContext()->setContextProperty("AppImageManager", &appImageManager);
+    qmlRegisterSingletonType<AppImageManager>(
+        "BarryAppLauncher", 1, 0, "AppImageManager",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            auto* instance = AppImageManager::instance();
+            QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+            return instance;
+        }
+    );
+
+    qmlRegisterSingletonType<ErrorManager>(
+        "BarryAppLauncher", 1, 0, "ErrorManager",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            auto* instance = ErrorManager::instance();
+            QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+            return instance;
+        }
+    );
 
     engine.loadFromModule("BarryAppLauncher", "Main");
 
