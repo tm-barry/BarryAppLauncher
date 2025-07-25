@@ -13,6 +13,9 @@ int main(int argc, char *argv[])
     app.setOrganizationName("tm-barry");
     app.setApplicationName("BarryAppLauncher");
 
+    qRegisterMetaType<AppImageManager::AppState>("AppImageManager::AppState");
+    qRegisterMetaType<ErrorManager::MessageType>("ErrorManager::MessageType");
+
     QQmlApplicationEngine engine;
     QObject::connect(
         &engine,

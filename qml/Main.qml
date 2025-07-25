@@ -12,15 +12,43 @@ ApplicationWindow {
 
     Connections {
         target: ErrorManager
-        onErrorOccurred: {
+        function onMessageOccurred(message, messageType) {
             errorDialog.text = message
+            switch(messageType) {
+            case ErrorManager.Error:
+                errorDialog.title = qsTr("Error")
+                break
+            case ErrorManager.Warning:
+                errorDialog.title = qsTr("Warning")
+                break
+            default:
+                errorDialog.title = qsTr("Message")
+                break
+            }
             errorDialog.open()
+        }
+    }
+
+    Connections {
+        target: AppImageManager
+        function onBusyChanged(newValue) {
+            busyIndicator.running = newValue
+        }
+        function onStateChanged(newValue) {
+            switch (newValue) {
+            case AppImageManager.AppInfo:
+                pageContent.source = "AppInfo.qml"
+                break
+            default:
+                pageContent.source = "AppList.qml"
+                break
+            }
         }
     }
 
     MessageDialog {
         id: errorDialog
-        title: "Error"
+        title: ""
         text: ""
         buttons: MessageDialog.Ok
     }
@@ -64,8 +92,7 @@ ApplicationWindow {
         nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
         fileMode: FileDialog.OpenFile
         onAccepted: {
-            console.log(fileDialog.selectedFile)
-            AppImageManager.getAppImageMetadata(fileDialog.selectedFile)
+            AppImageManager.loadAppImageMetadata(fileDialog.selectedFile)
         }
     }
 
@@ -73,5 +100,11 @@ ApplicationWindow {
         id: pageContent
         anchors.fill: parent
         source: "AppList.qml"
+    }
+
+    BusyIndicator {
+        id: busyIndicator
+        anchors.centerIn: parent
+        running: false
     }
 }

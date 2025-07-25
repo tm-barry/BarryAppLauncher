@@ -4,6 +4,7 @@
 #include <appimage/appimage.h>
 #include <appimage/core/AppImage.h>
 
+#include <QtConcurrent/QtConcurrentRun>
 #include <QDir>
 #include <QObject>
 #include <QUrl>
@@ -13,6 +14,15 @@
 AppImageManager* AppImageManager::instance() {
     static AppImageManager singleton;
     return &singleton;
+}
+
+AppImageMetadata AppImageManager::appImageMetadata() {
+    return m_appImageMetadata;
+}
+
+void AppImageManager::setAppImageMetadata(AppImageMetadata value) {
+    m_appImageMetadata = value;
+    emit appImageMetadataChanged(value);
 }
 
 bool AppImageManager::busy() const {
@@ -37,38 +47,53 @@ void AppImageManager::setState(AppState value) {
     emit stateChanged(value);
 }
 
-AppImageMetadata AppImageManager::getAppImageMetadata(const QUrl& url) {
-    return getAppImageMetadata(url.toLocalFile());
+void AppImageManager::loadAppImageMetadata(const QUrl& url) {
+    loadAppImageMetadata(url.toLocalFile());
 }
 
-AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
-    AppImageMetadata appImageMetadata;
-    appImageMetadata.path = path;
-    int type = appimage_get_type(path.toUtf8().constData(), false);
-    appImageMetadata.type = type;
+void AppImageManager::loadAppImageMetadata(const QString& path) {
+    QFuture<void> future = QtConcurrent::run([=]() {
+        AppImageMetadata appImageMetadata;
+        setBusy(true);
 
-    if (type <= 0) {
-        qWarning() << "Unsupported AppImage type";
-        return appImageMetadata;
-    }
+        try {
+            appImageMetadata.path = path;
+            int type = appimage_get_type(path.toUtf8().constData(), false);
+            appImageMetadata.type = type;
 
-    char* md5 = appimage_get_md5(path.toUtf8().constData());
-    appImageMetadata.md5 = QString::fromUtf8(md5);
-    QString integratedDesktopPath = getDesktopFileForExecutable(path);
-    appImageMetadata.integrated = integratedDesktopPath != nullptr;
+            if (type <= 0) {
+                ErrorManager::instance()->reportError("Unsupported AppImage type");
+                setAppImageMetadata(appImageMetadata);
+                setBusy(false);
+                return;
+            }
 
-    QString desktopContent;
-    if(!appImageMetadata.integrated) {
-        desktopContent = getInternalAppImageDesktopContent(path);
-    }
-    else
-    {
-        appImageMetadata.desktopFilePath = integratedDesktopPath;
-        desktopContent = getExternalAppImageDesktopContent(integratedDesktopPath);
-    }
-    loadMetadataFromDesktopContent(appImageMetadata, desktopContent);
+            char* md5 = appimage_get_md5(path.toUtf8().constData());
+            appImageMetadata.md5 = QString::fromUtf8(md5);
+            QString integratedDesktopPath = getDesktopFileForExecutable(path);
+            appImageMetadata.integrated = integratedDesktopPath != nullptr;
 
-    return appImageMetadata;
+            QString desktopContent;
+            if(!appImageMetadata.integrated) {
+                desktopContent = getInternalAppImageDesktopContent(path);
+            }
+            else
+            {
+                appImageMetadata.desktopFilePath = integratedDesktopPath;
+                desktopContent = getExternalAppImageDesktopContent(integratedDesktopPath);
+            }
+
+            loadMetadataFromDesktopContent(appImageMetadata, desktopContent);
+
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+
+        setBusy(false);
+
+        setAppImageMetadata(appImageMetadata);
+        setState(AppInfo);
+    });
 }
 
 // ----------------- Private -----------------

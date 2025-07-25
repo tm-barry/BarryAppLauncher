@@ -9,14 +9,14 @@ ErrorManager* ErrorManager::instance() {
     return &singleton;
 }
 
-QString ErrorManager::lastError() const {
-    return m_lastError;
+void ErrorManager::reportError(const QString& error) {
+    qCritical() << error;
+    emit messageOccurred(error, Error);
 }
 
-void ErrorManager::reportError(const QString& error) {
-    m_lastError = error;
-    qCritical() << error;
-    emit errorOccurred(error);
+void ErrorManager::reportWarning(const QString& warning) {
+    qWarning() << warning;
+    emit messageOccurred(warning, Warning);
 }
 
 // ----------------- Private -----------------

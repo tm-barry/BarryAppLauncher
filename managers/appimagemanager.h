@@ -31,7 +31,8 @@ public:
 class AppImageManager : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    Q_PROPERTY(AppImageMetadata appImageMetadata READ appImageMetadata NOTIFY appImageMetadataChanged)
+    Q_PROPERTY(bool busy READ busy WRITE setBusy NOTIFY busyChanged)
     Q_PROPERTY(AppState state READ state WRITE setState NOTIFY stateChanged)
 public:
     static AppImageManager* instance();
@@ -42,20 +43,24 @@ public:
     };
     Q_ENUM(AppState);
 
+    AppImageMetadata appImageMetadata();
+    void setAppImageMetadata(AppImageMetadata value);
+
     bool busy() const;
+    void setBusy(bool value);
 
     AppState state() const;
     void setState(AppState value);
 
-    Q_INVOKABLE AppImageMetadata getAppImageMetadata(const QUrl& url);
-    Q_INVOKABLE AppImageMetadata getAppImageMetadata(const QString& path);
+    Q_INVOKABLE void loadAppImageMetadata(const QUrl& url);
+    Q_INVOKABLE void loadAppImageMetadata(const QString& path);
 
 private:
     explicit AppImageManager(QObject *parent = nullptr);
 
+    AppImageMetadata m_appImageMetadata;
     bool m_busy = false;
-    AppState m_state = AppInfo;
-    void setBusy(bool value);
+    AppState m_state = AppList;
 
     QString getDesktopFileForExecutable(const QString& executablePath);
     QString getInternalAppImageDesktopContent(const QString& appImagePath);
@@ -65,6 +70,7 @@ private:
     Q_DISABLE_COPY(AppImageManager);
 
 signals:
+    void appImageMetadataChanged(AppImageMetadata newValue);
     void busyChanged(bool newValue);
     void stateChanged(AppImageManager::AppState newValue);
 };
