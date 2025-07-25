@@ -15,7 +15,11 @@ ApplicationWindow {
     FolderDialog {
         id: folderDialog
         title: qsTr("AppImage Default Location")
-        currentFolder: Qt.resolvedUrl(AppSettings.appImageDefaultLocation.substring(0, AppSettings.appImageDefaultLocation.lastIndexOf("/")))
+        currentFolder: Qt.resolvedUrl(
+                           AppSettings.appImageDefaultLocation.substring(
+                               0,
+                               AppSettings.appImageDefaultLocation.lastIndexOf(
+                                   "/")))
         onAccepted: {
             AppSettings.appImageDefaultLocation = folderDialog.selectedFolder
         }
@@ -39,7 +43,7 @@ ApplicationWindow {
                     spacing: 5
 
                     Label {
-                        text: qsTr("AppImage Default Location")
+                        text: qsTr("AppImage default location")
                     }
                     RowLayout {
                         spacing: 5
@@ -47,7 +51,9 @@ ApplicationWindow {
 
                         TextField {
                             placeholderText: qsTr("AppImage default location")
-                            text: Qt.resolvedUrl(AppSettings.appImageDefaultLocation).toString().replace("file://", "")
+                            text: Qt.resolvedUrl(
+                                      AppSettings.appImageDefaultLocation).toString(
+                                      ).replace("file://", "")
                             readOnly: true
                             Layout.fillWidth: true
                         }
@@ -56,6 +62,25 @@ ApplicationWindow {
                             width: 65
                             Layout.preferredWidth: 65
                             onClicked: folderDialog.open()
+                        }
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 10
+                    }
+
+                    Label {
+                        text: qsTr("Move/Copy appimages")
+                    }
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        ComboBox {
+                            Layout.fillWidth: true
+                            model: [qsTr("Move"), qsTr("Copy")]
+                            currentIndex: AppSettings.appImageFileOperation
+                            onCurrentIndexChanged: AppSettings.appImageFileOperation = currentIndex
                         }
                     }
                 }
