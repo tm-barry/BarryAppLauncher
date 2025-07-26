@@ -1,11 +1,13 @@
 #include "appimagemanager.h"
 #include "errormanager.h"
+#include "providers/memoryimageprovider.h"
 
 #include <appimage/appimage.h>
 #include <appimage/core/AppImage.h>
 
 #include <QtConcurrent/QtConcurrentRun>
 #include <QDir>
+#include <QImage>
 #include <QObject>
 #include <QUrl>
 
@@ -55,44 +57,15 @@ void AppImageManager::loadAppImageMetadata(const QString& path) {
     QFuture<void> future = QtConcurrent::run([=]() {
         AppImageMetadata appImageMetadata;
         setBusy(true);
-
         try {
-            appImageMetadata.path = path;
-            int type = appimage_get_type(path.toUtf8().constData(), false);
-            appImageMetadata.type = type;
-
-            if (type <= 0) {
-                ErrorManager::instance()->reportError("Unsupported AppImage type");
-                setAppImageMetadata(appImageMetadata);
-                setBusy(false);
-                return;
-            }
-
-            char* md5 = appimage_get_md5(path.toUtf8().constData());
-            appImageMetadata.md5 = QString::fromUtf8(md5);
-            QString integratedDesktopPath = getDesktopFileForExecutable(path);
-            appImageMetadata.integrated = integratedDesktopPath != nullptr;
-
-            QString desktopContent;
-            if(!appImageMetadata.integrated) {
-                desktopContent = getInternalAppImageDesktopContent(path);
-            }
-            else
-            {
-                appImageMetadata.desktopFilePath = integratedDesktopPath;
-                desktopContent = getExternalAppImageDesktopContent(integratedDesktopPath);
-            }
-
-            loadMetadataFromDesktopContent(appImageMetadata, desktopContent);
+            appImageMetadata = getAppImageMetadata(path);
+            setAppImageMetadata(appImageMetadata);
+            setState(AppInfo);
 
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
         }
-
         setBusy(false);
-
-        setAppImageMetadata(appImageMetadata);
-        setState(AppInfo);
     });
 }
 
@@ -101,6 +74,40 @@ void AppImageManager::loadAppImageMetadata(const QString& path) {
 AppImageManager::AppImageManager(QObject *parent)
     : QObject{parent}
 {}
+
+AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
+    AppImageMetadata appImageMetadata;
+    appImageMetadata.path = path;
+    int type = appimage_get_type(path.toUtf8().constData(), false);
+    appImageMetadata.type = type;
+
+    if (type <= 0) {
+        ErrorManager::instance()->reportError("Unsupported AppImage type");
+        return appImageMetadata;
+    }
+
+    char* md5 = appimage_get_md5(path.toUtf8().constData());
+    appImageMetadata.md5 = QString::fromUtf8(md5);
+    QString integratedDesktopPath = getDesktopFileForExecutable(path);
+    appImageMetadata.integrated = integratedDesktopPath != nullptr;
+
+    QString desktopContent;
+    if(!appImageMetadata.integrated) {
+        desktopContent = getInternalAppImageDesktopContent(path);
+    }
+    else
+    {
+        appImageMetadata.desktopFilePath = integratedDesktopPath;
+        desktopContent = getExternalAppImageDesktopContent(integratedDesktopPath);
+    }
+
+    MemoryImageProvider::instance()->setImage(path, getAppImageIcon(path));
+    appImageMetadata.icon = MemoryImageProvider::instance() -> getUrl(path);
+
+    loadMetadataFromDesktopContent(appImageMetadata, desktopContent);
+
+    return appImageMetadata;
+}
 
 QString AppImageManager::getDesktopFileForExecutable(const QString& executablePath) {
     const QStringList searchPaths = {
@@ -157,7 +164,7 @@ QString AppImageManager::getInternalAppImageDesktopContent(const QString& appIma
     appimage_string_list_free(files);
 
     if (desktopPath.isEmpty()) {
-        qWarning() << "No .desktop file found";
+        qWarning() << "No .desktop file found:" << appImagePath;
     }
     else {
         char* buffer = nullptr;
@@ -170,7 +177,7 @@ QString AppImageManager::getInternalAppImageDesktopContent(const QString& appIma
             );
 
         if (!success || !buffer || bufferSize == 0) {
-            qWarning() << "Failed to read .desktop file contents.";
+            qWarning() << "Failed to read .desktop file contents:" << appImagePath;
             return {};
         }
 
@@ -191,6 +198,29 @@ QString AppImageManager::getExternalAppImageDesktopContent(const QString& deskto
     QString content = in.readAll();
     file.close();
     return content;
+}
+
+QImage AppImageManager::getAppImageIcon(const QString& path)
+{
+    QImage iconImage;
+    char* buffer = nullptr;
+    unsigned long bufferSize = 0;
+    bool success = appimage_read_file_into_buffer_following_symlinks(
+        path.toUtf8().constData(),
+        ".DirIcon",
+        &buffer,
+        &bufferSize
+        );
+
+    if (!success || !buffer || bufferSize == 0) {
+        qWarning() << "Failed to get appimage icon:" << path;
+        return iconImage;
+    }
+
+    QByteArray arr(buffer, bufferSize);
+    iconImage.loadFromData(arr);
+    free(buffer);
+    return iconImage;
 }
 
 void AppImageManager::loadMetadataFromDesktopContent(AppImageMetadata& appImageMetadata, const QString& desktopContent)

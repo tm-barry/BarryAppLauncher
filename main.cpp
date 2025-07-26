@@ -1,5 +1,6 @@
 #include "managers/appimagemanager.h"
 #include "managers/errormanager.h"
+#include "providers/memoryimageprovider.h"
 
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -41,6 +42,9 @@ int main(int argc, char *argv[])
             return instance;
         }
     );
+
+    auto* memoryImageProvider = MemoryImageProvider::instance();
+    engine.addImageProvider(MemoryImageProvider::providerName, memoryImageProvider);
 
     engine.loadFromModule("BarryAppLauncher", "Main");
 

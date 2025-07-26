@@ -1,6 +1,8 @@
 #ifndef ERRORMANAGER_H
 #define ERRORMANAGER_H
 
+#pragma once
+
 #include <QObject>
 
 class ErrorManager : public QObject

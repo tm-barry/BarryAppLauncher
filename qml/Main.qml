@@ -2,9 +2,12 @@ import QtCore
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
+import QtQuick.Layouts
 
 ApplicationWindow {
     id: mainWindow
+
+    property bool showAppInfoHeader: false
 
     width: 640
     height: 640
@@ -40,6 +43,7 @@ ApplicationWindow {
             busyIndicator.running = newValue
         }
         function onStateChanged(newValue) {
+            showAppInfoHeader = newValue === AppImageManager.AppInfo
             switch (newValue) {
             case AppImageManager.AppInfo:
                 pageContent.source = "AppInfo.qml"
@@ -56,6 +60,18 @@ ApplicationWindow {
         title: ""
         text: ""
         buttons: MessageDialog.Ok
+    }
+
+    FileDialog {
+        id: fileDialog
+        title: qsTr("Open AppImage")
+        currentFolder: StandardPaths.writableLocation(
+                           StandardPaths.HomeLocation)
+        nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
+        fileMode: FileDialog.OpenFile
+        onAccepted: {
+            AppImageManager.loadAppImageMetadata(fileDialog.selectedFile)
+        }
     }
 
     menuBar: MenuBar {
@@ -98,15 +114,44 @@ ApplicationWindow {
         }
     }
 
-    FileDialog {
-        id: fileDialog
-        title: qsTr("Open AppImage")
-        currentFolder: StandardPaths.writableLocation(
-                           StandardPaths.HomeLocation)
-        nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
-        fileMode: FileDialog.OpenFile
-        onAccepted: {
-            AppImageManager.loadAppImageMetadata(fileDialog.selectedFile)
+    header: headerLoader.item
+
+    Loader {
+        id: headerLoader
+        sourceComponent: showAppInfoHeader ? appInfoHeaderComponent : null
+    }
+
+    Component {
+        id: appInfoHeaderComponent
+
+        ToolBar {
+            background: null
+
+            RowLayout {
+                anchors.fill: parent
+
+                ToolButton {
+                    onClicked: AppImageManager.state = AppImageManager.AppList
+                    Layout.alignment: Qt.AlignLeft
+
+                    contentItem: Row {
+                        anchors.centerIn: parent
+                        spacing: 10
+
+                        Label {
+                            text: "\uf104"
+
+                            FontLoader {
+                                id: fontAwesome
+                                source: "fonts/fa-6-solid-900.otf"
+                            }
+                        }
+                        Label {
+                            text: qsTr("App List")
+                        }
+                    }
+                }
+            }
         }
     }
 

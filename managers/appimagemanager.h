@@ -5,6 +5,7 @@
 
 #include <QDir>
 #include <QObject>
+#include <QUrl>
 
 struct AppImageMetadata {
     Q_GADGET
@@ -12,6 +13,7 @@ struct AppImageMetadata {
     Q_PROPERTY(QString name MEMBER name)
     Q_PROPERTY(QString version MEMBER version)
     Q_PROPERTY(int type MEMBER type)
+    Q_PROPERTY(QUrl icon MEMBER icon)
     Q_PROPERTY(QString md5 MEMBER md5)
     Q_PROPERTY(QString categories MEMBER categories)
     Q_PROPERTY(QString path MEMBER path)
@@ -21,6 +23,7 @@ public:
     QString name;
     QString version;
     int type;
+    QUrl icon;
     QString md5;
     QString categories;
     QString path;
@@ -62,9 +65,11 @@ private:
     bool m_busy = false;
     AppState m_state = AppList;
 
+    AppImageMetadata getAppImageMetadata(const QString& path);
     QString getDesktopFileForExecutable(const QString& executablePath);
     QString getInternalAppImageDesktopContent(const QString& appImagePath);
     QString getExternalAppImageDesktopContent(const QString& desktopPath);
+    QImage getAppImageIcon(const QString& path);
     void loadMetadataFromDesktopContent(AppImageMetadata& appImageMetadata, const QString& desktopContent);
 
     Q_DISABLE_COPY(AppImageManager);

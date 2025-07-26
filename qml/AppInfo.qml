@@ -1,14 +1,26 @@
 import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Item {
-    width: 300
-    height: 200
-    Rectangle {
+    ScrollView {
+        id: scrollView
         anchors.fill: parent
-        color: "lightgreen"
-        Text {
-            text: "App Info"
-            anchors.centerIn: parent
+        anchors.margins: 10
+
+        ColumnLayout {
+            width: scrollView.width
+            spacing: 10
+
+            Image {
+                source: AppImageManager.appImageMetadata?.icon
+                width: 128
+                height: 128
+                sourceSize.width: width
+                sourceSize.height: height
+                fillMode: Image.PreserveAspectFit
+                Layout.alignment: Qt.AlignHCenter
+            }
         }
     }
 }

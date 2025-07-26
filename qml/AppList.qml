@@ -1,14 +1,20 @@
 import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Item {
-    width: 300
-    height: 200
-    Rectangle {
+    ScrollView {
+        id: scrollView
         anchors.fill: parent
-        color: "lightblue"
-        Text {
-            text: "App List"
-            anchors.centerIn: parent
+        anchors.margins: 10
+
+        ColumnLayout {
+            width: scrollView.width
+            spacing: 10
+
+            Label {
+                text: "App List"
+            }
         }
     }
 }
