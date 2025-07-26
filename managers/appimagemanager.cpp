@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QImage>
 #include <QObject>
+#include <QProcess>
 #include <QUrl>
 
 // ----------------- Public -----------------
@@ -69,6 +70,49 @@ void AppImageManager::loadAppImageMetadata(const QString& path) {
     });
 }
 
+bool AppImageManager::unlockAppImage(const QUrl& url)
+{
+    return unlockAppImage(url.toLocalFile());
+}
+
+bool AppImageManager::unlockAppImage(const QString& path)
+{
+    try {
+        QFile file(path);
+        if (!file.exists()) {
+            ErrorManager::instance()->reportError("File does not exist: " + path);
+            return false;
+        }
+
+        QFile::Permissions perms = file.permissions();
+        perms |= QFileDevice::ExeUser | QFileDevice::ExeGroup | QFileDevice::ExeOther;
+
+        if (!file.setPermissions(perms)) {
+            ErrorManager::instance()->reportError("Failed to set executable permissions for: " + path);
+            return false;
+        }
+    } catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+        return false;
+    }
+
+    return true;
+}
+
+void AppImageManager::launchAppImage(const QUrl& url)
+{
+    launchAppImage(url.toLocalFile());
+}
+
+void AppImageManager::launchAppImage(const QString& path)
+{
+    try {
+        QProcess::startDetached(path);
+    } catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+    }
+}
+
 // ----------------- Private -----------------
 
 AppImageManager::AppImageManager(QObject *parent)
@@ -80,6 +124,7 @@ AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
     appImageMetadata.path = path;
     int type = appimage_get_type(path.toUtf8().constData(), false);
     appImageMetadata.type = type;
+    appImageMetadata.executable = isExecutable(path);
 
     if (type <= 0) {
         ErrorManager::instance()->reportError("Unsupported AppImage type");
@@ -252,4 +297,9 @@ void AppImageManager::loadMetadataFromDesktopContent(AppImageMetadata& appImageM
             appImageMetadata.categories = trimmed.section('=', 1).trimmed();
         }
     }
+}
+
+bool AppImageManager::isExecutable(const QString &filePath) {
+    QFileInfo fileInfo(filePath);
+    return fileInfo.isExecutable();
 }

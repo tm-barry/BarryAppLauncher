@@ -47,18 +47,35 @@ Item {
                 spacing: 10
                 Layout.alignment: Qt.AlignHCenter
 
+                Button {
+                    text: qsTr("Unlock")
+                    font.pixelSize: 16
+                    Layout.preferredWidth: 100
+                    visible: !AppImageManager.appImageMetadata?.executable
+                    onClicked: {
+                        AppImageManager.appImageMetadata.executable = AppImageManager.unlockAppImage(AppImageManager.appImageMetadata.path);
+                        // Force ui update
+                        AppImageManager.appImageMetadata = AppImageManager.appImageMetadata;
+                    }
+                }
+
                 ColorButton {
                     text: qsTr("Launch")
                     backgroundColor: "#4E7A6A"
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
+                    visible: AppImageManager.appImageMetadata?.executable
+                    onClicked: AppImageManager.launchAppImage(
+                                   AppImageManager.appImageMetadata?.path)
                 }
 
                 ColorButton {
                     text: qsTr("Integrate")
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
-                    visible: AppImageManager.appImageMetadata?.integration === AppImageMetadata.None
+                    visible: AppImageManager.appImageMetadata?.executable
+                             && AppImageManager.appImageMetadata?.integration
+                             === AppImageMetadata.None
                 }
 
                 ColorButton {
@@ -66,7 +83,9 @@ Item {
                     backgroundColor: "#C43D3D"
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
-                    visible: AppImageManager.appImageMetadata?.integration === AppImageMetadata.Internal
+                    visible: AppImageManager.appImageMetadata?.executable
+                             && AppImageManager.appImageMetadata?.integration
+                             === AppImageMetadata.Internal
                 }
             }
         }
