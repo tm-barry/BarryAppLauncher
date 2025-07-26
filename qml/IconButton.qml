@@ -6,6 +6,6 @@ Button {
 
     FontLoader {
         id: fontAwesome
-        source: "fonts/fa-6-solid-900.otf"
+        source: "/fonts/fa-6-solid-900.otf"
     }
 }
