@@ -31,9 +31,10 @@ qt_add_qml_module(appBarryAppLauncher
         qml/AppInfo.qml
         qml/AppList.qml
         qml/AppSettings.qml
+        qml/ColorButton.qml
+        qml/IconButton.qml
         qml/Main.qml
         qml/Preferences.qml
-        qml/IconButton.qml
     SOURCES
         managers/appimagemanager.h
         managers/appimagemanager.cpp

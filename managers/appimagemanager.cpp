@@ -88,17 +88,28 @@ AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
 
     char* md5 = appimage_get_md5(path.toUtf8().constData());
     appImageMetadata.md5 = QString::fromUtf8(md5);
-    QString integratedDesktopPath = getDesktopFileForExecutable(path);
-    appImageMetadata.integrated = integratedDesktopPath != nullptr;
+    QString desktopPath = appimage_registered_desktop_file_path(path.toUtf8().constData(), md5, false);
+    if(desktopPath != nullptr)
+    {
+        appImageMetadata.integration = AppImageMetadata::Internal;
+    }
+    else
+    {
+        desktopPath = getDesktopFileForExecutable(path);
+        if(desktopPath != nullptr)
+        {
+            appImageMetadata.integration = AppImageMetadata::External;
+        }
+    }
 
     QString desktopContent;
-    if(!appImageMetadata.integrated) {
+    if(appImageMetadata.integration == AppImageMetadata::None) {
         desktopContent = getInternalAppImageDesktopContent(path);
     }
     else
     {
-        appImageMetadata.desktopFilePath = integratedDesktopPath;
-        desktopContent = getExternalAppImageDesktopContent(integratedDesktopPath);
+        appImageMetadata.desktopFilePath = desktopPath;
+        desktopContent = getExternalAppImageDesktopContent(desktopPath);
     }
 
     MemoryImageProvider::instance()->setImage(path, getAppImageIcon(path));
@@ -233,6 +244,9 @@ void AppImageManager::loadMetadataFromDesktopContent(AppImageMetadata& appImageM
         }
         else if (trimmed.startsWith("X-AppImage-Version=")) {
             appImageMetadata.version = trimmed.section('=', 1).trimmed();
+        }
+        else if (trimmed.startsWith("Comment=")) {
+            appImageMetadata.comment = trimmed.section('=', 1).trimmed();
         }
         else if (trimmed.startsWith("Categories=")) {
             appImageMetadata.categories = trimmed.section('=', 1).trimmed();

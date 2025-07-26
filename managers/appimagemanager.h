@@ -12,22 +12,31 @@ struct AppImageMetadata {
 
     Q_PROPERTY(QString name MEMBER name)
     Q_PROPERTY(QString version MEMBER version)
+    Q_PROPERTY(QString comment MEMBER comment)
     Q_PROPERTY(int type MEMBER type)
     Q_PROPERTY(QUrl icon MEMBER icon)
     Q_PROPERTY(QString md5 MEMBER md5)
     Q_PROPERTY(QString categories MEMBER categories)
     Q_PROPERTY(QString path MEMBER path)
-    Q_PROPERTY(bool integrated MEMBER integrated)
+    Q_PROPERTY(IntegrationType integration MEMBER integration)
     Q_PROPERTY(QString desktopFilePath MEMBER desktopFilePath)
 public:
+    enum IntegrationType {
+        None,
+        Internal,
+        External
+    };
+    Q_ENUM(IntegrationType);
+
     QString name;
     QString version;
+    QString comment;
     int type;
     QUrl icon;
     QString md5;
     QString categories;
     QString path;
-    bool integrated;
+    IntegrationType integration = None;
     QString desktopFilePath;
 };
 
