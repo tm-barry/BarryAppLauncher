@@ -3,6 +3,23 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 Item {
+    QtObject {
+        id: utils
+
+        function folderFromFilePath(path) {
+            var lastSlash = path.lastIndexOf("/")
+            if (lastSlash === -1)
+                return ""
+            return path.substring(0, lastSlash)
+        }
+
+        function openPathFolder(path) {
+            var folderPath = folderFromFilePath(path)
+            var urlPath = Qt.resolvedUrl("file://" + folderPath)
+            Qt.openUrlExternally(urlPath)
+        }
+    }
+
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -53,9 +70,11 @@ Item {
                     Layout.preferredWidth: 100
                     visible: !AppImageManager.appImageMetadata?.executable
                     onClicked: {
-                        AppImageManager.appImageMetadata.executable = AppImageManager.unlockAppImage(AppImageManager.appImageMetadata.path);
+                        AppImageManager.appImageMetadata.executable
+                                = AppImageManager.unlockAppImage(
+                                    AppImageManager.appImageMetadata.path)
                         // Force ui update
-                        AppImageManager.appImageMetadata = AppImageManager.appImageMetadata;
+                        AppImageManager.appImageMetadata = AppImageManager.appImageMetadata
                     }
                 }
 
@@ -86,6 +105,103 @@ Item {
                     visible: AppImageManager.appImageMetadata?.executable
                              && AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.Internal
+                }
+            }
+
+            Item {
+                Layout.preferredHeight: 10
+            }
+
+            GroupBox {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.minimumWidth: 460
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 5
+
+                    Label {
+                        text: qsTr("Package type")
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: qsTr("AppImage Type ") + AppImageManager.appImageMetadata?.type
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 10
+                    }
+
+                    Label {
+                        text: qsTr("Path")
+                        font.bold: true
+                    }
+
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        TextField {
+                            text: AppImageManager.appImageMetadata?.path
+                            readOnly: true
+                            Layout.fillWidth: true
+                        }
+                        IconButton {
+                            text: "\uf0c5"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            onClicked: {
+                                ClipboardManager.copyToClipboard(
+                                            AppImageManager.appImageMetadata?.path)
+                            }
+                        }
+                        IconButton {
+                            text: "\uf07c"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            onClicked: utils.openPathFolder(AppImageManager.appImageMetadata?.path)
+                        }
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 10
+                    }
+
+                    Label {
+                        text: qsTr("Desktop Path")
+                        font.bold: true
+                    }
+
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        TextField {
+                            text: AppImageManager.appImageMetadata?.desktopFilePath
+                            placeholderText: qsTr("AppImage has not been integrated...")
+                            enabled: AppImageManager.appImageMetadata?.desktopFilePath
+                            readOnly: true
+                            Layout.fillWidth: true
+                        }
+                        IconButton {
+                            text: "\uf0c5"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            enabled: AppImageManager.appImageMetadata?.desktopFilePath
+                            onClicked: {
+                                ClipboardManager.copyToClipboard(
+                                            AppImageManager.appImageMetadata?.desktopFilePath)
+                            }
+                        }
+                        IconButton {
+                            text: "\uf07c"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            enabled: AppImageManager.appImageMetadata?.desktopFilePath
+                            onClicked: utils.openPathFolder(AppImageManager.appImageMetadata?.desktopFilePath)
+                        }
+                    }
                 }
             }
         }

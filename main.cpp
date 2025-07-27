@@ -1,4 +1,5 @@
 #include "managers/appimagemanager.h"
+#include "managers/clipboardmanager.h"
 #include "managers/errormanager.h"
 #include "providers/memoryimageprovider.h"
 
@@ -37,6 +38,15 @@ int main(int argc, char *argv[])
             return instance;
         }
     );
+
+    qmlRegisterSingletonType<ClipboardManager>(
+        "BarryAppLauncher", 1, 0, "ClipboardManager",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            auto* instance = ClipboardManager::instance();
+            QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+            return instance;
+        }
+        );
 
     qmlRegisterSingletonType<ErrorManager>(
         "BarryAppLauncher", 1, 0, "ErrorManager",

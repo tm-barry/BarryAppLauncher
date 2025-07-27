@@ -10,6 +10,7 @@ ApplicationWindow {
     property bool showAppInfoHeader: false
 
     width: 640
+    minimumWidth: 480
     height: 640
     visible: true
 

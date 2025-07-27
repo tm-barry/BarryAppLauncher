@@ -4,7 +4,7 @@ project(BarryAppLauncher VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Core QuickControls2 QuickDialogs2)
+find_package(Qt6 REQUIRED COMPONENTS Quick Core QuickControls2 QuickDialogs2 Gui)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBAPPIMAGE REQUIRED IMPORTED_TARGET libappimage)
@@ -38,6 +38,8 @@ qt_add_qml_module(appBarryAppLauncher
     SOURCES
         managers/appimagemanager.h
         managers/appimagemanager.cpp
+        managers/clipboardmanager.h
+        managers/clipboardmanager.cpp
         managers/errormanager.h
         managers/errormanager.cpp
         providers/memoryimageprovider.h
@@ -56,7 +58,7 @@ set_target_properties(appBarryAppLauncher PROPERTIES
 )
 
 target_link_libraries(appBarryAppLauncher
-    PRIVATE Qt6::Quick Qt6::Core Qt6::QuickControls2 Qt6::QuickDialogs2
+    PRIVATE Qt6::Quick Qt6::Core Qt6::QuickControls2 Qt6::QuickDialogs2 Qt6::Gui
     PkgConfig::LIBAPPIMAGE
 )
 

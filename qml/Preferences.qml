@@ -12,19 +12,6 @@ ApplicationWindow {
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
-    FolderDialog {
-        id: folderDialog
-        title: qsTr("AppImage Default Location")
-        currentFolder: Qt.resolvedUrl(
-                           AppSettings.appImageDefaultLocation.substring(
-                               0,
-                               AppSettings.appImageDefaultLocation.lastIndexOf(
-                                   "/")))
-        onAccepted: {
-            AppSettings.appImageDefaultLocation = folderDialog.selectedFolder
-        }
-    }
-
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -58,10 +45,34 @@ ApplicationWindow {
                             Layout.fillWidth: true
                         }
                         IconButton {
+                            text: "\uf0c5"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            onClicked: {
+                                ClipboardManager.copyToClipboard(
+                                            Qt.resolvedUrl(
+                                                AppSettings.appImageDefaultLocation).toString(
+                                                ).replace("file://", ""))
+                            }
+                        }
+                        IconButton {
                             text: "\uf07c"
-                            width: 65
-                            Layout.preferredWidth: 65
+                            width: 55
+                            Layout.preferredWidth: 55
                             onClicked: folderDialog.open()
+                        }
+
+                        FolderDialog {
+                            id: folderDialog
+                            title: qsTr("AppImage Default Location")
+                            currentFolder: Qt.resolvedUrl(
+                                               AppSettings.appImageDefaultLocation.substring(
+                                                   0,
+                                                   AppSettings.appImageDefaultLocation.lastIndexOf(
+                                                       "/")))
+                            onAccepted: {
+                                AppSettings.appImageDefaultLocation = folderDialog.selectedFolder
+                            }
                         }
                     }
 
