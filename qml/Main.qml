@@ -41,7 +41,7 @@ ApplicationWindow {
     Connections {
         target: AppImageManager
         function onBusyChanged(newValue) {
-            busyIndicator.running = newValue
+            busyIndicator.visible = newValue
         }
         function onStateChanged(newValue) {
             showAppInfoHeader = newValue === AppImageManager.AppInfo
@@ -81,6 +81,7 @@ ApplicationWindow {
             Action {
                 text: qsTr("&Open AppImage...")
                 onTriggered: fileDialog.open()
+                enabled: !AppImageManager.busy
             }
             MenuSeparator {}
             Action {
@@ -162,9 +163,13 @@ ApplicationWindow {
         source: "AppList.qml"
     }
 
-    BusyIndicator {
-        id: busyIndicator
-        anchors.centerIn: parent
-        running: false
+    footer: Rectangle {
+        ProgressBar {
+            id: busyIndicator
+            indeterminate: true
+            anchors.centerIn: parent
+            width: parent.width
+            visible: false
+        }
     }
 }
