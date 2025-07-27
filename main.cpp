@@ -3,6 +3,7 @@
 #include "providers/memoryimageprovider.h"
 
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QtQuickControls2/QQuickStyle>
@@ -13,6 +14,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Fusion");
     app.setOrganizationName("tm-barry");
     app.setApplicationName("BarryAppLauncher");
+    app.setWindowIcon(QIcon(":/assets/icons/barry-app-launcher.svg"));
 
     qRegisterMetaType<AppImageManager::AppState>("AppImageManager::AppState");
     qRegisterMetaType<ErrorManager::MessageType>("ErrorManager::MessageType");

@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
-        <file>fonts/fa-6-solid-900.otf</file>
+        <file>assets/fonts/fa-6-solid-900.otf</file>
+        <file>assets/icons/barry-app-launcher.svg</file>
     </qresource>
 </RCC>
