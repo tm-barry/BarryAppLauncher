@@ -1,5 +1,6 @@
 #include "appimagemanager.h"
 #include "errormanager.h"
+#include "settingsmanager.h"
 #include "providers/memoryimageprovider.h"
 
 #include <appimage/appimage.h>
@@ -11,6 +12,7 @@
 #include <QImage>
 #include <QObject>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QUrl>
 
 // ----------------- Public -----------------
@@ -124,13 +126,18 @@ void AppImageManager::registerAppImage(const QString& path)
     QFuture<void> future = QtConcurrent::run([=]() {
         setBusy(true);
         try {
-            // TODO - move/copy appimage
-            appimage::desktop_integration::IntegrationManager manager;
-            appimage::core::AppImage appImage(path.toUtf8().constData());
-            manager.registerAppImage(appImage);
+            QString newPath = handleIntegrationFileOperation(path);
+            if(!newPath.isEmpty())
+            {
+                appimage::desktop_integration::IntegrationManager manager;
+                appimage::core::AppImage appImage(newPath.toUtf8().constData());
+                manager.registerAppImage(appImage);
 
-            // Load new appimage metadata
-            loadAppImageMetadata(path);
+                // Load new appimage metadata
+                loadAppImageMetadata(newPath);
+            }
+            else
+                ErrorManager::instance()->reportError("Failed to move/copy appimage.");
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
         }
@@ -150,6 +157,9 @@ void AppImageManager::unregisterAppImage(const QString& path)
         try {
             appimage::desktop_integration::IntegrationManager manager;
             manager.unregisterAppImage(path.toUtf8().constData());
+
+            // Load new appimage metadata
+            loadAppImageMetadata(path);
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
         }
@@ -162,6 +172,8 @@ void AppImageManager::unregisterAppImage(const QString& path)
 AppImageManager::AppImageManager(QObject *parent)
     : QObject{parent}
 {}
+
+const QRegularExpression AppImageManager::invalidChars(R"([/\\:*?"<>|])");
 
 AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
     AppImageMetadata appImageMetadata;
@@ -346,4 +358,61 @@ void AppImageManager::loadMetadataFromDesktopContent(AppImageMetadata& appImageM
 bool AppImageManager::isExecutable(const QString &filePath) {
     QFileInfo fileInfo(filePath);
     return fileInfo.isExecutable();
+}
+
+QString AppImageManager::findNextAvailableFilename(const QString& fullPath) {
+    QFileInfo fileInfo(fullPath);
+    QDir dir = fileInfo.dir();
+    QString baseName = fileInfo.completeBaseName();
+    QString extension = fileInfo.suffix();
+
+    QString fileName = fileInfo.fileName();
+    int counter = 1;
+
+    while (dir.exists(fileName)) {
+        if (extension.isEmpty()) {
+            fileName = QString("%1(%2)").arg(baseName).arg(counter);
+        } else {
+            fileName = QString("%1(%2).%3").arg(baseName).arg(counter).arg(extension);
+        }
+        counter++;
+    }
+
+    return dir.filePath(fileName);
+}
+
+QString AppImageManager::handleIntegrationFileOperation(const QString& path)
+{
+    if (!QFile::exists(path)) {
+        qWarning() << "Source file does not exist:" << path;
+        return "";
+    }
+
+    AppImageMetadata metadata;
+    QString desktopContent = getInternalAppImageDesktopContent(path);
+    loadMetadataFromDesktopContent(metadata, desktopContent);
+    QString appName = metadata.name;
+    appName.replace(invalidChars, "_");
+    if(appName.isEmpty())
+    {
+        QFileInfo info(path);
+        appName = info.baseName();
+    }
+    QString fileName = QString("%1.appimage").arg((appName).trimmed().toLower());
+    QDir dir(SettingsManager::instance()->appImageDefaultLocation().toLocalFile());
+    QString newPath = dir.filePath(fileName);
+    newPath = findNextAvailableFilename(newPath);
+
+    bool success = false;
+    switch(SettingsManager::instance()->appImageFileOperation()) {
+    case SettingsManager::Move:
+        success = QFile::rename(path, newPath);
+        break;
+    case SettingsManager::Copy:
+    default:
+        success = QFile::copy(path, newPath);
+        break;
+    }
+
+    return success ? newPath : "";
 }

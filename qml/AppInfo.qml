@@ -89,22 +89,26 @@ Item {
                 }
 
                 ColorButton {
-                    text: qsTr("Integrate")
+                    text: qsTr("Register")
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
                     visible: AppImageManager.appImageMetadata?.executable
                              && AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.None
+                    onClicked: AppImageManager.registerAppImage(
+                                   AppImageManager.appImageMetadata?.path)
                 }
 
                 ColorButton {
-                    text: qsTr("Delete")
+                    text: qsTr("Unregister")
                     backgroundColor: "#C43D3D"
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
                     visible: AppImageManager.appImageMetadata?.executable
                              && AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.Internal
+                    onClicked: AppImageManager.unregisterAppImage(
+                                   AppImageManager.appImageMetadata?.path)
                 }
             }
 

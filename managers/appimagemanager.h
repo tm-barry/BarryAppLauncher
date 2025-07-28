@@ -80,6 +80,7 @@ public:
 private:
     explicit AppImageManager(QObject *parent = nullptr);
 
+    static const QRegularExpression invalidChars;
     AppImageMetadata m_appImageMetadata;
     bool m_busy = false;
     AppState m_state = AppList;
@@ -91,6 +92,8 @@ private:
     QImage getAppImageIcon(const QString& path);
     void loadMetadataFromDesktopContent(AppImageMetadata& appImageMetadata, const QString& desktopContent);
     bool isExecutable(const QString &filePath);
+    QString findNextAvailableFilename(const QString& fullPath);
+    QString handleIntegrationFileOperation(const QString& path);
 
     Q_DISABLE_COPY(AppImageManager);
 
