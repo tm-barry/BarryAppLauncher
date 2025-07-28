@@ -108,12 +108,18 @@ void AppImageManager::launchAppImage(const QUrl& url)
 }
 
 void AppImageManager::launchAppImage(const QString& path)
-{
-    try {
-        QProcess::startDetached(path);
-    } catch (const std::exception &e) {
-        ErrorManager::instance()->reportError(e.what());
-    }
+{    QFuture<void> future = QtConcurrent::run([=]() {
+        try {
+            bool success = QProcess::startDetached(path);
+
+            if(!success)
+            {
+                ErrorManager::instance()->reportError("Failed to launch appimage.");
+            }
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+    });
 }
 
 void AppImageManager::registerAppImage(const QUrl& url)

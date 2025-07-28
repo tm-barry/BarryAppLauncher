@@ -7,7 +7,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     width: 540
     minimumWidth: 270
-    height: 540
+    height: 270
     minimumHeight: 270
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
@@ -31,8 +31,13 @@ ApplicationWindow {
             width: scrollView.width
             spacing: 10
 
+            Label {
+                text: qsTr("General")
+                font.bold: true
+                font.pixelSize: 14
+                Layout.alignment: Qt.AlignHCenter
+            }
             GroupBox {
-                title: qsTr("General")
                 Layout.fillWidth: true
 
                 ColumnLayout {
@@ -41,12 +46,13 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("AppImage default location")
+                        font.bold: true
                     }
                     RowLayout {
                         spacing: 5
                         Layout.fillWidth: true
 
-                        TextField {
+                        TextArea {
                             placeholderText: qsTr("AppImage default location")
                             text: Qt.resolvedUrl(
                                       SettingsManager.appImageDefaultLocation).toString(
@@ -89,6 +95,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Move/Copy appimages")
+                        font.bold: true
                     }
                     RowLayout {
                         spacing: 5

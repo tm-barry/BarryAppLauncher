@@ -24,6 +24,7 @@ Item {
         id: scrollView
         anchors.fill: parent
         anchors.margins: 10
+        anchors.topMargin: -20
 
         ColumnLayout {
             width: scrollView.width
@@ -31,8 +32,8 @@ Item {
 
             Image {
                 source: AppImageManager.appImageMetadata?.icon
-                width: 128
-                height: 128
+                width: 96
+                height: 96
                 sourceSize.width: width
                 sourceSize.height: height
                 fillMode: Image.PreserveAspectFit
@@ -78,14 +79,30 @@ Item {
                     }
                 }
 
+                Timer {
+                    id: launchTimer
+                    interval: 2000
+                    repeat: false
+                }
+
                 ColorButton {
-                    text: qsTr("Launch")
+                    text: launchTimer.running ? qsTr("Launching") : qsTr(
+                                                    "Launch")
                     backgroundColor: "#4E7A6A"
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
+                    enabled: !launchTimer.running
                     visible: AppImageManager.appImageMetadata?.executable
-                    onClicked: AppImageManager.launchAppImage(
-                                   AppImageManager.appImageMetadata?.path)
+                    onClicked: {
+                        if (!AppImageManager.appImageMetadata?.integrated) {
+                            AppImageManager.launchAppImage(
+                                        AppImageManager.appImageMetadata?.path)
+                        } else {
+                            AppImageManager.launchAppImage(
+                                        AppImageManager.appImageMetadata?.desktopFilePath)
+                        }
+                        launchTimer.start()
+                    }
                 }
 
                 ColorButton {
@@ -112,10 +129,23 @@ Item {
                 }
             }
 
+            Label {
+                text: qsTr("This AppImage appears to have been integrated by another application.")
+                color: "#C43D3D"
+                Layout.alignment: Qt.AlignHCenter
+                visible: AppImageManager.appImageMetadata?.integration === AppImageMetadata.External
+            }
+
             Item {
                 Layout.preferredHeight: 10
             }
 
+            Label {
+                text: qsTr("General")
+                font.bold: true
+                font.pixelSize: 14
+                Layout.alignment: Qt.AlignHCenter
+            }
             GroupBox {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.minimumWidth: 460
@@ -146,7 +176,7 @@ Item {
                         spacing: 5
                         Layout.fillWidth: true
 
-                        TextField {
+                        TextArea {
                             text: AppImageManager.appImageMetadata?.path
                             readOnly: true
                             Layout.fillWidth: true
@@ -164,13 +194,30 @@ Item {
                             text: "\uf07c"
                             width: 55
                             Layout.preferredWidth: 55
-                            onClicked: utils.openPathFolder(AppImageManager.appImageMetadata?.path)
+                            onClicked: utils.openPathFolder(
+                                           AppImageManager.appImageMetadata?.path)
                         }
                     }
+                }
+            }
 
-                    Item {
-                        Layout.preferredHeight: 10
-                    }
+            Item {
+                Layout.preferredHeight: 10
+            }
+
+            Label {
+                text: qsTr("Desktop Integration")
+                font.bold: true
+                font.pixelSize: 14
+                Layout.alignment: Qt.AlignHCenter
+            }
+            GroupBox {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.minimumWidth: 460
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 5
 
                     Label {
                         text: qsTr("Desktop Path")
@@ -181,7 +228,7 @@ Item {
                         spacing: 5
                         Layout.fillWidth: true
 
-                        TextField {
+                        TextArea {
                             text: AppImageManager.appImageMetadata?.desktopFilePath
                             placeholderText: qsTr("AppImage has not been integrated...")
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
@@ -203,8 +250,22 @@ Item {
                             width: 55
                             Layout.preferredWidth: 55
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
-                            onClicked: utils.openPathFolder(AppImageManager.appImageMetadata?.desktopFilePath)
+                            onClicked: utils.openPathFolder(
+                                           AppImageManager.appImageMetadata?.desktopFilePath)
                         }
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 10
+                    }
+
+                    Label {
+                        text: qsTr("Categories")
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: AppImageManager.appImageMetadata?.categories
                     }
                 }
             }
