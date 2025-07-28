@@ -149,6 +149,7 @@ Item {
             GroupBox {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.minimumWidth: 460
+                Layout.maximumWidth: 460
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -179,6 +180,7 @@ Item {
                         TextArea {
                             text: AppImageManager.appImageMetadata?.path
                             readOnly: true
+                            wrapMode: TextEdit.Wrap
                             Layout.fillWidth: true
                         }
                         IconButton {
@@ -214,6 +216,7 @@ Item {
             GroupBox {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.minimumWidth: 460
+                Layout.maximumWidth: 460
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -233,6 +236,7 @@ Item {
                             placeholderText: qsTr("AppImage has not been integrated...")
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
                             readOnly: true
+                            wrapMode: TextEdit.Wrap
                             Layout.fillWidth: true
                         }
                         IconButton {

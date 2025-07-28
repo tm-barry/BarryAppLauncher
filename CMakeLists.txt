@@ -39,6 +39,8 @@ qt_add_qml_module(appBarryAppLauncher
         managers/errormanager.cpp
         managers/settingsmanager.h
         managers/settingsmanager.cpp
+        models/appimagemetadata.h
+        models/appimagemetadata.cpp
         providers/memoryimageprovider.h
         providers/memoryimageprovider.cpp
 )

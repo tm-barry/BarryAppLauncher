@@ -7,6 +7,7 @@
 #include <appimage/core/AppImage.h>
 #include <appimage/desktop_integration/IntegrationManager.h>
 
+#include <QGuiApplication>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QDir>
 #include <QImage>
@@ -22,13 +23,20 @@ AppImageManager* AppImageManager::instance() {
     return &singleton;
 }
 
-AppImageMetadata AppImageManager::appImageMetadata() {
+AppImageMetadata* AppImageManager::appImageMetadata() const {
     return m_appImageMetadata;
 }
 
-void AppImageManager::setAppImageMetadata(AppImageMetadata value) {
+void AppImageManager::setAppImageMetadata(AppImageMetadata* value) {
+    if (m_appImageMetadata == value)
+        return;
+
+    if (m_appImageMetadata)
+        m_appImageMetadata->deleteLater();
+
     m_appImageMetadata = value;
-    emit appImageMetadataChanged(value);
+
+    emit appImageMetadataChanged(m_appImageMetadata);
 }
 
 bool AppImageManager::busy() const {
@@ -59,13 +67,13 @@ void AppImageManager::loadAppImageMetadata(const QUrl& url) {
 
 void AppImageManager::loadAppImageMetadata(const QString& path) {
     QFuture<void> future = QtConcurrent::run([=]() {
-        AppImageMetadata appImageMetadata;
         setBusy(true);
         try {
-            appImageMetadata = getAppImageMetadata(path);
-            setAppImageMetadata(appImageMetadata);
+            AppImageMetadataStruct metadataStruct = getAppImageMetadata(path);
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [=]() {
+                setAppImageMetadata(parseAppImageMetadata(metadataStruct));
+            });
             setState(AppInfo);
-
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
         }
@@ -108,18 +116,17 @@ void AppImageManager::launchAppImage(const QUrl& url)
 }
 
 void AppImageManager::launchAppImage(const QString& path)
-{    QFuture<void> future = QtConcurrent::run([=]() {
-        try {
-            bool success = QProcess::startDetached(path);
+{
+    try {
+        bool success = QProcess::startDetached(path);
 
-            if(!success)
-            {
-                ErrorManager::instance()->reportError("Failed to launch appimage.");
-            }
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
+        if(!success)
+        {
+            ErrorManager::instance()->reportError("Failed to launch appimage.");
         }
-    });
+    } catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+    }
 }
 
 void AppImageManager::registerAppImage(const QUrl& url)
@@ -181,46 +188,62 @@ AppImageManager::AppImageManager(QObject *parent)
 
 const QRegularExpression AppImageManager::invalidChars(R"([/\\:*?"<>|])");
 
-AppImageMetadata AppImageManager::getAppImageMetadata(const QString& path) {
-    AppImageMetadata appImageMetadata;
+AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageMetadataStruct& metadataStruct)
+{
+    auto* metadata = new AppImageMetadata();
+    metadata->setName(metadataStruct.name);
+    metadata->setVersion(metadataStruct.version);
+    metadata->setComment(metadataStruct.comment);
+    metadata->setType(metadataStruct.type);
+    metadata->setIcon(metadataStruct.icon);
+    metadata->setMd5(metadataStruct.md5);
+    metadata->setCategories(metadataStruct.categories);
+    metadata->setPath(metadataStruct.path);
+    metadata->setIntegration(metadataStruct.integration);
+    metadata->setDesktopFilePath(metadataStruct.desktopFilePath);
+    metadata->setExecutable(metadataStruct.executable);
+
+    return metadata;
+}
+
+AppImageMetadataStruct AppImageManager::getAppImageMetadata(const QString& path) {
+    AppImageMetadataStruct appImageMetadata;
+
     appImageMetadata.path = path;
     int type = appimage_get_type(path.toUtf8().constData(), false);
     appImageMetadata.type = type;
     appImageMetadata.executable = isExecutable(path);
 
     if (type <= 0) {
-        ErrorManager::instance()->reportError("Unsupported AppImage type");
-        return appImageMetadata;
+        throw std::runtime_error("Unsupported AppImage type");
     }
 
     char* md5 = appimage_get_md5(path.toUtf8().constData());
     appImageMetadata.md5 = QString::fromUtf8(md5);
     QString desktopPath = appimage_registered_desktop_file_path(path.toUtf8().constData(), md5, false);
-    if(desktopPath != nullptr)
-    {
+    free(md5);
+
+    if (!desktopPath.isEmpty()) {
         appImageMetadata.integration = AppImageMetadata::Internal;
-    }
-    else
-    {
+    } else {
         desktopPath = getDesktopFileForExecutable(path);
-        if(desktopPath != nullptr)
-        {
+        if (!desktopPath.isEmpty()) {
             appImageMetadata.integration = AppImageMetadata::External;
+        } else {
+            appImageMetadata.integration = AppImageMetadata::None;
         }
     }
 
     QString desktopContent;
-    if(appImageMetadata.integration == AppImageMetadata::None) {
+    if (appImageMetadata.integration == AppImageMetadata::None) {
         desktopContent = getInternalAppImageDesktopContent(path);
-    }
-    else
-    {
+    } else {
         appImageMetadata.desktopFilePath = desktopPath;
         desktopContent = getExternalAppImageDesktopContent(desktopPath);
     }
 
     MemoryImageProvider::instance()->setImage(path, getAppImageIcon(path));
-    appImageMetadata.icon = MemoryImageProvider::instance() -> getUrl(path);
+    appImageMetadata.icon = MemoryImageProvider::instance()->getUrl(path);
 
     loadMetadataFromDesktopContent(appImageMetadata, desktopContent);
 
@@ -341,7 +364,7 @@ QImage AppImageManager::getAppImageIcon(const QString& path)
     return iconImage;
 }
 
-void AppImageManager::loadMetadataFromDesktopContent(AppImageMetadata& appImageMetadata, const QString& desktopContent)
+void AppImageManager::loadMetadataFromDesktopContent(AppImageMetadataStruct& appImageMetadata, const QString& desktopContent)
 {
     const QStringList lines = desktopContent.split('\n');
     for (const QString& line : lines) {
@@ -394,7 +417,7 @@ QString AppImageManager::handleIntegrationFileOperation(const QString& path)
         return "";
     }
 
-    AppImageMetadata metadata;
+    AppImageMetadataStruct metadata;
     QString desktopContent = getInternalAppImageDesktopContent(path);
     loadMetadataFromDesktopContent(metadata, desktopContent);
     QString appName = metadata.name;

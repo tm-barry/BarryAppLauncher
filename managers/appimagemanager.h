@@ -3,32 +3,14 @@
 
 #pragma once
 
+#include "models/appimagemetadata.h"
+
 #include <QDir>
 #include <QObject>
 #include <QUrl>
 
-struct AppImageMetadata {
-    Q_GADGET
-
-    Q_PROPERTY(QString name MEMBER name)
-    Q_PROPERTY(QString version MEMBER version)
-    Q_PROPERTY(QString comment MEMBER comment)
-    Q_PROPERTY(int type MEMBER type)
-    Q_PROPERTY(QUrl icon MEMBER icon)
-    Q_PROPERTY(QString md5 MEMBER md5)
-    Q_PROPERTY(QString categories MEMBER categories)
-    Q_PROPERTY(QString path MEMBER path)
-    Q_PROPERTY(IntegrationType integration MEMBER integration)
-    Q_PROPERTY(QString desktopFilePath MEMBER desktopFilePath)
-    Q_PROPERTY(bool executable MEMBER executable)
+struct AppImageMetadataStruct {
 public:
-    enum IntegrationType {
-        None,
-        Internal,
-        External
-    };
-    Q_ENUM(IntegrationType);
-
     QString name;
     QString version;
     QString comment;
@@ -37,7 +19,7 @@ public:
     QString md5;
     QString categories;
     QString path;
-    IntegrationType integration = None;
+    AppImageMetadata::IntegrationType integration = AppImageMetadata::None;
     QString desktopFilePath;
     bool executable;
 };
@@ -45,7 +27,7 @@ public:
 class AppImageManager : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(AppImageMetadata appImageMetadata READ appImageMetadata WRITE setAppImageMetadata NOTIFY appImageMetadataChanged)
+    Q_PROPERTY(AppImageMetadata* appImageMetadata READ appImageMetadata WRITE setAppImageMetadata NOTIFY appImageMetadataChanged)
     Q_PROPERTY(bool busy READ busy WRITE setBusy NOTIFY busyChanged)
     Q_PROPERTY(AppState state READ state WRITE setState NOTIFY stateChanged)
 public:
@@ -57,8 +39,8 @@ public:
     };
     Q_ENUM(AppState);
 
-    AppImageMetadata appImageMetadata();
-    void setAppImageMetadata(AppImageMetadata value);
+    AppImageMetadata* appImageMetadata() const;
+    void setAppImageMetadata(AppImageMetadata* value);
 
     bool busy() const;
     void setBusy(bool value);
@@ -81,16 +63,17 @@ private:
     explicit AppImageManager(QObject *parent = nullptr);
 
     static const QRegularExpression invalidChars;
-    AppImageMetadata m_appImageMetadata;
+    AppImageMetadata* m_appImageMetadata = nullptr;
     bool m_busy = false;
     AppState m_state = AppList;
 
-    AppImageMetadata getAppImageMetadata(const QString& path);
+    AppImageMetadata* parseAppImageMetadata(const AppImageMetadataStruct& appImageMetadata);
+    AppImageMetadataStruct getAppImageMetadata(const QString& path);
     QString getDesktopFileForExecutable(const QString& executablePath);
     QString getInternalAppImageDesktopContent(const QString& appImagePath);
     QString getExternalAppImageDesktopContent(const QString& desktopPath);
     QImage getAppImageIcon(const QString& path);
-    void loadMetadataFromDesktopContent(AppImageMetadata& appImageMetadata, const QString& desktopContent);
+    void loadMetadataFromDesktopContent(AppImageMetadataStruct& appImageMetadata, const QString& desktopContent);
     bool isExecutable(const QString &filePath);
     QString findNextAvailableFilename(const QString& fullPath);
     QString handleIntegrationFileOperation(const QString& path);
@@ -98,7 +81,7 @@ private:
     Q_DISABLE_COPY(AppImageManager);
 
 signals:
-    void appImageMetadataChanged(AppImageMetadata newValue);
+    void appImageMetadataChanged(AppImageMetadata* newValue);
     void busyChanged(bool newValue);
     void stateChanged(AppImageManager::AppState newValue);
 };
