@@ -7,8 +7,6 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: mainWindow
 
-    property bool showAppInfoHeader: false
-
     width: 640
     minimumWidth: 480
     height: 640
@@ -44,7 +42,6 @@ ApplicationWindow {
             busyIndicator.visible = newValue
         }
         function onStateChanged(newValue) {
-            showAppInfoHeader = newValue === AppImageManager.AppInfo
             switch (newValue) {
             case AppImageManager.AppInfo:
                 pageContent.source = "AppInfo.qml"
@@ -120,7 +117,7 @@ ApplicationWindow {
 
     Loader {
         id: headerLoader
-        sourceComponent: showAppInfoHeader ? appInfoHeaderComponent : null
+        sourceComponent: AppImageManager.state === AppImageManager.AppInfo ? appInfoHeaderComponent : null
     }
 
     Component {
