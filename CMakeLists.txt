@@ -20,17 +20,12 @@ qt_add_executable(appBarryAppLauncher
     ${RESOURCES}
 )
 
-set_source_files_properties(qml/AppSettings.qml PROPERTIES
-    QT_QML_SINGLETON_TYPE TRUE
-)
-
 qt_add_qml_module(appBarryAppLauncher
     URI BarryAppLauncher
     VERSION 1.0
     QML_FILES
         qml/AppInfo.qml
         qml/AppList.qml
-        qml/AppSettings.qml
         qml/ColorButton.qml
         qml/IconButton.qml
         qml/Main.qml
@@ -42,6 +37,8 @@ qt_add_qml_module(appBarryAppLauncher
         managers/clipboardmanager.cpp
         managers/errormanager.h
         managers/errormanager.cpp
+        managers/settingsmanager.h
+        managers/settingsmanager.cpp
         providers/memoryimageprovider.h
         providers/memoryimageprovider.cpp
 )

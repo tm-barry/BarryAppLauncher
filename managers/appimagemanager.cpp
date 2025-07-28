@@ -4,6 +4,7 @@
 
 #include <appimage/appimage.h>
 #include <appimage/core/AppImage.h>
+#include <appimage/desktop_integration/IntegrationManager.h>
 
 #include <QtConcurrent/QtConcurrentRun>
 #include <QDir>
@@ -111,6 +112,49 @@ void AppImageManager::launchAppImage(const QString& path)
     } catch (const std::exception &e) {
         ErrorManager::instance()->reportError(e.what());
     }
+}
+
+void AppImageManager::registerAppImage(const QUrl& url)
+{
+    registerAppImage(url.toLocalFile());
+}
+
+void AppImageManager::registerAppImage(const QString& path)
+{
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setBusy(true);
+        try {
+            // TODO - move/copy appimage
+            appimage::desktop_integration::IntegrationManager manager;
+            appimage::core::AppImage appImage(path.toUtf8().constData());
+            manager.registerAppImage(appImage);
+
+            // Load new appimage metadata
+            loadAppImageMetadata(path);
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setBusy(false);
+    });
+}
+
+void AppImageManager::unregisterAppImage(const QUrl& url)
+{
+    unregisterAppImage(url.toLocalFile());
+}
+
+void AppImageManager::unregisterAppImage(const QString& path)
+{
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setBusy(true);
+        try {
+            appimage::desktop_integration::IntegrationManager manager;
+            manager.unregisterAppImage(path.toUtf8().constData());
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setBusy(false);
+    });
 }
 
 // ----------------- Private -----------------

@@ -12,6 +12,16 @@ ApplicationWindow {
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
+    QtObject {
+        id: utils
+
+        function getParentFolder(url) {
+            const path = url.toString()
+            const parent = path.substring(0, path.lastIndexOf("/"))
+            return parent
+        }
+    }
+
     ScrollView {
         id: scrollView
         anchors.fill: parent
@@ -39,7 +49,7 @@ ApplicationWindow {
                         TextField {
                             placeholderText: qsTr("AppImage default location")
                             text: Qt.resolvedUrl(
-                                      AppSettings.appImageDefaultLocation).toString(
+                                      SettingsManager.appImageDefaultLocation).toString(
                                       ).replace("file://", "")
                             readOnly: true
                             Layout.fillWidth: true
@@ -51,7 +61,7 @@ ApplicationWindow {
                             onClicked: {
                                 ClipboardManager.copyToClipboard(
                                             Qt.resolvedUrl(
-                                                AppSettings.appImageDefaultLocation).toString(
+                                                SettingsManager.appImageDefaultLocation).toString(
                                                 ).replace("file://", ""))
                             }
                         }
@@ -65,13 +75,10 @@ ApplicationWindow {
                         FolderDialog {
                             id: folderDialog
                             title: qsTr("AppImage Default Location")
-                            currentFolder: Qt.resolvedUrl(
-                                               AppSettings.appImageDefaultLocation.substring(
-                                                   0,
-                                                   AppSettings.appImageDefaultLocation.lastIndexOf(
-                                                       "/")))
+                            currentFolder: utils.getParentFolder(SettingsManager.appImageDefaultLocation)
                             onAccepted: {
-                                AppSettings.appImageDefaultLocation = folderDialog.selectedFolder
+                                SettingsManager.appImageDefaultLocation
+                                        = folderDialog.selectedFolder
                             }
                         }
                     }
@@ -90,8 +97,9 @@ ApplicationWindow {
                         ComboBox {
                             Layout.fillWidth: true
                             model: [qsTr("Move"), qsTr("Copy")]
-                            currentIndex: AppSettings.appImageFileOperation
-                            onCurrentIndexChanged: AppSettings.appImageFileOperation = currentIndex
+                            currentIndex: SettingsManager.appImageFileOperation
+                            onCurrentIndexChanged: SettingsManager.appImageFileOperation
+                                                   = currentIndex
                         }
                     }
                 }

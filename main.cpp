@@ -1,6 +1,7 @@
 #include "managers/appimagemanager.h"
 #include "managers/clipboardmanager.h"
 #include "managers/errormanager.h"
+#include "managers/settingsmanager.h"
 #include "providers/memoryimageprovider.h"
 
 #include <QGuiApplication>
@@ -56,6 +57,15 @@ int main(int argc, char *argv[])
             return instance;
         }
     );
+
+    qmlRegisterSingletonType<SettingsManager>(
+        "BarryAppLauncher", 1, 0, "SettingsManager",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            auto* instance = SettingsManager::instance();
+            QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+            return instance;
+        }
+        );
 
     auto* memoryImageProvider = MemoryImageProvider::instance();
     engine.addImageProvider(MemoryImageProvider::providerName, memoryImageProvider);

@@ -72,6 +72,10 @@ public:
     Q_INVOKABLE bool unlockAppImage(const QString& path);
     Q_INVOKABLE void launchAppImage(const QUrl& url);
     Q_INVOKABLE void launchAppImage(const QString& path);
+    Q_INVOKABLE void registerAppImage(const QUrl& url);
+    Q_INVOKABLE void registerAppImage(const QString& path);
+    Q_INVOKABLE void unregisterAppImage(const QUrl& url);
+    Q_INVOKABLE void unregisterAppImage(const QString& path);
 
 private:
     explicit AppImageManager(QObject *parent = nullptr);
