@@ -6,9 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick Core QuickControls2 QuickDialogs2 Gui)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBAPPIMAGE REQUIRED IMPORTED_TARGET libappimage)
-
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_resources(RESOURCES
@@ -43,6 +40,8 @@ qt_add_qml_module(appBarryAppLauncher
         models/appimagemetadata.cpp
         providers/memoryimageprovider.h
         providers/memoryimageprovider.cpp
+        utils/appimageutil.h
+        utils/appimageutil.cpp
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
@@ -58,7 +57,6 @@ set_target_properties(appBarryAppLauncher PROPERTIES
 
 target_link_libraries(appBarryAppLauncher
     PRIVATE Qt6::Quick Qt6::Core Qt6::QuickControls2 Qt6::QuickDialogs2 Qt6::Gui
-    PkgConfig::LIBAPPIMAGE
 )
 
 include(GNUInstallDirs)

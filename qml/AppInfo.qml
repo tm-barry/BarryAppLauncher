@@ -65,20 +65,6 @@ Item {
                 spacing: 10
                 Layout.alignment: Qt.AlignHCenter
 
-                Button {
-                    text: qsTr("Unlock")
-                    font.pixelSize: 16
-                    Layout.preferredWidth: 100
-                    visible: !AppImageManager.appImageMetadata?.executable
-                    onClicked: {
-                        AppImageManager.appImageMetadata.executable
-                                = AppImageManager.unlockAppImage(
-                                    AppImageManager.appImageMetadata.path)
-                        // Force ui update
-                        AppImageManager.appImageMetadata = AppImageManager.appImageMetadata
-                    }
-                }
-
                 Timer {
                     id: launchTimer
                     interval: 2000
@@ -92,7 +78,6 @@ Item {
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
                     enabled: !launchTimer.running
-                    visible: AppImageManager.appImageMetadata?.executable
                     onClicked: {
                         if (!AppImageManager.appImageMetadata?.integrated) {
                             AppImageManager.launchAppImage(
@@ -109,8 +94,7 @@ Item {
                     text: qsTr("Register")
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
-                    visible: AppImageManager.appImageMetadata?.executable
-                             && AppImageManager.appImageMetadata?.integration
+                    visible: AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.None
                     onClicked: AppImageManager.registerAppImage(
                                    AppImageManager.appImageMetadata?.path)
@@ -121,8 +105,7 @@ Item {
                     backgroundColor: "#C43D3D"
                     font.pixelSize: 16
                     Layout.preferredWidth: 100
-                    visible: AppImageManager.appImageMetadata?.executable
-                             && AppImageManager.appImageMetadata?.integration
+                    visible: AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.Internal
                     onClicked: AppImageManager.unregisterAppImage(
                                    AppImageManager.appImageMetadata?.path)

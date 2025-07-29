@@ -5,7 +5,6 @@ AppImageMetadata::AppImageMetadata(QObject* parent)
     : QObject(parent)
     , m_type(0)
     , m_integration(None)
-    , m_executable(false)
 {}
 
 // Getters and setters with change notifications
@@ -87,13 +86,5 @@ void AppImageMetadata::setDesktopFilePath(const QString& value) {
     if (m_desktopFilePath != value) {
         m_desktopFilePath = value;
         emit desktopFilePathChanged();
-    }
-}
-
-bool AppImageMetadata::executable() const { return m_executable; }
-void AppImageMetadata::setExecutable(bool value) {
-    if (m_executable != value) {
-        m_executable = value;
-        emit executableChanged();
     }
 }

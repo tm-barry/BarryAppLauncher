@@ -3,10 +3,6 @@
 #include "settingsmanager.h"
 #include "providers/memoryimageprovider.h"
 
-#include <appimage/appimage.h>
-#include <appimage/core/AppImage.h>
-#include <appimage/desktop_integration/IntegrationManager.h>
-
 #include <QGuiApplication>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QDir>
@@ -68,10 +64,15 @@ void AppImageManager::loadAppImageMetadata(const QUrl& url) {
 void AppImageManager::loadAppImageMetadata(const QString& path) {
     QFuture<void> future = QtConcurrent::run([=]() {
         setBusy(true);
+        AppImageUtil util(path);
         try {
-            AppImageMetadataStruct metadataStruct = getAppImageMetadata(path);
+            AppImageUtilMetadata metadata = util.metadata();
+            QImage image(metadata.iconPath);
+            MemoryImageProvider::instance()->setImage(path, image);
             QMetaObject::invokeMethod(QGuiApplication::instance(), [=]() {
-                setAppImageMetadata(parseAppImageMetadata(metadataStruct));
+                auto* appImageMetadata = parseAppImageMetadata(metadata);
+                appImageMetadata->setIcon(MemoryImageProvider::instance()->getUrl(path));
+                setAppImageMetadata(appImageMetadata);
             });
             setState(AppInfo);
         } catch (const std::exception &e) {
@@ -79,35 +80,6 @@ void AppImageManager::loadAppImageMetadata(const QString& path) {
         }
         setBusy(false);
     });
-}
-
-bool AppImageManager::unlockAppImage(const QUrl& url)
-{
-    return unlockAppImage(url.toLocalFile());
-}
-
-bool AppImageManager::unlockAppImage(const QString& path)
-{
-    try {
-        QFile file(path);
-        if (!file.exists()) {
-            ErrorManager::instance()->reportError("File does not exist: " + path);
-            return false;
-        }
-
-        QFile::Permissions perms = file.permissions();
-        perms |= QFileDevice::ExeUser | QFileDevice::ExeGroup | QFileDevice::ExeOther;
-
-        if (!file.setPermissions(perms)) {
-            ErrorManager::instance()->reportError("Failed to set executable permissions for: " + path);
-            return false;
-        }
-    } catch (const std::exception &e) {
-        ErrorManager::instance()->reportError(e.what());
-        return false;
-    }
-
-    return true;
 }
 
 void AppImageManager::launchAppImage(const QUrl& url)
@@ -131,53 +103,53 @@ void AppImageManager::launchAppImage(const QString& path)
 
 void AppImageManager::registerAppImage(const QUrl& url)
 {
-    registerAppImage(url.toLocalFile());
+    // registerAppImage(url.toLocalFile());
 }
 
 void AppImageManager::registerAppImage(const QString& path)
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
-        setBusy(true);
-        try {
-            QString newPath = handleIntegrationFileOperation(path);
-            if(!newPath.isEmpty())
-            {
-                appimage::desktop_integration::IntegrationManager manager;
-                appimage::core::AppImage appImage(newPath.toUtf8().constData());
-                manager.registerAppImage(appImage);
+    // QFuture<void> future = QtConcurrent::run([=]() {
+    //     setBusy(true);
+    //     try {
+    //         QString newPath = handleIntegrationFileOperation(path);
+    //         if(!newPath.isEmpty())
+    //         {
+    //             appimage::desktop_integration::IntegrationManager manager;
+    //             appimage::core::AppImage appImage(newPath.toUtf8().constData());
+    //             manager.registerAppImage(appImage);
 
-                // Load new appimage metadata
-                loadAppImageMetadata(newPath);
-            }
-            else
-                ErrorManager::instance()->reportError("Failed to move/copy appimage.");
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
-        }
-        setBusy(false);
-    });
+    //             // Load new appimage metadata
+    //             loadAppImageMetadata(newPath);
+    //         }
+    //         else
+    //             ErrorManager::instance()->reportError("Failed to move/copy appimage.");
+    //     } catch (const std::exception &e) {
+    //         ErrorManager::instance()->reportError(e.what());
+    //     }
+    //     setBusy(false);
+    // });
 }
 
 void AppImageManager::unregisterAppImage(const QUrl& url)
 {
-    unregisterAppImage(url.toLocalFile());
+    // unregisterAppImage(url.toLocalFile());
 }
 
 void AppImageManager::unregisterAppImage(const QString& path)
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
-        setBusy(true);
-        try {
-            appimage::desktop_integration::IntegrationManager manager;
-            manager.unregisterAppImage(path.toUtf8().constData());
+    // QFuture<void> future = QtConcurrent::run([=]() {
+    //     setBusy(true);
+    //     try {
+    //         appimage::desktop_integration::IntegrationManager manager;
+    //         manager.unregisterAppImage(path.toUtf8().constData());
 
-            // Load new appimage metadata
-            loadAppImageMetadata(path);
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
-        }
-        setBusy(false);
-    });
+    //         // Load new appimage metadata
+    //         loadAppImageMetadata(path);
+    //     } catch (const std::exception &e) {
+    //         ErrorManager::instance()->reportError(e.what());
+    //     }
+    //     setBusy(false);
+    // });
 }
 
 // ----------------- Private -----------------
@@ -188,205 +160,26 @@ AppImageManager::AppImageManager(QObject *parent)
 
 const QRegularExpression AppImageManager::invalidChars(R"([/\\:*?"<>|])");
 
-AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageMetadataStruct& metadataStruct)
+AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetadata& utilMetadata)
 {
+    AppImageMetadata::IntegrationType integrationType = utilMetadata.desktopFilePath.isEmpty()
+    ? AppImageMetadata::IntegrationType::None
+    : utilMetadata.internalIntegration
+        ? AppImageMetadata::IntegrationType::Internal
+        : AppImageMetadata::IntegrationType::External;
+
     auto* metadata = new AppImageMetadata();
-    metadata->setName(metadataStruct.name);
-    metadata->setVersion(metadataStruct.version);
-    metadata->setComment(metadataStruct.comment);
-    metadata->setType(metadataStruct.type);
-    metadata->setIcon(metadataStruct.icon);
-    metadata->setMd5(metadataStruct.md5);
-    metadata->setCategories(metadataStruct.categories);
-    metadata->setPath(metadataStruct.path);
-    metadata->setIntegration(metadataStruct.integration);
-    metadata->setDesktopFilePath(metadataStruct.desktopFilePath);
-    metadata->setExecutable(metadataStruct.executable);
+    metadata->setName(utilMetadata.name);
+    metadata->setVersion(utilMetadata.version);
+    metadata->setComment(utilMetadata.comment);
+    metadata->setType(utilMetadata.type);
+    metadata->setMd5(utilMetadata.md5);
+    metadata->setCategories(utilMetadata.categories);
+    metadata->setPath(utilMetadata.path);
+    metadata->setIntegration(integrationType);
+    metadata->setDesktopFilePath(utilMetadata.desktopFilePath);
 
     return metadata;
-}
-
-AppImageMetadataStruct AppImageManager::getAppImageMetadata(const QString& path) {
-    AppImageMetadataStruct appImageMetadata;
-
-    appImageMetadata.path = path;
-    int type = appimage_get_type(path.toUtf8().constData(), false);
-    appImageMetadata.type = type;
-    appImageMetadata.executable = isExecutable(path);
-
-    if (type <= 0) {
-        throw std::runtime_error("Unsupported AppImage type");
-    }
-
-    char* md5 = appimage_get_md5(path.toUtf8().constData());
-    appImageMetadata.md5 = QString::fromUtf8(md5);
-    QString desktopPath = appimage_registered_desktop_file_path(path.toUtf8().constData(), md5, false);
-    free(md5);
-
-    if (!desktopPath.isEmpty()) {
-        appImageMetadata.integration = AppImageMetadata::Internal;
-    } else {
-        desktopPath = getDesktopFileForExecutable(path);
-        if (!desktopPath.isEmpty()) {
-            appImageMetadata.integration = AppImageMetadata::External;
-        } else {
-            appImageMetadata.integration = AppImageMetadata::None;
-        }
-    }
-
-    QString desktopContent;
-    if (appImageMetadata.integration == AppImageMetadata::None) {
-        desktopContent = getInternalAppImageDesktopContent(path);
-    } else {
-        appImageMetadata.desktopFilePath = desktopPath;
-        desktopContent = getExternalAppImageDesktopContent(desktopPath);
-    }
-
-    MemoryImageProvider::instance()->setImage(path, getAppImageIcon(path));
-    appImageMetadata.icon = MemoryImageProvider::instance()->getUrl(path);
-
-    loadMetadataFromDesktopContent(appImageMetadata, desktopContent);
-
-    return appImageMetadata;
-}
-
-QString AppImageManager::getDesktopFileForExecutable(const QString& executablePath) {
-    const QStringList searchPaths = {
-        "/usr/share/applications",
-        "/usr/local/share/applications",
-        QDir::homePath() + "/.local/share/applications"
-    };
-
-    for (const QString& dirPath : searchPaths) {
-        QDir dir(dirPath);
-        const QStringList desktopFiles = dir.entryList(QStringList() << "*.desktop", QDir::Files);
-
-        for (const QString& fileName : desktopFiles) {
-            QString filePath = dir.absoluteFilePath(fileName);
-            QFile file(filePath);
-
-            if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-                continue;
-
-            QTextStream in(&file);
-            while (!in.atEnd()) {
-                QString line = in.readLine().trimmed();
-
-                if (line.startsWith("Exec=")) {
-                    QString execLine = line.mid(QString("Exec=").length());
-                    const QStringList execCommandParts = execLine.split(' ');
-
-                    for (const QString& execCommand : execCommandParts)
-                    {
-                        if (execCommand == executablePath) {
-                            return filePath;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return QString();
-}
-
-QString AppImageManager::getInternalAppImageDesktopContent(const QString& appImagePath)
-{
-    QString desktopContent;
-    QString desktopPath;
-    char** files = appimage_list_files(appImagePath.toUtf8().constData());
-    for (int i = 0; files[i] != nullptr; ++i) {
-        QString entry = QString::fromUtf8(files[i]);
-        if (entry.endsWith(".desktop")) {
-            desktopPath = entry;
-            break;
-        }
-    }
-
-    appimage_string_list_free(files);
-
-    if (desktopPath.isEmpty()) {
-        qWarning() << "No .desktop file found:" << appImagePath;
-    }
-    else {
-        char* buffer = nullptr;
-        unsigned long bufferSize = 0;
-        bool success = appimage_read_file_into_buffer_following_symlinks(
-            appImagePath.toUtf8().constData(),
-            desktopPath.toUtf8().constData(),
-            &buffer,
-            &bufferSize
-            );
-
-        if (!success || !buffer || bufferSize == 0) {
-            qWarning() << "Failed to read .desktop file contents:" << appImagePath;
-            return {};
-        }
-
-        desktopContent = QString::fromUtf8(QByteArray(buffer, bufferSize));
-        free(buffer);
-    }
-
-    return desktopContent;
-}
-
-QString AppImageManager::getExternalAppImageDesktopContent(const QString& desktopPath)
-{
-    QFile file(desktopPath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
-
-    QTextStream in(&file);
-    QString content = in.readAll();
-    file.close();
-    return content;
-}
-
-QImage AppImageManager::getAppImageIcon(const QString& path)
-{
-    QImage iconImage;
-    char* buffer = nullptr;
-    unsigned long bufferSize = 0;
-    bool success = appimage_read_file_into_buffer_following_symlinks(
-        path.toUtf8().constData(),
-        ".DirIcon",
-        &buffer,
-        &bufferSize
-        );
-
-    if (!success || !buffer || bufferSize == 0) {
-        qWarning() << "Failed to get appimage icon:" << path;
-        return iconImage;
-    }
-
-    QByteArray arr(buffer, bufferSize);
-    iconImage.loadFromData(arr);
-    free(buffer);
-    return iconImage;
-}
-
-void AppImageManager::loadMetadataFromDesktopContent(AppImageMetadataStruct& appImageMetadata, const QString& desktopContent)
-{
-    const QStringList lines = desktopContent.split('\n');
-    for (const QString& line : lines) {
-        QString trimmed = line.trimmed();
-        if (trimmed.startsWith("Name=")) {
-            appImageMetadata.name = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("X-AppImage-Version=")) {
-            appImageMetadata.version = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("Comment=")) {
-            appImageMetadata.comment = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("Categories=")) {
-            appImageMetadata.categories = trimmed.section('=', 1).trimmed();
-        }
-    }
-}
-
-bool AppImageManager::isExecutable(const QString &filePath) {
-    QFileInfo fileInfo(filePath);
-    return fileInfo.isExecutable();
 }
 
 QString AppImageManager::findNextAvailableFilename(const QString& fullPath) {
@@ -417,9 +210,8 @@ QString AppImageManager::handleIntegrationFileOperation(const QString& path)
         return "";
     }
 
-    AppImageMetadataStruct metadata;
-    QString desktopContent = getInternalAppImageDesktopContent(path);
-    loadMetadataFromDesktopContent(metadata, desktopContent);
+    AppImageUtil util(path);
+    AppImageUtilMetadata metadata = util.metadata(true);
     QString appName = metadata.name;
     appName.replace(invalidChars, "_");
     if(appName.isEmpty())
