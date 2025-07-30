@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QImage>
 #include <QProcess>
+#include <QSettings>
 #include <QThread>
 
 // ----------------- Public -----------------
@@ -234,36 +235,17 @@ AppImageUtilMetadata AppImageUtil::metadata(bool forceInternal)
 
 void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata)
 {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return;
+    QSettings desktopFile(path, QSettings::IniFormat);
+    desktopFile.beginGroup("Desktop Entry");
 
-    QTextStream in(&file);
-    QString desktopContent = in.readAll();
-    file.close();
+    metadata.name = desktopFile.value("Name").toString();
+    metadata.version = desktopFile.value("X-AppImage-Version").toString();
+    metadata.comment = desktopFile.value("Comment").toString();
+    metadata.categories = desktopFile.value("Categories").toString();
+    metadata.iconPath = desktopFile.value("Icon").toString();
+    metadata.internalIntegration = desktopFile.value("X-AppImage-BAL").toString() == "true";
 
-    const QStringList lines = desktopContent.split('\n');
-    for (const QString& line : lines) {
-        QString trimmed = line.trimmed();
-        if (trimmed.startsWith("Name=")) {
-            metadata.name = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("X-AppImage-Version=")) {
-            metadata.version = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("Comment=")) {
-            metadata.comment = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("Categories=")) {
-            metadata.categories = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("Icon=")) {
-            metadata.iconPath = trimmed.section('=', 1).trimmed();
-        }
-        else if (trimmed.startsWith("X-AppImage-BAL=true")) {
-            metadata.internalIntegration = true;
-        }
-    }
+    desktopFile.endGroup();
 }
 
 QString AppImageUtil::getMountedIconPath()
