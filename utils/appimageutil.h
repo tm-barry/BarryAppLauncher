@@ -6,16 +6,16 @@
 
 struct AppImageUtilMetadata {
 public:
-    QString name;
-    QString version;
-    QString comment;
-    int type;
-    QString md5;
-    QString categories;
-    QString path;
-    QString desktopFilePath;
-    bool internalIntegration;
-    QString iconPath;
+    QString name = QString();
+    QString version = QString();
+    QString comment = QString();
+    int type = 0;
+    QString md5 = QString();
+    QString categories = QString();
+    QString path = QString();
+    QString desktopFilePath = QString();
+    bool internalIntegration = false;
+    QString iconPath = QString();
 };
 
 class AppImageUtil

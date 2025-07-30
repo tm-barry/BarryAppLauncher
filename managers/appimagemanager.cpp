@@ -162,11 +162,13 @@ const QRegularExpression AppImageManager::invalidChars(R"([/\\:*?"<>|])");
 
 AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetadata& utilMetadata)
 {
-    AppImageMetadata::IntegrationType integrationType = utilMetadata.desktopFilePath.isEmpty()
-    ? AppImageMetadata::IntegrationType::None
-    : utilMetadata.internalIntegration
-        ? AppImageMetadata::IntegrationType::Internal
-        : AppImageMetadata::IntegrationType::External;
+    AppImageMetadata::IntegrationType integrationType = AppImageMetadata::IntegrationType::None;
+    if(!utilMetadata.desktopFilePath.isEmpty())
+    {
+        integrationType = utilMetadata.internalIntegration
+                              ? AppImageMetadata::IntegrationType::Internal
+                              : AppImageMetadata::IntegrationType::External;
+    }
 
     auto* metadata = new AppImageMetadata();
     metadata->setName(utilMetadata.name);
