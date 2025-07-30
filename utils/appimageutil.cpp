@@ -1,5 +1,6 @@
 #include "appimageutil.h"
 #include "managers/errormanager.h"
+#include "managers/settingsmanager.h"
 
 #include <QCryptographicHash>
 #include <QDebug>
@@ -9,7 +10,9 @@
 #include <QImage>
 #include <QProcess>
 #include <QSettings>
+#include <QRegularExpression>
 #include <QThread>
+#include <QUrl>
 
 // ----------------- Public -----------------
 
@@ -161,11 +164,7 @@ void AppImageUtil::unmountAppImage()
 
 QString AppImageUtil::integratedDesktopPath()
 {
-    const QStringList searchPaths = {
-        "/usr/share/applications",
-        "/usr/local/share/applications",
-        QDir::homePath() + "/.local/share/applications"
-    };
+    const QStringList searchPaths = getSearchPaths();
 
     for (const QString& dirPath : searchPaths) {
         QDir dir(dirPath);
@@ -200,13 +199,13 @@ QString AppImageUtil::integratedDesktopPath()
     return QString();
 }
 
-AppImageUtilMetadata AppImageUtil::metadata(bool forceInternal)
+AppImageUtilMetadata AppImageUtil::metadata(bool integration)
 {
     AppImageUtilMetadata metadata;
     metadata.path = m_path;
     metadata.type = isAppImageType2() ? 2 : 1;
     metadata.md5 = getMd5();
-    QString desktopPath = !forceInternal ? integratedDesktopPath() : QString();
+    QString desktopPath = !integration ? integratedDesktopPath() : QString();
 
     if(!desktopPath.isEmpty())
     {
@@ -218,12 +217,10 @@ AppImageUtilMetadata AppImageUtil::metadata(bool forceInternal)
         if(!isMounted())
             mountAppImage();
 
-        QDir mountDir(m_mountPath);
-        QFileInfoList desktopFiles = mountDir.entryInfoList(QStringList() << "*.desktop", QDir::Files);
-
-        if (!desktopFiles.isEmpty())
+        QString mountedDesktopPath = getMountedDesktopPath();
+        if (!mountedDesktopPath.isEmpty())
         {
-            parseDesktopPathForMetadata(desktopFiles.first().absoluteFilePath(), metadata);
+            parseDesktopPathForMetadata(mountedDesktopPath, metadata, integration);
             metadata.iconPath = getMountedIconPath();
         }
     }
@@ -231,21 +228,15 @@ AppImageUtilMetadata AppImageUtil::metadata(bool forceInternal)
     return metadata;
 }
 
-// ----------------- Private -----------------
-
-void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata)
+QString AppImageUtil::getMountedDesktopPath()
 {
-    QSettings desktopFile(path, QSettings::IniFormat);
-    desktopFile.beginGroup("Desktop Entry");
+    if (m_mountPath.isEmpty())
+        return QString();
 
-    metadata.name = desktopFile.value("Name").toString();
-    metadata.version = desktopFile.value("X-AppImage-Version").toString();
-    metadata.comment = desktopFile.value("Comment").toString();
-    metadata.categories = desktopFile.value("Categories").toString();
-    metadata.iconPath = desktopFile.value("Icon").toString();
-    metadata.internalIntegration = desktopFile.value("X-AppImage-BAL").toString() == "true";
+    QDir mountDir(m_mountPath);
+    QFileInfoList desktopFiles = mountDir.entryInfoList(QStringList() << "*.desktop", QDir::Files);
 
-    desktopFile.endGroup();
+    return desktopFiles.first().absoluteFilePath();
 }
 
 QString AppImageUtil::getMountedIconPath()
@@ -260,12 +251,12 @@ QString AppImageUtil::getMountedIconPath()
     if (QFile::exists(dirIconPath))
         return dirIconPath;
 
-    QDir mountDir(m_mountPath);
-    QFileInfoList desktopFiles = mountDir.entryInfoList(QStringList() << "*.desktop", QDir::Files);
-    if (!desktopFiles.isEmpty())
+    QString mountedDesktopPath = getMountedDesktopPath();
+    if (!mountedDesktopPath.isEmpty())
     {
         AppImageUtilMetadata metadata;
-        parseDesktopPathForMetadata(desktopFiles.first().absoluteFilePath(), metadata);
+        parseDesktopPathForMetadata(mountedDesktopPath, metadata);
+        QDir mountDir(m_mountPath);
 
         // 2: Absolute or relative path with extension
         QStringList imageExtensions = { "png", "svg", "xpm", "ico" };
@@ -306,4 +297,210 @@ QString AppImageUtil::getMountedIconPath()
     }
 
     return QString();
+}
+
+QString AppImageUtil::registerAppImage()
+{
+    // Move/Copy appimage
+    AppImageUtilMetadata utilMetadata = metadata(true);
+    QString newAppImagePath = handleIntegrationFileOperation(utilMetadata.name);
+    if(newAppImagePath.isEmpty())
+    {
+        ErrorManager::instance()->reportError("Failed to move/copy appimage.");
+        return QString();
+    }
+
+    QString baseAppImageName = QFileInfo(newAppImagePath).completeBaseName();
+    QString newAppImageFolder = QFileInfo(newAppImagePath).absolutePath();
+
+    // If appimage path contains spaces, quote it
+    QString cleanNewAppImagePath = newAppImagePath;
+    if (cleanNewAppImagePath.contains('"'))
+        cleanNewAppImagePath.replace('"', "");
+
+    if(cleanNewAppImagePath.contains(' '))
+        cleanNewAppImagePath = "\"" + cleanNewAppImagePath + "\"";
+
+    // Copy icon
+    QString mountedIconPath = getMountedIconPath();
+    QFileInfo mountedIconInfo(mountedIconPath);
+    QString newIconFileName = baseAppImageName;
+    if (!mountedIconInfo.suffix().isEmpty()) {
+        newIconFileName += "." + mountedIconInfo.suffix();
+    }
+    QString newIconPath = QDir(newAppImageFolder).filePath(".icons/" + newIconFileName);
+    QDir().mkpath(QFileInfo(newIconPath).absolutePath());
+    bool imageSuccess = QFile::copy(mountedIconPath, newIconPath);
+    if(!imageSuccess)
+    {
+        ErrorManager::instance()->reportError("Failed to create icon");
+    }
+    QString cleanNewIconPath = newIconPath;
+    if (cleanNewIconPath.contains('"'))
+        cleanNewIconPath.replace('"', "");
+
+    if(cleanNewIconPath.contains(' '))
+        cleanNewIconPath = "\"" + cleanNewIconPath + "\"";
+
+    // Add integration meta
+    QString newDesktopContent = utilMetadata.mountedDesktopContents;
+    if (!newDesktopContent.endsWith('\n'))
+        newDesktopContent += '\n';
+    newDesktopContent += balIntegrationField + '\n';
+
+    // Replace Exec/TryExec/Icon
+    QStringList lines = newDesktopContent.split('\n');
+    for (QString& line : lines) {
+        if(line.startsWith("Exec="))
+        {
+            QRegularExpressionMatch match = execLineRegex.match(line);
+            if (match.hasMatch()) {
+                QString envPart = match.captured(1);  // May be empty
+                QString exec = match.captured(2);
+                QString args = match.captured(3); // May be empty
+
+                QString newExecLine = "Exec=";
+                if (!envPart.isEmpty())
+                    newExecLine += "env " + envPart;
+                newExecLine += cleanNewAppImagePath;
+                if (!args.isEmpty())
+                    newExecLine += " " + args;
+                line = newExecLine;
+            }
+        }
+        else if(line.startsWith("TryExec="))
+        {
+            line = QString("TryExec=%1").arg(cleanNewAppImagePath);
+        }
+        else if(line.startsWith("Icon="))
+        {
+            line = QString("Icon=%1").arg(cleanNewIconPath);
+        }
+    }
+    newDesktopContent = lines.join('\n');
+
+    QString newDesktopFileName = baseAppImageName + ".desktop";
+    QString newDesktopPath = QDir(getLocalIntegrationPath()).filePath(newDesktopFileName);
+
+    // Ensure directory exists
+    QDir().mkpath(QFileInfo(newDesktopPath).absolutePath());
+
+    QFile file(newDesktopPath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << newDesktopContent;
+        file.close();
+    } else {
+        ErrorManager::instance()->reportError(QString("Failed to create deskop entry: %1").arg(file.errorString()));
+        return QString();
+    }
+
+    return newAppImagePath;
+}
+
+bool AppImageUtil::unregisterAppImage()
+{
+    return true;
+}
+
+// ----------------- Private -----------------
+
+const QRegularExpression AppImageUtil::execLineRegex(R"(^Exec=(?:env\s+((?:\S+=\S+\s?)*))?(".*?"|\S+)(?:\s+([^\n\r]*))?$)");
+const QRegularExpression AppImageUtil::invalidChars(R"([/\\:*?"<>|])");
+const QString AppImageUtil::balIntegrationField = "X-AppImage-BAL=true";
+
+void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration)
+{
+    QSettings desktopFile(path, QSettings::IniFormat);
+    desktopFile.beginGroup("Desktop Entry");
+
+    metadata.name = desktopFile.value("Name").toString();
+    metadata.version = desktopFile.value("X-AppImage-Version").toString();
+    metadata.comment = desktopFile.value("Comment").toString();
+    metadata.categories = desktopFile.value("Categories").toString();
+    metadata.iconPath = desktopFile.value("Icon").toString();
+    metadata.internalIntegration = desktopFile.value("X-AppImage-BAL").toString() == "true";
+
+    desktopFile.endGroup();
+
+    if (integration)
+    {
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            QTextStream in(&file);
+            metadata.mountedDesktopContents = in.readAll();
+        }
+        else
+        {
+            metadata.mountedDesktopContents = QString();
+        }
+    }
+}
+
+QString AppImageUtil::findNextAvailableFilename(const QString& fullPath) {
+    QFileInfo fileInfo(fullPath);
+    QDir dir = fileInfo.dir();
+    QString baseName = fileInfo.completeBaseName();
+    QString extension = fileInfo.suffix();
+
+    QString fileName = fileInfo.fileName();
+    int counter = 1;
+
+    while (dir.exists(fileName)) {
+        if (extension.isEmpty()) {
+            fileName = QString("%1(%2)").arg(baseName).arg(counter);
+        } else {
+            fileName = QString("%1(%2).%3").arg(baseName).arg(counter).arg(extension);
+        }
+        counter++;
+    }
+
+    return dir.filePath(fileName);
+}
+
+QString AppImageUtil::handleIntegrationFileOperation(QString appName)
+{
+    if (!QFile::exists(m_path)) {
+        qWarning() << "Source file does not exist:" << m_path;
+        return QString();
+    }
+
+    appName.replace(invalidChars, "_");
+    if(appName.isEmpty())
+    {
+        QFileInfo info(m_path);
+        appName = info.baseName();
+    }
+    QString fileName = QString("%1.appimage").arg((appName).trimmed().toLower());
+    QDir dir(SettingsManager::instance()->appImageDefaultLocation().toLocalFile());
+    QString newPath = dir.filePath(fileName);
+    newPath = findNextAvailableFilename(newPath);
+
+    bool success = false;
+    switch(SettingsManager::instance()->appImageFileOperation()) {
+    case SettingsManager::Move:
+        success = QFile::rename(m_path, newPath);
+        break;
+    case SettingsManager::Copy:
+    default:
+        success = QFile::copy(m_path, newPath);
+        break;
+    }
+
+    return success ? newPath : QString();
+}
+
+QStringList AppImageUtil::getSearchPaths()
+{
+    return {
+        "/usr/share/applications",
+        "/usr/local/share/applications",
+        QDir::homePath() + "/.local/share/applications"
+    };
+}
+
+QString AppImageUtil::getLocalIntegrationPath()
+{
+    return QDir::homePath() + "/.local/share/applications";
 }

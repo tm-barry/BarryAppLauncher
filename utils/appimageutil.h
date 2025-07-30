@@ -16,6 +16,7 @@ public:
     QString desktopFilePath = QString();
     bool internalIntegration = false;
     QString iconPath = QString();
+    QString mountedDesktopContents = QString();
 };
 
 class AppImageUtil
@@ -65,21 +66,48 @@ public:
     QString integratedDesktopPath();
     /**
      * @brief Get the metadata for the appimage.
-     * @param forceInternal If true gets the metadata from the appimage's
+     * @param integration If true gets the metadata from the appimage's
      * internal desktop
      * @return The appimages metadata parsed from the desktop file.
      * If integrated it will use the integrated desktop file,
      * if not it will use the appimage's internal one.
      */
-    AppImageUtilMetadata metadata(bool forceInternal = false);
+    AppImageUtilMetadata metadata(bool integration = false);
+    /**
+     * @brief Gets the mounted appimages desktop path
+     * @return Destkop path of the mounted appimage
+     */
+    QString getMountedDesktopPath();
+    /**
+     * @brief Gets the mounted appimages icon path
+     * @return Icon path of the mounted appimage
+     */
+    QString getMountedIconPath();
+    /**
+     * @brief Registers the app image at the utils path
+     * @return New path of registered app image
+     *
+     */
+    QString registerAppImage();
+    /**
+     * @brief Unregisters the app image at the utils path
+     * @return Bool indicating if unregister is successful
+     */
+    bool unregisterAppImage();
 
 private:
     const QString m_path;
     QString m_mountPath;
     QProcess* m_process;
+    static const QRegularExpression execLineRegex;
+    static const QRegularExpression invalidChars;
+    static const QString balIntegrationField;
 
-    void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata);
-    QString getMountedIconPath();
+    void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration = false);
+    QString findNextAvailableFilename(const QString& fullPath);
+    QString handleIntegrationFileOperation(QString newName);
+    QStringList getSearchPaths();
+    QString getLocalIntegrationPath();
 };
 
 #endif // APPIMAGEUTIL_H

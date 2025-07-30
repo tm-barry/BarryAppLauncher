@@ -103,31 +103,25 @@ void AppImageManager::launchAppImage(const QString& path)
 
 void AppImageManager::registerAppImage(const QUrl& url)
 {
-    // registerAppImage(url.toLocalFile());
+    registerAppImage(url.toLocalFile());
 }
 
 void AppImageManager::registerAppImage(const QString& path)
 {
-    // QFuture<void> future = QtConcurrent::run([=]() {
-    //     setBusy(true);
-    //     try {
-    //         QString newPath = handleIntegrationFileOperation(path);
-    //         if(!newPath.isEmpty())
-    //         {
-    //             appimage::desktop_integration::IntegrationManager manager;
-    //             appimage::core::AppImage appImage(newPath.toUtf8().constData());
-    //             manager.registerAppImage(appImage);
-
-    //             // Load new appimage metadata
-    //             loadAppImageMetadata(newPath);
-    //         }
-    //         else
-    //             ErrorManager::instance()->reportError("Failed to move/copy appimage.");
-    //     } catch (const std::exception &e) {
-    //         ErrorManager::instance()->reportError(e.what());
-    //     }
-    //     setBusy(false);
-    // });
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setBusy(true);
+        try {
+            AppImageUtil util(path);
+            QString newPath = util.registerAppImage();
+            if(!newPath.isEmpty())
+            {
+                loadAppImageMetadata(newPath);
+            }
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setBusy(false);
+    });
 }
 
 void AppImageManager::unregisterAppImage(const QUrl& url)
