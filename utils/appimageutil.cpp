@@ -356,7 +356,6 @@ QString AppImageUtil::registerAppImage()
             QRegularExpressionMatch match = execLineRegex.match(line);
             if (match.hasMatch()) {
                 QString envPart = match.captured(1);  // May be empty
-                QString exec = match.captured(2);
                 QString args = match.captured(3); // May be empty
 
                 QString newExecLine = "Exec=";
