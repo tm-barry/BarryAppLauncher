@@ -5,7 +5,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 ApplicationWindow {
-    width: 540
+    width: 480
     minimumWidth: 270
     height: 270
     minimumHeight: 270
@@ -58,6 +58,7 @@ ApplicationWindow {
                                       SettingsManager.appImageDefaultLocation).toString(
                                       ).replace("file://", "")
                             readOnly: true
+                            wrapMode: TextEdit.Wrap
                             Layout.fillWidth: true
                         }
                         IconButton {

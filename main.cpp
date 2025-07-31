@@ -18,10 +18,17 @@ int main(int argc, char *argv[])
     app.setApplicationName("BarryAppLauncher");
     app.setWindowIcon(QIcon(":/assets/icons/barry-app-launcher.svg"));
 
+    qmlRegisterType<AppImageMetadata>("BarryAppLauncher", 1, 0, "AppImageMetadata");
     qRegisterMetaType<AppImageManager::AppState>("AppImageManager::AppState");
     qRegisterMetaType<ErrorManager::MessageType>("ErrorManager::MessageType");
     qmlRegisterUncreatableType<AppImageMetadata>("BarryAppLauncher", 1, 0, "AppImageMetadata",
                                                  "Enum only - AppImageMetadata is not instantiable");
+
+    // Create the singleton BEFORE any threads are used     
+    AppImageManager::instance();
+    ClipboardManager::instance();
+    ErrorManager::instance();
+    SettingsManager::instance();
 
     QQmlApplicationEngine engine;
     QObject::connect(

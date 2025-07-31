@@ -42,13 +42,14 @@ Item {
 
             Label {
                 text: AppImageManager.appImageMetadata?.name
-                font.pixelSize: 24
+                font.pixelSize: 18
                 font.bold: true
                 Layout.alignment: Qt.AlignHCenter
             }
 
             Label {
                 text: AppImageManager.appImageMetadata?.version
+                opacity: 0.6
                 Layout.alignment: Qt.AlignHCenter
             }
 
@@ -58,7 +59,7 @@ Item {
             }
 
             Item {
-                Layout.preferredHeight: 10
+                Layout.preferredHeight: 5
             }
 
             RowLayout {
@@ -75,9 +76,8 @@ Item {
                     text: launchTimer.running ? qsTr("Launching") : qsTr(
                                                     "Launch")
                     backgroundColor: "#4E7A6A"
-                    font.pixelSize: 16
                     Layout.preferredWidth: 100
-                    enabled: !launchTimer.running
+                    enabled: !launchTimer.running && !AppImageManager.loadingAppImage
                     onClicked: {
                         if (!AppImageManager.appImageMetadata?.integrated) {
                             AppImageManager.launchAppImage(
@@ -92,8 +92,8 @@ Item {
 
                 ColorButton {
                     text: qsTr("Register")
-                    font.pixelSize: 16
                     Layout.preferredWidth: 100
+                    enabled: !AppImageManager.loadingAppImage
                     visible: AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.None
                     onClicked: AppImageManager.registerAppImage(
@@ -103,8 +103,8 @@ Item {
                 ColorButton {
                     text: qsTr("Unregister")
                     backgroundColor: "#C43D3D"
-                    font.pixelSize: 16
                     Layout.preferredWidth: 100
+                    enabled: !AppImageManager.loadingAppImage
                     visible: AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.Internal
                     onClicked: AppImageManager.unregisterAppImage(
@@ -120,7 +120,7 @@ Item {
             }
 
             Item {
-                Layout.preferredHeight: 10
+                Layout.preferredHeight: 5
             }
 
             Label {
@@ -143,12 +143,13 @@ Item {
                         font.bold: true
                     }
 
-                    Label {
+                    TextArea {
                         text: qsTr("AppImage Type ") + AppImageManager.appImageMetadata?.type
+                        readOnly: true
                     }
 
                     Item {
-                        Layout.preferredHeight: 10
+                        Layout.preferredHeight: 5
                     }
 
                     Label {
@@ -183,11 +184,25 @@ Item {
                                            AppImageManager.appImageMetadata?.path)
                         }
                     }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                    }
+
+                    Label {
+                        text: qsTr("Md5")
+                        font.bold: true
+                    }
+
+                    TextArea {
+                        text: AppImageManager.appImageMetadata?.md5
+                        readOnly: true
+                    }
                 }
             }
 
             Item {
-                Layout.preferredHeight: 10
+                Layout.preferredHeight: 5
             }
 
             Label {
@@ -243,7 +258,7 @@ Item {
                     }
 
                     Item {
-                        Layout.preferredHeight: 10
+                        Layout.preferredHeight: 5
                     }
 
                     Label {
@@ -251,8 +266,9 @@ Item {
                         font.bold: true
                     }
 
-                    Label {
+                    TextArea {
                         text: AppImageManager.appImageMetadata?.categories
+                        readOnly: true
                     }
                 }
             }

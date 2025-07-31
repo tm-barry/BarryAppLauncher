@@ -1,12 +1,12 @@
 #include "appimagemanager.h"
 #include "errormanager.h"
-#include "settingsmanager.h"
 #include "providers/memoryimageprovider.h"
 
 #include <QGuiApplication>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QDir>
 #include <QImage>
+#include <QList>
 #include <QObject>
 #include <QProcess>
 #include <QRegularExpression>
@@ -17,6 +17,22 @@
 AppImageManager* AppImageManager::instance() {
     static AppImageManager singleton;
     return &singleton;
+}
+
+AppImageMetadataListModel* AppImageManager::appImageList() const
+{
+    return m_appImageList;
+}
+
+void AppImageManager::setAppImageList(const QList<AppImageMetadata*>& list)
+{
+    m_appImageList->clear();
+
+    for (auto* metadata : list) {
+        m_appImageList->addMetadata(metadata);
+    }
+
+    emit appImageListChanged();
 }
 
 AppImageMetadata* AppImageManager::appImageMetadata() const {
@@ -35,15 +51,26 @@ void AppImageManager::setAppImageMetadata(AppImageMetadata* value) {
     emit appImageMetadataChanged(m_appImageMetadata);
 }
 
-bool AppImageManager::busy() const {
-    return m_busy;
+bool AppImageManager::loadingAppImageList() const {
+    return m_loadingAppImageList;
 }
 
-void AppImageManager::setBusy(bool value) {
-    if (m_busy == value)
+void AppImageManager::setLoadingAppImageList(bool value) {
+    if (m_loadingAppImageList == value)
         return;
-    m_busy = value;
-    emit busyChanged(value);
+    m_loadingAppImageList = value;
+    emit loadingAppImageListChanged(value);
+}
+
+bool AppImageManager::loadingAppImage() const {
+    return m_loadingAppImage;
+}
+
+void AppImageManager::setLoadingAppImage(bool value) {
+    if (m_loadingAppImage == value)
+        return;
+    m_loadingAppImage = value;
+    emit loadingAppImageChanged(value);
 }
 
 AppImageManager::AppState AppImageManager::state() const {
@@ -57,13 +84,39 @@ void AppImageManager::setState(AppState value) {
     emit stateChanged(value);
 }
 
+void AppImageManager::loadAppImageList()
+{
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setLoadingAppImageList(true);
+        try {
+            auto utilList = AppImageUtil::getRegisteredList();
+            for (const auto& app : utilList) {
+                QImage image(app.iconPath);
+                MemoryImageProvider::instance()->setImage(app.path, image);
+            }
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [=]() {
+                QList<AppImageMetadata*> appList;
+                for (const auto& app : utilList) {
+                    auto* meta = parseAppImageMetadata(app);
+                    meta->setIcon(MemoryImageProvider::instance()->getUrl(app.path));
+                    appList.append(meta);
+                }
+                setAppImageList(appList);
+            });
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setLoadingAppImageList(false);
+    });
+}
+
 void AppImageManager::loadAppImageMetadata(const QUrl& url) {
     loadAppImageMetadata(url.toLocalFile());
 }
 
 void AppImageManager::loadAppImageMetadata(const QString& path) {
     QFuture<void> future = QtConcurrent::run([=]() {
-        setBusy(true);
+        setLoadingAppImage(true);
         AppImageUtil util(path);
         try {
             AppImageUtilMetadata metadata = util.metadata();
@@ -78,7 +131,7 @@ void AppImageManager::loadAppImageMetadata(const QString& path) {
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
         }
-        setBusy(false);
+        setLoadingAppImage(false);
     });
 }
 
@@ -109,7 +162,7 @@ void AppImageManager::registerAppImage(const QUrl& url)
 void AppImageManager::registerAppImage(const QString& path)
 {
     QFuture<void> future = QtConcurrent::run([=]() {
-        setBusy(true);
+        setLoadingAppImage(true);
         try {
             AppImageUtil util(path);
             QString newPath = util.registerAppImage();
@@ -120,7 +173,7 @@ void AppImageManager::registerAppImage(const QString& path)
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
         }
-        setBusy(false);
+        setLoadingAppImage(false);
     });
 }
 
@@ -149,7 +202,7 @@ void AppImageManager::unregisterAppImage(const QString& path)
 // ----------------- Private -----------------
 
 AppImageManager::AppImageManager(QObject *parent)
-    : QObject{parent}
+    : QObject(parent), m_appImageList(new AppImageMetadataListModel(this))
 {}
 
 const QRegularExpression AppImageManager::invalidChars(R"([/\\:*?"<>|])");
@@ -164,7 +217,7 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
                               : AppImageMetadata::IntegrationType::External;
     }
 
-    auto* metadata = new AppImageMetadata();
+    auto* metadata = new AppImageMetadata(this);
     metadata->setName(utilMetadata.name);
     metadata->setVersion(utilMetadata.version);
     metadata->setComment(utilMetadata.comment);
@@ -176,60 +229,4 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
     metadata->setDesktopFilePath(utilMetadata.desktopFilePath);
 
     return metadata;
-}
-
-QString AppImageManager::findNextAvailableFilename(const QString& fullPath) {
-    QFileInfo fileInfo(fullPath);
-    QDir dir = fileInfo.dir();
-    QString baseName = fileInfo.completeBaseName();
-    QString extension = fileInfo.suffix();
-
-    QString fileName = fileInfo.fileName();
-    int counter = 1;
-
-    while (dir.exists(fileName)) {
-        if (extension.isEmpty()) {
-            fileName = QString("%1(%2)").arg(baseName).arg(counter);
-        } else {
-            fileName = QString("%1(%2).%3").arg(baseName).arg(counter).arg(extension);
-        }
-        counter++;
-    }
-
-    return dir.filePath(fileName);
-}
-
-QString AppImageManager::handleIntegrationFileOperation(const QString& path)
-{
-    if (!QFile::exists(path)) {
-        qWarning() << "Source file does not exist:" << path;
-        return "";
-    }
-
-    AppImageUtil util(path);
-    AppImageUtilMetadata metadata = util.metadata(true);
-    QString appName = metadata.name;
-    appName.replace(invalidChars, "_");
-    if(appName.isEmpty())
-    {
-        QFileInfo info(path);
-        appName = info.baseName();
-    }
-    QString fileName = QString("%1.appimage").arg((appName).trimmed().toLower());
-    QDir dir(SettingsManager::instance()->appImageDefaultLocation().toLocalFile());
-    QString newPath = dir.filePath(fileName);
-    newPath = findNextAvailableFilename(newPath);
-
-    bool success = false;
-    switch(SettingsManager::instance()->appImageFileOperation()) {
-    case SettingsManager::Move:
-        success = QFile::rename(path, newPath);
-        break;
-    case SettingsManager::Copy:
-    default:
-        success = QFile::copy(path, newPath);
-        break;
-    }
-
-    return success ? newPath : "";
 }

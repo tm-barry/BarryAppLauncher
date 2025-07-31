@@ -24,10 +24,10 @@ AppImageUtil::~AppImageUtil()
     unmountAppImage();
 }
 
-bool AppImageUtil::isAppImageType2() {
-    QFile file(m_path);
+const bool AppImageUtil::isAppImageType2(const QString& path) {
+    QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
-        ErrorManager::instance()->reportError("Failed to open file: " + m_path);
+        ErrorManager::instance()->reportError("Failed to open file: " + path);
         return false;
     }
 
@@ -37,25 +37,25 @@ bool AppImageUtil::isAppImageType2() {
     return magic == QByteArray("AI\2");
 }
 
-QString AppImageUtil::getMd5() {
-    QFile file(m_path);
+const QString AppImageUtil::getMd5(const QString& path) {
+    QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
-        ErrorManager::instance()->reportError("Failed to open file:" + m_path);
+        ErrorManager::instance()->reportError("Failed to open file:" + path);
         return QString();
     }
 
     QCryptographicHash hash(QCryptographicHash::Md5);
 
     if (!hash.addData(&file)) {
-        ErrorManager::instance()->reportError("Failed to read file for hashing:" + m_path);
+        ErrorManager::instance()->reportError("Failed to read file for hashing:" + path);
         return QString();
     }
 
     return hash.result().toHex();
 }
 
-bool AppImageUtil::isExecutable() {
-    QFileInfo fileInfo(m_path);
+const bool AppImageUtil::isExecutable(const QString& path) {
+    QFileInfo fileInfo(path);
     return fileInfo.isExecutable();
 }
 
@@ -81,7 +81,7 @@ bool AppImageUtil::makeExecutable()
 void AppImageUtil::mountAppImage() {
     unmountAppImage();
 
-    if(!isExecutable())
+    if(!isExecutable(m_path))
         makeExecutable();
 
     QProcess* process = new QProcess();
@@ -162,7 +162,7 @@ void AppImageUtil::unmountAppImage()
     m_process = nullptr;
 }
 
-QString AppImageUtil::integratedDesktopPath()
+const QString AppImageUtil::integratedDesktopPath(const QString& path)
 {
     const QStringList searchPaths = getSearchPaths();
 
@@ -187,7 +187,7 @@ QString AppImageUtil::integratedDesktopPath()
 
                     for (const QString& execCommand : execCommandParts)
                     {
-                        if (execCommand == m_path) {
+                        if (execCommand == path) {
                             return filePath;
                         }
                     }
@@ -203,9 +203,9 @@ AppImageUtilMetadata AppImageUtil::metadata(bool integration)
 {
     AppImageUtilMetadata metadata;
     metadata.path = m_path;
-    metadata.type = isAppImageType2() ? 2 : 1;
-    metadata.md5 = getMd5();
-    QString desktopPath = !integration ? integratedDesktopPath() : QString();
+    metadata.type = isAppImageType2(m_path) ? 2 : 1;
+    metadata.md5 = getMd5(m_path);
+    QString desktopPath = !integration ? integratedDesktopPath(m_path) : QString();
 
     if(!desktopPath.isEmpty())
     {
@@ -224,6 +224,9 @@ AppImageUtilMetadata AppImageUtil::metadata(bool integration)
             metadata.iconPath = getMountedIconPath();
         }
     }
+
+    if(metadata.version.isEmpty() && !metadata.md5.isEmpty())
+        metadata.version = metadata.md5.left(6);
 
     return metadata;
 }
@@ -402,13 +405,46 @@ bool AppImageUtil::unregisterAppImage()
     return true;
 }
 
+const QList<AppImageUtilMetadata> AppImageUtil::getRegisteredList()
+{
+    QList<AppImageUtilMetadata> list;
+    QDir dir(SettingsManager::instance()->appImageDefaultLocation().toLocalFile());
+    const QFileInfoList files = dir.entryInfoList(
+        QStringList() << "*.AppImage" << "*.appimage",
+        QDir::Files | QDir::NoSymLinks
+        );
+
+    for (const QFileInfo &fileInfo : files)
+    {
+        QString path = fileInfo.absoluteFilePath();
+        QString desktopPath = integratedDesktopPath(path);
+
+        if(!desktopPath.isEmpty())
+        {
+            AppImageUtilMetadata utilMetadata;
+            utilMetadata.path = path;
+            utilMetadata.type = isAppImageType2(path) ? 2 : 1;
+            utilMetadata.md5 = getMd5(path);
+            utilMetadata.desktopFilePath = desktopPath;
+            parseDesktopPathForMetadata(desktopPath, utilMetadata);
+
+            if(utilMetadata.version.isEmpty() && !utilMetadata.md5.isEmpty())
+                utilMetadata.version = utilMetadata.md5.left(6);
+
+            list.append(utilMetadata);
+        }
+    }
+
+    return list;
+}
+
 // ----------------- Private -----------------
 
 const QRegularExpression AppImageUtil::execLineRegex(R"(^Exec=(?:env\s+((?:\S+=\S+\s?)*))?(".*?"|\S+)(?:\s+([^\n\r]*))?$)");
 const QRegularExpression AppImageUtil::invalidChars(R"([/\\:*?"<>|])");
 const QString AppImageUtil::balIntegrationField = "X-AppImage-BAL=true";
 
-void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration)
+const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration)
 {
     QSettings desktopFile(path, QSettings::IniFormat);
     desktopFile.beginGroup("Desktop Entry");
@@ -490,7 +526,7 @@ QString AppImageUtil::handleIntegrationFileOperation(QString appName)
     return success ? newPath : QString();
 }
 
-QStringList AppImageUtil::getSearchPaths()
+const QStringList AppImageUtil::getSearchPaths()
 {
     return {
         "/usr/share/applications",
@@ -499,7 +535,7 @@ QStringList AppImageUtil::getSearchPaths()
     };
 }
 
-QString AppImageUtil::getLocalIntegrationPath()
+const QString AppImageUtil::getLocalIntegrationPath()
 {
     return QDir::homePath() + "/.local/share/applications";
 }

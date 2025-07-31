@@ -7,7 +7,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: mainWindow
 
-    width: 640
+    width: 540
     minimumWidth: 480
     height: 640
     visible: true
@@ -38,9 +38,6 @@ ApplicationWindow {
 
     Connections {
         target: AppImageManager
-        function onBusyChanged(newValue) {
-            busyIndicator.visible = newValue
-        }
         function onStateChanged(newValue) {
             switch (newValue) {
             case AppImageManager.AppInfo:
@@ -78,7 +75,7 @@ ApplicationWindow {
             Action {
                 text: qsTr("&Open AppImage...")
                 onTriggered: fileDialog.open()
-                enabled: !AppImageManager.busy
+                enabled: !AppImageManager.loadingAppImage
             }
             MenuSeparator {}
             Action {
@@ -166,7 +163,7 @@ ApplicationWindow {
             indeterminate: true
             anchors.centerIn: parent
             width: parent.width
-            visible: false
+            visible: AppImageManager.loadingAppImage || AppImageManager.loadingAppImageList
         }
     }
 }

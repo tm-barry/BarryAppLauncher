@@ -4,6 +4,7 @@
 #pragma once
 
 #include "models/appimagemetadata.h"
+#include "models/appimagemetadatalistmodel.h"
 #include "utils/appimageutil.h"
 
 #include <QDir>
@@ -13,8 +14,10 @@
 class AppImageManager : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(AppImageMetadataListModel* appImageList READ appImageList NOTIFY appImageListChanged)
     Q_PROPERTY(AppImageMetadata* appImageMetadata READ appImageMetadata WRITE setAppImageMetadata NOTIFY appImageMetadataChanged)
-    Q_PROPERTY(bool busy READ busy WRITE setBusy NOTIFY busyChanged)
+    Q_PROPERTY(bool loadingAppImageList READ loadingAppImageList WRITE setLoadingAppImageList NOTIFY loadingAppImageListChanged)
+    Q_PROPERTY(bool loadingAppImage READ loadingAppImage WRITE setLoadingAppImage NOTIFY loadingAppImageChanged)
     Q_PROPERTY(AppState state READ state WRITE setState NOTIFY stateChanged)
 public:
     static AppImageManager* instance();
@@ -25,15 +28,22 @@ public:
     };
     Q_ENUM(AppState);
 
+    AppImageMetadataListModel* appImageList() const;
+    void setAppImageList(const QList<AppImageMetadata*>& list);
+
     AppImageMetadata* appImageMetadata() const;
     void setAppImageMetadata(AppImageMetadata* value);
 
-    bool busy() const;
-    void setBusy(bool value);
+    bool loadingAppImageList() const;
+    void setLoadingAppImageList(bool value);
+
+    bool loadingAppImage() const;
+    void setLoadingAppImage(bool value);
 
     AppState state() const;
     void setState(AppState value);
 
+    Q_INVOKABLE void loadAppImageList();
     Q_INVOKABLE void loadAppImageMetadata(const QUrl& url);
     Q_INVOKABLE void loadAppImageMetadata(const QString& path);
     Q_INVOKABLE void launchAppImage(const QUrl& url);
@@ -47,19 +57,21 @@ private:
     explicit AppImageManager(QObject *parent = nullptr);
 
     static const QRegularExpression invalidChars;
+    AppImageMetadataListModel* m_appImageList = nullptr;
     AppImageMetadata* m_appImageMetadata = nullptr;
-    bool m_busy = false;
+    bool m_loadingAppImageList = false;
+    bool m_loadingAppImage = false;
     AppState m_state = AppList;
 
     AppImageMetadata* parseAppImageMetadata(const AppImageUtilMetadata& appImageMetadata);
-    QString findNextAvailableFilename(const QString& fullPath);
-    QString handleIntegrationFileOperation(const QString& path);
 
     Q_DISABLE_COPY(AppImageManager);
 
 signals:
+    void appImageListChanged();
     void appImageMetadataChanged(AppImageMetadata* newValue);
-    void busyChanged(bool newValue);
+    void loadingAppImageListChanged(bool newValue);
+    void loadingAppImageChanged(bool newValue);
     void stateChanged(AppImageManager::AppState newValue);
 };
 

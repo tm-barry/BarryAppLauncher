@@ -27,19 +27,22 @@ public:
 
     /**
      * @brief Checks if the appimage is a type 2
+     * @param path Path to appimage
      * @return Bool indicating if appimage is type 2
      */
-    bool isAppImageType2();
+    static const bool isAppImageType2(const QString& path);
     /**
-     * @brief Gets the md5
-     * @return Md5 of the AppImageUtil path
+     * @brief Gets the md5 of the given path
+     * @param path Path to file you want the md5
+     * @return Md5 of the file at path
      */
-    QString getMd5();
+    static const QString getMd5(const QString& path);
     /**
      * @brief Checks if the path is executable
-     * @return Bool indicating if file is executable
+     * @param path Path to file to check is executable
+     * @return Bool indicating if file at path is executable
      */
-    bool isExecutable();
+    static const bool isExecutable(const QString& path);
     /**
      * @brief Makes the appimage at path executable
      * @return True if successful, false if not
@@ -63,7 +66,7 @@ public:
      * @brief Get the integrated desktop file path
      * @return Integrated desktop file path, or empty if not integrated
      */
-    QString integratedDesktopPath();
+    static const QString integratedDesktopPath(const QString& path);
     /**
      * @brief Get the metadata for the appimage.
      * @param integration If true gets the metadata from the appimage's
@@ -94,6 +97,11 @@ public:
      * @return Bool indicating if unregister is successful
      */
     bool unregisterAppImage();
+    /**
+     * @brief Get ths list of registered appimages
+     * @return List of registered appimages
+     */
+    static const QList<AppImageUtilMetadata> getRegisteredList();
 
 private:
     const QString m_path;
@@ -103,11 +111,11 @@ private:
     static const QRegularExpression invalidChars;
     static const QString balIntegrationField;
 
-    void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration = false);
+    static const void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration = false);
     QString findNextAvailableFilename(const QString& fullPath);
     QString handleIntegrationFileOperation(QString newName);
-    QStringList getSearchPaths();
-    QString getLocalIntegrationPath();
+    static const QStringList getSearchPaths();
+    static const QString getLocalIntegrationPath();
 };
 
 #endif // APPIMAGEUTIL_H
