@@ -28,6 +28,13 @@ public:
     };
     Q_ENUM(AppState);
 
+    enum ModalTypes {
+        Preferences,
+        OpenDialog,
+        About
+    };
+    Q_ENUM(ModalTypes);
+
     AppImageMetadataListModel* appImageList() const;
     void setAppImageList(const QList<AppImageMetadata*>& list);
 
@@ -43,6 +50,7 @@ public:
     AppState state() const;
     void setState(AppState value);
 
+    Q_INVOKABLE void requestModal(ModalTypes modal);
     Q_INVOKABLE void loadAppImageList();
     Q_INVOKABLE void loadAppImageMetadata(const QUrl& url);
     Q_INVOKABLE void loadAppImageMetadata(const QString& path);
@@ -68,6 +76,7 @@ private:
     Q_DISABLE_COPY(AppImageManager);
 
 signals:
+    void modalRequested(AppImageManager::ModalTypes modal);
     void appImageListChanged();
     void appImageMetadataChanged(AppImageMetadata* newValue);
     void loadingAppImageListChanged(bool newValue);

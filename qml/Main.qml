@@ -10,11 +10,28 @@ ApplicationWindow {
     width: 540
     minimumWidth: 480
     height: 640
+    minimumHeight: 480
     visible: true
 
     QtObject {
         id: modalManager
         property var preferencesModal: null
+
+        function openPreferencesModal() {
+            if (modalManager.preferencesModal == null) {
+                modalManager.preferencesModal = Qt.createComponent(
+                            "Preferences.qml").createObject(null)
+                modalManager.preferencesModal.transientParent = mainWindow
+
+                modalManager.preferencesModal.closing.connect(
+                            function () {
+                                modalManager.preferencesModal.destroy()
+                                modalManager.preferencesModal = null
+                            })
+            }
+
+            modalManager.preferencesModal.show()
+        }
     }
 
     Connections {
@@ -38,6 +55,7 @@ ApplicationWindow {
 
     Connections {
         target: AppImageManager
+
         function onStateChanged(newValue) {
             switch (newValue) {
             case AppImageManager.AppInfo:
@@ -45,6 +63,18 @@ ApplicationWindow {
                 break
             default:
                 pageContent.source = "AppList.qml"
+                break
+            }
+        }
+
+        function onModalRequested(modal)
+        {
+            switch (modal) {
+            case AppImageManager.Preferences:
+                modalManager.openPreferencesModal()
+                break
+            case AppImageManager.OpenDialog:
+                fileDialog.open()
                 break
             }
         }
@@ -80,21 +110,7 @@ ApplicationWindow {
             MenuSeparator {}
             Action {
                 text: qsTr("&Preferences")
-                onTriggered: {
-                    if (modalManager.preferencesModal == null) {
-                        modalManager.preferencesModal = Qt.createComponent(
-                                    "Preferences.qml").createObject(null)
-                        modalManager.preferencesModal.transientParent = mainWindow
-
-                        modalManager.preferencesModal.closing.connect(
-                                    function () {
-                                        modalManager.preferencesModal.destroy()
-                                        modalManager.preferencesModal = null
-                                    })
-                    }
-
-                    modalManager.preferencesModal.show()
-                }
+                onTriggered: modalManager.openPreferencesModal()
             }
             MenuSeparator {}
             Action {

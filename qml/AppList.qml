@@ -37,6 +37,45 @@ Item {
             }
         }
 
+        Item {
+            Layout.preferredHeight: 50
+            visible: AppImageManager.appImageList.count === 0
+        }
+
+        ColumnLayout {
+            Layout.alignment: Qt.AlignHCenter
+            visible: AppImageManager.appImageList.count === 0
+            Layout.minimumWidth: 460
+            Layout.maximumWidth: 460
+            Layout.preferredWidth: 460
+            spacing: 20
+
+            Label {
+                text: qsTr("No registered appimages found. Change the default appimage location in preferences or open an appimage to register.")
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignCenter
+            }
+
+            RowLayout {
+                spacing: 10
+                Layout.alignment: Qt.AlignHCenter
+
+                Button {
+                    text: qsTr("Preferences")
+                    Layout.preferredWidth: 150
+                    onClicked: AppImageManager.requestModal(AppImageManager.Preferences)
+                }
+
+                Button {
+                    text: qsTr("Open AppImage")
+                    Layout.preferredWidth: 150
+                    onClicked: AppImageManager.requestModal(AppImageManager.OpenDialog)
+                }
+            }
+        }
+
         ListView {
             Layout.fillHeight: true
             Layout.alignment: Qt.AlignHCenter

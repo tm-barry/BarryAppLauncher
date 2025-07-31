@@ -84,6 +84,11 @@ void AppImageManager::setState(AppState value) {
     emit stateChanged(value);
 }
 
+void AppImageManager::requestModal(ModalTypes modal)
+{
+    emit modalRequested(modal);
+}
+
 void AppImageManager::loadAppImageList()
 {
     QFuture<void> future = QtConcurrent::run([=]() {

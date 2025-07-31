@@ -87,6 +87,7 @@ ApplicationWindow {
                             onAccepted: {
                                 SettingsManager.appImageDefaultLocation
                                         = folderDialog.selectedFolder
+                                AppImageManager.loadAppImageList()
                             }
                         }
                     }
