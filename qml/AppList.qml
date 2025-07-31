@@ -31,6 +31,7 @@ Item {
             Button {
                 text: "Refresh"
                 Layout.alignment: Qt.AlignRight
+                enabled: !AppImageManager.loadingAppImageList
                 onClicked: {
                     AppImageManager.loadAppImageList()
                 }
