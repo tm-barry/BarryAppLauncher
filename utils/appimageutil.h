@@ -19,6 +19,12 @@ public:
     QString mountedDesktopContents = QString();
 };
 
+enum MetadataAction {
+    Default,
+    Register,
+    Unregister
+};
+
 class AppImageUtil
 {
 public:
@@ -75,7 +81,7 @@ public:
      * If integrated it will use the integrated desktop file,
      * if not it will use the appimage's internal one.
      */
-    AppImageUtilMetadata metadata(bool integration = false);
+    AppImageUtilMetadata metadata(MetadataAction action = Default);
     /**
      * @brief Gets the mounted appimages desktop path
      * @return Destkop path of the mounted appimage
@@ -96,7 +102,12 @@ public:
      * @brief Unregisters the app image at the utils path
      * @return Bool indicating if unregister is successful
      */
-    bool unregisterAppImage();
+    /**
+     * @brief Unregisters the app image at the utils path
+     * @param deleteAppImage Should the appimage be deleted after unregistered
+     * @return Bool indicating if unregister is successful
+     */
+    bool unregisterAppImage(bool deleteAppImage);
     /**
      * @brief Get ths list of registered appimages
      * @return List of registered appimages
@@ -111,11 +122,12 @@ private:
     static const QRegularExpression invalidChars;
     static const QString balIntegrationField;
 
-    static const void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration = false);
+    static const void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent = false);
     QString findNextAvailableFilename(const QString& fullPath);
     QString handleIntegrationFileOperation(QString newName);
     static const QStringList getSearchPaths();
     static const QString getLocalIntegrationPath();
+    static const bool removeFileOrWarn(const QString& path, const QString& label);
 };
 
 #endif // APPIMAGEUTIL_H

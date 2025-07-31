@@ -178,26 +178,34 @@ void AppImageManager::registerAppImage(const QString& path)
     });
 }
 
-void AppImageManager::unregisterAppImage(const QUrl& url)
+void AppImageManager::unregisterAppImage(const QUrl& url, bool deleteAppImage)
 {
-    // unregisterAppImage(url.toLocalFile());
+    unregisterAppImage(url.toLocalFile(), deleteAppImage);
 }
 
-void AppImageManager::unregisterAppImage(const QString& path)
+void AppImageManager::unregisterAppImage(const QString& path, bool deleteAppImage)
 {
-    // QFuture<void> future = QtConcurrent::run([=]() {
-    //     setBusy(true);
-    //     try {
-    //         appimage::desktop_integration::IntegrationManager manager;
-    //         manager.unregisterAppImage(path.toUtf8().constData());
-
-    //         // Load new appimage metadata
-    //         loadAppImageMetadata(path);
-    //     } catch (const std::exception &e) {
-    //         ErrorManager::instance()->reportError(e.what());
-    //     }
-    //     setBusy(false);
-    // });
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setLoadingAppImage(true);
+        try {
+            AppImageUtil util(path);
+            if(util.unregisterAppImage(deleteAppImage))
+            {
+                loadAppImageList();
+                if(deleteAppImage)
+                {
+                    setState(AppList);
+                }
+                else
+                {
+                    loadAppImageMetadata(path);
+                }
+            }
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setLoadingAppImage(false);
+    });
 }
 
 // ----------------- Private -----------------

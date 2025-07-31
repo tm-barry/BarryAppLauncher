@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 Item {
@@ -18,6 +19,34 @@ Item {
             var urlPath = Qt.resolvedUrl("file://" + folderPath)
             Qt.openUrlExternally(urlPath)
         }
+    }
+
+    MessageDialog {
+        id: unregisterDialog
+        title: qsTr("Unregister")
+        text: qsTr("Would you like the AppImage file deleted also?")
+        buttons: MessageDialog.Yes | MessageDialog.No | MessageDialog.Cancel
+
+        onButtonClicked: button => {
+                             switch (button) {
+                                 case MessageDialog.Yes:
+                                 AppImageManager.unregisterAppImage(
+                                     AppImageManager.appImageMetadata?.path,
+                                     true)
+                                 break
+                                 case MessageDialog.No:
+                                 AppImageManager.unregisterAppImage(
+                                     AppImageManager.appImageMetadata?.path,
+                                     false)
+                                 break
+                                 case MessageDialog.Cancel:
+                                 console.log("Unregister canceled by user")
+                                 break
+                                 default:
+                                 console.warn("Unexpected button clicked:",
+                                              button)
+                             }
+                         }
     }
 
     ScrollView {
@@ -108,8 +137,7 @@ Item {
                     enabled: !AppImageManager.loadingAppImage
                     visible: AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.Internal
-                    onClicked: AppImageManager.unregisterAppImage(
-                                   AppImageManager.appImageMetadata?.path)
+                    onClicked: unregisterDialog.open()
                 }
             }
 

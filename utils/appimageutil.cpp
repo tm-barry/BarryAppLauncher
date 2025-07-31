@@ -199,20 +199,20 @@ const QString AppImageUtil::integratedDesktopPath(const QString& path)
     return QString();
 }
 
-AppImageUtilMetadata AppImageUtil::metadata(bool integration)
+AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
 {
     AppImageUtilMetadata metadata;
     metadata.path = m_path;
     metadata.type = isAppImageType2(m_path) ? 2 : 1;
     metadata.md5 = getMd5(m_path);
-    QString desktopPath = !integration ? integratedDesktopPath(m_path) : QString();
+    QString desktopPath = action != MetadataAction::Register ? integratedDesktopPath(m_path) : QString();
 
     if(!desktopPath.isEmpty())
     {
         metadata.desktopFilePath = desktopPath;
         parseDesktopPathForMetadata(desktopPath, metadata);
     }
-    else
+    else if(action != MetadataAction::Unregister)
     {
         if(!isMounted())
             mountAppImage();
@@ -220,7 +220,7 @@ AppImageUtilMetadata AppImageUtil::metadata(bool integration)
         QString mountedDesktopPath = getMountedDesktopPath();
         if (!mountedDesktopPath.isEmpty())
         {
-            parseDesktopPathForMetadata(mountedDesktopPath, metadata, integration);
+            parseDesktopPathForMetadata(mountedDesktopPath, metadata, action == MetadataAction::Register);
             metadata.iconPath = getMountedIconPath();
         }
     }
@@ -313,7 +313,7 @@ QString AppImageUtil::getMountedIconPath()
 QString AppImageUtil::registerAppImage()
 {
     // Move/Copy appimage
-    AppImageUtilMetadata utilMetadata = metadata(true);
+    AppImageUtilMetadata utilMetadata = metadata(MetadataAction::Register);
     QString newAppImagePath = handleIntegrationFileOperation(utilMetadata.name);
     if(newAppImagePath.isEmpty())
     {
@@ -408,8 +408,19 @@ QString AppImageUtil::registerAppImage()
     return newAppImagePath;
 }
 
-bool AppImageUtil::unregisterAppImage()
+bool AppImageUtil::unregisterAppImage(bool deleteAppImage)
 {
+    if (!QFile::exists(m_path)) {
+        ErrorManager::instance()->reportError("Source file does not exist: " + m_path);
+        return false;
+    }
+
+    AppImageUtilMetadata utilMetadata = metadata(MetadataAction::Unregister);
+
+    if (!removeFileOrWarn(utilMetadata.iconPath, "icon file")) return false;
+    if (!removeFileOrWarn(utilMetadata.desktopFilePath, "desktop file")) return false;
+    if (deleteAppImage && !removeFileOrWarn(utilMetadata.path, "AppImage file")) return false;
+
     return true;
 }
 
@@ -452,7 +463,7 @@ const QRegularExpression AppImageUtil::execLineRegex(R"(^Exec=(?:env\s+((?:\S+=\
 const QRegularExpression AppImageUtil::invalidChars(R"([/\\:*?"<>|])");
 const QString AppImageUtil::balIntegrationField = "X-AppImage-BAL=true";
 
-const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool integration)
+const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent)
 {
     QSettings desktopFile(path, QSettings::IniFormat);
     desktopFile.beginGroup("Desktop Entry");
@@ -466,7 +477,7 @@ const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppIma
 
     desktopFile.endGroup();
 
-    if (integration)
+    if (storeDesktopContent)
     {
         QFile file(path);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -550,4 +561,17 @@ const QStringList AppImageUtil::getSearchPaths()
 const QString AppImageUtil::getLocalIntegrationPath()
 {
     return QDir::homePath() + "/.local/share/applications";
+}
+
+const bool AppImageUtil::removeFileOrWarn(const QString& path, const QString& label)
+{
+    if (QFile::exists(path)) {
+        if (!QFile::remove(path)) {
+            ErrorManager::instance()->reportError("Failed to remove " + label + ": " + path);
+            return false;
+        }
+    } else {
+        qWarning() << label << "does not exist:" << path;
+    }
+    return true;
 }
