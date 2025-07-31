@@ -17,7 +17,7 @@ public:
         CommentRole,
         TypeRole,
         IconRole,
-        Md5Role,
+        ChecksumRole,
         CategoriesRole,
         PathRole,
         IntegrationRole,

@@ -9,7 +9,7 @@ ApplicationWindow {
 
     width: 540
     minimumWidth: 480
-    height: 640
+    height: 680
     minimumHeight: 480
     visible: true
 

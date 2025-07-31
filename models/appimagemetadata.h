@@ -14,7 +14,7 @@ class AppImageMetadata : public QObject
     Q_PROPERTY(QString comment READ comment WRITE setComment NOTIFY commentChanged)
     Q_PROPERTY(int type READ type WRITE setType NOTIFY typeChanged)
     Q_PROPERTY(QUrl icon READ icon WRITE setIcon NOTIFY iconChanged)
-    Q_PROPERTY(QString md5 READ md5 WRITE setMd5 NOTIFY md5Changed)
+    Q_PROPERTY(QString checksum READ checksum WRITE setChecksum NOTIFY checksumChanged)
     Q_PROPERTY(QString categories READ categories WRITE setCategories NOTIFY categoriesChanged)
     Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
     Q_PROPERTY(IntegrationType integration READ integration WRITE setIntegration NOTIFY integrationChanged)
@@ -46,8 +46,8 @@ public:
     QUrl icon() const;
     void setIcon(const QUrl& value);
 
-    QString md5() const;
-    void setMd5(const QString& value);
+    QString checksum() const;
+    void setChecksum(const QString& value);
 
     QString categories() const;
     void setCategories(const QString& value);
@@ -67,7 +67,7 @@ signals:
     void commentChanged();
     void typeChanged();
     void iconChanged();
-    void md5Changed();
+    void checksumChanged();
     void categoriesChanged();
     void pathChanged();
     void integrationChanged();
@@ -79,7 +79,7 @@ private:
     QString m_comment;
     int m_type = 0;
     QUrl m_icon;
-    QString m_md5;
+    QString m_checksum;
     QString m_categories;
     QString m_path;
     IntegrationType m_integration = None;

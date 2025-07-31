@@ -236,7 +236,7 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
     metadata->setVersion(utilMetadata.version);
     metadata->setComment(utilMetadata.comment);
     metadata->setType(utilMetadata.type);
-    metadata->setMd5(utilMetadata.md5);
+    metadata->setChecksum(utilMetadata.checksum);
     metadata->setCategories(utilMetadata.categories);
     metadata->setPath(utilMetadata.path);
     metadata->setIntegration(integrationType);

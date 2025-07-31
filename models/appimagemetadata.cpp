@@ -49,11 +49,11 @@ void AppImageMetadata::setIcon(const QUrl& value) {
     }
 }
 
-QString AppImageMetadata::md5() const { return m_md5; }
-void AppImageMetadata::setMd5(const QString& value) {
-    if (m_md5 != value) {
-        m_md5 = value;
-        emit md5Changed();
+QString AppImageMetadata::checksum() const { return m_checksum; }
+void AppImageMetadata::setChecksum(const QString& value) {
+    if (m_checksum != value) {
+        m_checksum = value;
+        emit checksumChanged();
     }
 }
 

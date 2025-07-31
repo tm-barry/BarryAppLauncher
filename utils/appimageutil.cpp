@@ -37,14 +37,14 @@ const bool AppImageUtil::isAppImageType2(const QString& path) {
     return magic == QByteArray("AI\2");
 }
 
-const QString AppImageUtil::getMd5(const QString& path) {
+const QString AppImageUtil::getChecksum(const QString& path, const QCryptographicHash::Algorithm hashType) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         ErrorManager::instance()->reportError("Failed to open file:" + path);
         return QString();
     }
 
-    QCryptographicHash hash(QCryptographicHash::Md5);
+    QCryptographicHash hash(hashType);
 
     if (!hash.addData(&file)) {
         ErrorManager::instance()->reportError("Failed to read file for hashing:" + path);
@@ -204,7 +204,6 @@ AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
     AppImageUtilMetadata metadata;
     metadata.path = m_path;
     metadata.type = isAppImageType2(m_path) ? 2 : 1;
-    metadata.md5 = getMd5(m_path);
     QString desktopPath = action != MetadataAction::Register ? integratedDesktopPath(m_path) : QString();
 
     if(!desktopPath.isEmpty())
@@ -225,8 +224,11 @@ AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
         }
     }
 
-    if(metadata.version.isEmpty() && !metadata.md5.isEmpty())
-        metadata.version = metadata.md5.left(6);
+    if(metadata.version.isEmpty())
+    {
+        auto md5 = getChecksum(m_path, QCryptographicHash::Md5);
+        metadata.version = md5.left(6);
+    }
 
     return metadata;
 }
@@ -443,12 +445,14 @@ const QList<AppImageUtilMetadata> AppImageUtil::getRegisteredList()
             AppImageUtilMetadata utilMetadata;
             utilMetadata.path = path;
             utilMetadata.type = isAppImageType2(path) ? 2 : 1;
-            utilMetadata.md5 = getMd5(path);
             utilMetadata.desktopFilePath = desktopPath;
             parseDesktopPathForMetadata(desktopPath, utilMetadata);
 
-            if(utilMetadata.version.isEmpty() && !utilMetadata.md5.isEmpty())
-                utilMetadata.version = utilMetadata.md5.left(6);
+            if(utilMetadata.version.isEmpty())
+            {
+                auto md5 = getChecksum(path, QCryptographicHash::Md5);
+                utilMetadata.version = md5.left(6);
+            }
 
             list.append(utilMetadata);
         }

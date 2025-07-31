@@ -25,7 +25,7 @@ QVariant AppImageMetadataListModel::data(const QModelIndex &index, int role) con
     case CommentRole: return item->comment();
     case TypeRole: return item->type();
     case IconRole: return item->icon();
-    case Md5Role: return item->md5();
+    case ChecksumRole: return item->checksum();
     case CategoriesRole: return item->categories();
     case PathRole: return item->path();
     case IntegrationRole: return static_cast<int>(item->integration());
@@ -43,7 +43,7 @@ QHash<int, QByteArray> AppImageMetadataListModel::roleNames() const
     roles[CommentRole] = "comment";
     roles[TypeRole] = "type";
     roles[IconRole] = "icon";
-    roles[Md5Role] = "md5";
+    roles[ChecksumRole] = "checksum";
     roles[CategoriesRole] = "categories";
     roles[PathRole] = "path";
     roles[IntegrationRole] = "integration";

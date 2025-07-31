@@ -1,6 +1,7 @@
 #ifndef APPIMAGEUTIL_H
 #define APPIMAGEUTIL_H
 
+#include <QCryptographicHash>
 #include <QProcess>
 #include <QString>
 
@@ -10,7 +11,7 @@ public:
     QString version = QString();
     QString comment = QString();
     int type = 0;
-    QString md5 = QString();
+    QString checksum = QString();
     QString categories = QString();
     QString path = QString();
     QString desktopFilePath = QString();
@@ -38,11 +39,12 @@ public:
      */
     static const bool isAppImageType2(const QString& path);
     /**
-     * @brief Gets the md5 of the given path
-     * @param path Path to file you want the md5
-     * @return Md5 of the file at path
+     * @brief Gets the checksum of the given path
+     * @param path Path to file you want the checksum
+     * @param hashType Hash type algorithm to use
+     * @return Checksum of the file at path
      */
-    static const QString getMd5(const QString& path);
+    static const QString getChecksum(const QString& path, const QCryptographicHash::Algorithm hashType = QCryptographicHash::Sha256);
     /**
      * @brief Checks if the path is executable
      * @param path Path to file to check is executable

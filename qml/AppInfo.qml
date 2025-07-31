@@ -4,6 +4,8 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 Item {
+    property int maximumWidth: 460
+
     QtObject {
         id: utils
 
@@ -80,6 +82,10 @@ Item {
                 text: AppImageManager.appImageMetadata?.comment
                 visible: AppImageManager.appImageMetadata?.comment
                 Layout.alignment: Qt.AlignHCenter
+                horizontalAlignment: Text.AlignHCenter
+                Layout.maximumWidth: maximumWidth
+                wrapMode: TextEdit.Wrap
+                Layout.fillWidth: true
             }
 
             Item {
@@ -140,6 +146,10 @@ Item {
                 color: "#C43D3D"
                 Layout.alignment: Qt.AlignHCenter
                 visible: AppImageManager.appImageMetadata?.integration === AppImageMetadata.External
+                horizontalAlignment: Text.AlignHCenter
+                Layout.maximumWidth: maximumWidth
+                wrapMode: TextEdit.Wrap
+                Layout.fillWidth: true
             }
 
             Item {
@@ -154,8 +164,8 @@ Item {
             }
             RoundedGroupBox {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.minimumWidth: 460
-                Layout.maximumWidth: 460
+                Layout.minimumWidth: maximumWidth
+                Layout.maximumWidth: maximumWidth
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -207,20 +217,6 @@ Item {
                                            AppImageManager.appImageMetadata?.path)
                         }
                     }
-
-                    Item {
-                        Layout.preferredHeight: 5
-                    }
-
-                    Label {
-                        text: qsTr("Md5")
-                        font.bold: true
-                    }
-
-                    TextArea {
-                        text: AppImageManager.appImageMetadata?.md5
-                        readOnly: true
-                    }
                 }
             }
 
@@ -236,8 +232,8 @@ Item {
             }
             RoundedGroupBox {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.minimumWidth: 460
-                Layout.maximumWidth: 460
+                Layout.minimumWidth: maximumWidth
+                Layout.maximumWidth: maximumWidth
 
                 ColumnLayout {
                     anchors.fill: parent
