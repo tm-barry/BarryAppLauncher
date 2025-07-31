@@ -39,12 +39,6 @@ Item {
                                      AppImageManager.appImageMetadata?.path,
                                      false)
                                  break
-                                 case MessageDialog.Cancel:
-                                 console.log("Unregister canceled by user")
-                                 break
-                                 default:
-                                 console.warn("Unexpected button clicked:",
-                                              button)
                              }
                          }
     }
