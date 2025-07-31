@@ -169,6 +169,7 @@ void AppImageManager::registerAppImage(const QString& path)
             if(!newPath.isEmpty())
             {
                 loadAppImageMetadata(newPath);
+                loadAppImageList();
             }
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());

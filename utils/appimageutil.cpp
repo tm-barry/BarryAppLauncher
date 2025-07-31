@@ -252,7 +252,15 @@ QString AppImageUtil::getMountedIconPath()
     // 1. Check for .DirIcon
     QString dirIconPath = dir.filePath(".DirIcon");
     if (QFile::exists(dirIconPath))
+    {
+        // If symlink get the target
+        QFileInfo dirIcon(dirIconPath);
+        if(dirIcon.isSymLink())
+            if(QFile::exists(dirIcon.symLinkTarget()))
+                dirIconPath = dirIcon.symLinkTarget();
+
         return dirIconPath;
+    }
 
     QString mountedDesktopPath = getMountedDesktopPath();
     if (!mountedDesktopPath.isEmpty())
@@ -510,6 +518,10 @@ QString AppImageUtil::handleIntegrationFileOperation(QString appName)
     QString fileName = QString("%1.appimage").arg((appName).trimmed().toLower());
     QDir dir(SettingsManager::instance()->appImageDefaultLocation().toLocalFile());
     QString newPath = dir.filePath(fileName);
+
+    if(m_path == newPath)
+        return m_path;
+
     newPath = findNextAvailableFilename(newPath);
 
     bool success = false;
