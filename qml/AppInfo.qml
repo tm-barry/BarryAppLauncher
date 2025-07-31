@@ -55,6 +55,7 @@ Item {
 
             Label {
                 text: AppImageManager.appImageMetadata?.comment
+                visible: AppImageManager.appImageMetadata?.comment
                 Layout.alignment: Qt.AlignHCenter
             }
 
@@ -77,7 +78,8 @@ Item {
                                                     "Launch")
                     backgroundColor: "#4E7A6A"
                     Layout.preferredWidth: 100
-                    enabled: !launchTimer.running && !AppImageManager.loadingAppImage
+                    enabled: !launchTimer.running
+                             && !AppImageManager.loadingAppImage
                     onClicked: {
                         if (!AppImageManager.appImageMetadata?.integrated) {
                             AppImageManager.launchAppImage(
@@ -94,8 +96,7 @@ Item {
                     text: qsTr("Register")
                     Layout.preferredWidth: 100
                     enabled: !AppImageManager.loadingAppImage
-                    visible: AppImageManager.appImageMetadata?.integration
-                             === AppImageMetadata.None
+                    visible: AppImageManager.appImageMetadata?.integration === AppImageMetadata.None
                     onClicked: AppImageManager.registerAppImage(
                                    AppImageManager.appImageMetadata?.path)
                 }

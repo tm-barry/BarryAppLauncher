@@ -93,6 +93,7 @@ Item {
 
                         Label {
                             text: comment
+                            visible: comment
                             wrapMode: Text.Wrap
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignLeft
