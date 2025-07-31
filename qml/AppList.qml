@@ -54,8 +54,8 @@ Item {
                 }
 
                 background: Rectangle {
-                    property color backgroundColor: palette.base
-                    property color hoverColor: Qt.lighter(backgroundColor, 1.2)
+                    property color backgroundColor: Qt.lighter(palette.base, 2.2)
+                    property color hoverColor: Qt.darker(backgroundColor, 1.1)
                     property color pressedColor: Qt.darker(backgroundColor, 1.3)
                     property color disabledColor: Qt.darker(backgroundColor,
                                                             1.4)

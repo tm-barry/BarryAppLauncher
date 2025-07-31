@@ -129,7 +129,7 @@ Item {
                 font.pixelSize: 14
                 Layout.alignment: Qt.AlignHCenter
             }
-            GroupBox {
+            RoundedGroupBox {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.minimumWidth: 460
                 Layout.maximumWidth: 460
@@ -211,7 +211,7 @@ Item {
                 font.pixelSize: 14
                 Layout.alignment: Qt.AlignHCenter
             }
-            GroupBox {
+            RoundedGroupBox {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.minimumWidth: 460
                 Layout.maximumWidth: 460

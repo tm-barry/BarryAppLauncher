@@ -37,7 +37,7 @@ ApplicationWindow {
                 font.pixelSize: 14
                 Layout.alignment: Qt.AlignHCenter
             }
-            GroupBox {
+            RoundedGroupBox {
                 Layout.fillWidth: true
 
                 ColumnLayout {
@@ -82,7 +82,8 @@ ApplicationWindow {
                         FolderDialog {
                             id: folderDialog
                             title: qsTr("AppImage Default Location")
-                            currentFolder: utils.getParentFolder(SettingsManager.appImageDefaultLocation)
+                            currentFolder: utils.getParentFolder(
+                                               SettingsManager.appImageDefaultLocation)
                             onAccepted: {
                                 SettingsManager.appImageDefaultLocation
                                         = folderDialog.selectedFolder

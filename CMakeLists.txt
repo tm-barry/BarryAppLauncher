@@ -27,6 +27,7 @@ qt_add_qml_module(appBarryAppLauncher
         qml/IconButton.qml
         qml/Main.qml
         qml/Preferences.qml
+        qml/RoundedGroupBox.qml
     SOURCES
         managers/appimagemanager.h
         managers/appimagemanager.cpp
