@@ -15,7 +15,25 @@ ApplicationWindow {
 
     QtObject {
         id: modalManager
+
+        property var aboutModal: null
         property var preferencesModal: null
+
+        function openAboutModal() {
+            if (modalManager.aboutModal == null) {
+                modalManager.aboutModal = Qt.createComponent(
+                            "About.qml").createObject(null)
+                modalManager.aboutModal.transientParent = mainWindow
+
+                modalManager.aboutModal.closing.connect(
+                            function () {
+                                modalManager.aboutModal.destroy()
+                                modalManager.aboutModal = null
+                            })
+            }
+
+            modalManager.aboutModal.show()
+        }
 
         function openPreferencesModal() {
             if (modalManager.preferencesModal == null) {
@@ -122,6 +140,7 @@ ApplicationWindow {
             title: qsTr("&Help")
             Action {
                 text: qsTr("&About")
+                onTriggered: modalManager.openAboutModal()
             }
         }
     }

@@ -33,6 +33,9 @@ int main(int argc, char *argv[])
     SettingsManager::instance();
 
     QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("AppName", app.applicationName());
+    engine.rootContext()->setContextProperty("AppVersion", app.applicationVersion());
+
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,

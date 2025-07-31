@@ -40,12 +40,12 @@ Item {
 
         Item {
             Layout.preferredHeight: 50
-            visible: AppImageManager.appImageList.count === 0
+            visible: !AppImageManager.loadingAppImageList && AppImageManager.appImageList.count === 0
         }
 
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
-            visible: AppImageManager.appImageList.count === 0
+            visible: !AppImageManager.loadingAppImageList && AppImageManager.appImageList.count === 0
             Layout.minimumWidth: 460
             Layout.maximumWidth: 460
             Layout.preferredWidth: 460
