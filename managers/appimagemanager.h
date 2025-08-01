@@ -50,6 +50,9 @@ public:
     AppState state() const;
     void setState(AppState value);
 
+    bool isRunningAsAppImage();
+    QString appImagePath();
+
     Q_INVOKABLE void requestModal(ModalTypes modal);
     Q_INVOKABLE void loadAppImageList();
     Q_INVOKABLE void loadAppImageMetadata(const QUrl& url);

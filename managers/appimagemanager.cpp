@@ -84,6 +84,16 @@ void AppImageManager::setState(AppState value) {
     emit stateChanged(value);
 }
 
+bool AppImageManager::isRunningAsAppImage() {
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    return env.contains("APPIMAGE") && QFile::exists(env.value("APPIMAGE"));
+}
+
+QString AppImageManager::appImagePath() {
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    return env.value("APPIMAGE");
+}
+
 void AppImageManager::requestModal(ModalTypes modal)
 {
     emit modalRequested(modal);

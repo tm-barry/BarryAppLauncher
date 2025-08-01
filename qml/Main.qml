@@ -13,6 +13,13 @@ ApplicationWindow {
     minimumHeight: 480
     visible: true
 
+    Component.onCompleted: {
+        if(FileArg)
+        {
+            AppImageManager.loadAppImageMetadata(FileArg)
+        }
+    }
+
     QtObject {
         id: modalManager
 

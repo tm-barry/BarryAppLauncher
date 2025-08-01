@@ -19,6 +19,12 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion("0.5.0");
     app.setWindowIcon(QIcon(":/assets/icons/barry-app-launcher.svg"));
 
+    QString fileArg;
+    QStringList args = QCoreApplication::arguments();
+    if (args.size() > 1) {
+        fileArg = args.at(1);
+    }
+
     qmlRegisterType<AppImageMetadata>("BarryAppLauncher", 1, 0, "AppImageMetadata");
     qRegisterMetaType<AppImageManager::AppState>("AppImageManager::AppState");
     qRegisterMetaType<AppImageManager::ModalTypes>("AppImageManager::ModalTypes");
@@ -35,6 +41,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("AppName", app.applicationName());
     engine.rootContext()->setContextProperty("AppVersion", app.applicationVersion());
+    engine.rootContext()->setContextProperty("FileArg", fileArg);
 
     QObject::connect(
         &engine,

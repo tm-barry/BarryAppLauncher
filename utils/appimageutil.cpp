@@ -201,9 +201,21 @@ const QString AppImageUtil::integratedDesktopPath(const QString& path)
 
 AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
 {
+    QFile file(m_path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        throw std::runtime_error(("Failed to open file: " + m_path).toStdString());
+    }
+
+    bool isValid = isAppImageType2(m_path);
+    // Currently only supporting appimage type 2
+    if(!isValid)
+    {
+        throw std::runtime_error("Invalid/unsupported appimage type");
+    }
+
     AppImageUtilMetadata metadata;
     metadata.path = m_path;
-    metadata.type = isAppImageType2(m_path) ? 2 : 1;
+    metadata.type = 2;
     QString desktopPath = action != MetadataAction::Register ? integratedDesktopPath(m_path) : QString();
 
     if(!desktopPath.isEmpty())
