@@ -1,4 +1,5 @@
 #include "settingsmanager.h"
+#include "utils/terminalutil.h"
 
 #include <QSettings>
 #include <QStandardPaths>
@@ -38,9 +39,33 @@ void SettingsManager::setAppImageFileOperation(AppImageFileOperation value) {
     emit appImageFileOperationChanged(value);
 }
 
+QString SettingsManager::terminal() const {
+    QSettings settings;
+    QVariant v = settings.value("General/terminal", m_terminalDefault);
+    return v.toString().isEmpty() ? m_terminalDefault : v.toString();
+}
+
+void SettingsManager::setTerminal(QString value) {
+    if (terminal() == value)
+        return;
+
+    if(value.isEmpty())
+        value = m_terminalDefault;
+
+    QSettings settings;
+    settings.setValue("General/terminal", value);
+    emit terminalChanged(value);
+}
+
+bool SettingsManager::terminalExists(const QString& path)
+{
+    return TerminalUtil::terminalExists(path);
+}
+
 // ----------------- Private -----------------
 
 const QUrl SettingsManager::m_appImageDefaultLocation = QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/Applications");
+const QString SettingsManager::m_terminalDefault = TerminalUtil::detectTerminal();
 
 SettingsManager::SettingsManager(QObject *parent)
     : QObject{parent}

@@ -21,6 +21,17 @@ Item {
             var urlPath = Qt.resolvedUrl("file://" + folderPath)
             Qt.openUrlExternally(urlPath)
         }
+
+        function launchAppImage(terminal = false) {
+            if (!AppImageManager.appImageMetadata?.integrated) {
+                AppImageManager.launchAppImage(
+                            AppImageManager.appImageMetadata?.path, terminal)
+            } else {
+                AppImageManager.launchAppImage(
+                            AppImageManager.appImageMetadata?.desktopFilePath, terminal)
+            }
+            launchTimer.start()
+        }
     }
 
     MessageDialog {
@@ -102,22 +113,40 @@ Item {
                     repeat: false
                 }
 
-                ColorButton {
-                    text: launchTimer.running ? qsTr("Launching") : qsTr(
-                                                    "Launch")
-                    backgroundColor: "#4E7A6A"
-                    Layout.preferredWidth: 100
-                    enabled: !launchTimer.running
-                             && !AppImageManager.loadingAppImage
-                    onClicked: {
-                        if (!AppImageManager.appImageMetadata?.integrated) {
-                            AppImageManager.launchAppImage(
-                                        AppImageManager.appImageMetadata?.path)
-                        } else {
-                            AppImageManager.launchAppImage(
-                                        AppImageManager.appImageMetadata?.desktopFilePath)
+                RowLayout {
+                    spacing: 0
+
+                    ColorButton {
+                        id: launchBtn
+                        property string bgColor: "#4E7A6A"
+
+                        text: launchTimer.running ? qsTr("Launching") : qsTr(
+                                                        "Launch")
+                        backgroundColor: bgColor
+                        Layout.preferredWidth: 100
+                        enabled: !launchTimer.running
+                                 && !AppImageManager.loadingAppImage
+                        onClicked: utils.launchAppImage()
+                    }
+
+                    ColorButton {
+                        id: launchOptionsBtn
+                        text: "\u25BE"
+                        backgroundColor: launchBtn.bgColor
+                        Layout.preferredWidth: 30
+                        enabled: launchBtn.enabled
+                        onClicked: {
+                            launchOptionsMenu.y = launchOptionsBtn.y + 30
+                            launchOptionsMenu.open()
                         }
-                        launchTimer.start()
+                    }
+
+                    Menu {
+                        id: launchOptionsMenu
+                        MenuItem {
+                            text: qsTr("Launch in Terminal")
+                            onTriggered: utils.launchAppImage(true)
+                        }
                     }
                 }
 

@@ -12,6 +12,17 @@ ApplicationWindow {
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
+    onVisibleChanged: {
+        terminalTextField.text = SettingsManager.terminal
+    }
+
+    Connections {
+        target: SettingsManager
+        function onTerminalChanged(newValue) {
+            terminalTextField.text = newValue
+        }
+    }
+
     QtObject {
         id: utils
 
@@ -110,6 +121,44 @@ ApplicationWindow {
                             currentIndex: SettingsManager.appImageFileOperation
                             onCurrentIndexChanged: SettingsManager.appImageFileOperation
                                                    = currentIndex
+                        }
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 10
+                    }
+
+                    Label {
+                        text: qsTr("Terminal Override")
+                        font.bold: true
+                    }
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        RoundedTextArea {
+                            id: terminalTextField
+                            singleLine: true
+                            placeholderText: qsTr("Detect default terminal...")
+                            wrapMode: TextEdit.Wrap
+                            Layout.fillWidth: true
+                        }
+
+                        IconButton {
+                            text: "\uf0c7"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            enabled: SettingsManager.terminal !== terminalTextField.text
+                            onClicked: {
+                                if(!terminalTextField.textSettings || Manager.terminalExists(terminalTextField.text))
+                                {
+                                    SettingsManager.terminal = terminalTextField.text;
+                                }
+                                else
+                                {
+                                    ErrorManager.reportError(qsTr("Terminal does not found: ") + terminalTextField.text);
+                                }
+                            }
                         }
                     }
                 }

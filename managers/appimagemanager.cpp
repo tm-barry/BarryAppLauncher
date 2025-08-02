@@ -1,6 +1,7 @@
 #include "appimagemanager.h"
 #include "errormanager.h"
 #include "providers/memoryimageprovider.h"
+#include "utils/terminalutil.h"
 
 #include <QGuiApplication>
 #include <QtConcurrent/QtConcurrentRun>
@@ -150,15 +151,23 @@ void AppImageManager::loadAppImageMetadata(const QString& path) {
     });
 }
 
-void AppImageManager::launchAppImage(const QUrl& url)
+void AppImageManager::launchAppImage(const QUrl& url, const bool useTerminal)
 {
-    launchAppImage(url.toLocalFile());
+    launchAppImage(url.toLocalFile(), useTerminal);
 }
 
-void AppImageManager::launchAppImage(const QString& path)
+void AppImageManager::launchAppImage(const QString& path, const bool useTerminal)
 {
     try {
-        bool success = QProcess::startDetached(path);
+        bool success = false;
+        if(!useTerminal)
+        {
+            success = QProcess::startDetached(path);
+        }
+        else
+        {
+            success = TerminalUtil::launchInTerminal(path);
+        }
 
         if(!success)
         {
