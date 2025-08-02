@@ -93,9 +93,8 @@ const bool TerminalUtil::launchInTerminal(const QString &path)
         terminal.contains("mate-terminal") ||
         terminal.contains("deepin-terminal")) {
         args << "--" << shell << "-c" << shellCmd;
-    } else if (terminal.contains("konsole") || terminal.contains("yakuake")) {
-        args << "-e" << shell << "-c" << shellCmd;
-    } else if (terminal.contains("xterm") || terminal.contains("lxterminal") ||
+    } else if (terminal.contains("konsole") || terminal.contains("yakuake") ||
+               terminal.contains("xterm") || terminal.contains("lxterminal") ||
                terminal.contains("qterminal") || terminal.contains("urxvt") ||
                terminal.contains("alacritty") || terminal.contains("kitty") ||
                terminal.contains("foot") || terminal.contains("wezterm")) {
