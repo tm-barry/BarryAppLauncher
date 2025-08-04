@@ -51,5 +51,39 @@ find "$APPDIR" -type f -print0 | xargs -0 file | grep 'ELF 64-bit' | cut -d: -f1
     strip --strip-all "$elf_file" ^/dev/null
 end
 
+# Path to barryapplauncher bin
+set APPBIN $APPDIR/usr/bin/barryapplauncher
+
+# Function to extract needed libraries using ldd
+function collect_used_libs --argument-names paths
+    set -l libs
+    for p in $paths
+        if test -f $p
+            for line in (ldd $p ^| awk '{print $1}' ^| grep '^lib')
+                if test -n "$line"
+                    set libs $libs $line
+                end
+            end
+        end
+    end
+    printf "%s\n" $libs | sort -u
+end
+
+# Find all shared libs in usr/lib
+set -l so_files (find $APPDIR/usr/lib -type f -name '*.so*')
+
+# Collect needed libs from the app binary and all .so files in usr/lib
+set -l used_libs (collect_used_libs $APPBIN $so_files)
+set -l used_libs_list (string join " " $used_libs)
+
+# Delete unused .so files in usr/lib
+for libfile in $so_files
+    set libname (basename $libfile)
+    if not contains $libname $used_libs_list
+        echo "Removing unused lib: $libname"
+        rm $libfile
+    end
+end
+
 echo "Running linuxdeploy build appimage..."
 linuxdeploy --appdir=$APPDIR --output appimage || exit 1
