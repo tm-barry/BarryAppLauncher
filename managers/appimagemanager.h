@@ -50,9 +50,7 @@ public:
     AppState state() const;
     void setState(AppState value);
 
-    bool isRunningAsAppImage();
-    QString appImagePath();
-
+    Q_INVOKABLE void registerSelf();
     Q_INVOKABLE void requestModal(ModalTypes modal);
     Q_INVOKABLE void loadAppImageList();
     Q_INVOKABLE void loadAppImageMetadata(const QUrl& url);
@@ -76,6 +74,7 @@ private:
     bool m_loadingAppImage = false;
     AppState m_state = AppList;
 
+    QString appImagePath();
     AppImageMetadata* parseAppImageMetadata(const AppImageUtilMetadata& appImageMetadata);
 
     Q_DISABLE_COPY(AppImageManager);

@@ -7,8 +7,8 @@ import QtQuick.Layouts
 ApplicationWindow {
     width: 480
     minimumWidth: 270
-    height: 270
-    minimumHeight: 270
+    height: 380
+    minimumHeight: 360
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
@@ -103,8 +103,13 @@ ApplicationWindow {
                         }
                     }
 
-                    Item {
-                        Layout.preferredHeight: 10
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
                     }
 
                     Label {
@@ -124,8 +129,13 @@ ApplicationWindow {
                         }
                     }
 
-                    Item {
-                        Layout.preferredHeight: 10
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
                     }
 
                     Label {
@@ -160,6 +170,35 @@ ApplicationWindow {
                                 }
                             }
                         }
+                    }
+
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
+                    }
+
+                    Label {
+                        text: qsTr("Register Self")
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: qsTr("BarryAppLauncher can register itself into your system menu.")
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.alignment: Qt.AlignCenter
+                        Layout.fillWidth: true
+                    }
+
+                    ColorButton {
+                        text: qsTr("Register")
+                        Layout.preferredWidth: 100
+                        onClicked: AppImageManager.registerSelf()
+                        Layout.alignment: Qt.AlignCenter
                     }
                 }
             }

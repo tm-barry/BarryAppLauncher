@@ -85,14 +85,43 @@ void AppImageManager::setState(AppState value) {
     emit stateChanged(value);
 }
 
-bool AppImageManager::isRunningAsAppImage() {
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    return env.contains("APPIMAGE") && QFile::exists(env.value("APPIMAGE"));
-}
+void AppImageManager::registerSelf()
+{
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setLoadingAppImage(true);
+        try {
+            QString path = appImagePath();
+            if(!path.isEmpty())
+            {
+                AppImageUtil util(path);
+                QString integratedDesktopPath = util.integratedDesktopPath(path);
 
-QString AppImageManager::appImagePath() {
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    return env.value("APPIMAGE");
+                // Check if not already integrated
+                if(integratedDesktopPath.isEmpty())
+                {
+                    QString newPath = util.registerAppImage();
+
+                    // If we integrated successfully, close and restart the app.
+                    if(!newPath.isEmpty())
+                    {
+                        QProcess::startDetached(newPath);
+                        QCoreApplication::quit();
+                    }
+                }
+                else
+                {
+                    ErrorManager::instance()->reportError("BarryAppLauncher is already registered in the desktop menu.");
+                }
+            }
+            else
+            {
+                ErrorManager::instance()->reportError("Unable to find appimage: " + path);
+            }
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setLoadingAppImage(false);
+    });
 }
 
 void AppImageManager::requestModal(ModalTypes modal)
@@ -267,6 +296,12 @@ AppImageManager::AppImageManager(QObject *parent)
 {}
 
 const QRegularExpression AppImageManager::invalidChars(R"([/\\:*?"<>|])");
+
+QString AppImageManager::appImagePath() {
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    QString path = env.value("APPIMAGE");
+    return QFile::exists(path) ? path : QString();
+}
 
 AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetadata& utilMetadata)
 {
