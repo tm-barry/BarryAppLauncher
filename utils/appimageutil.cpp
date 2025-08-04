@@ -261,42 +261,17 @@ QString AppImageUtil::getMountedIconPath()
     if (m_mountPath.isEmpty())
         return QString();
 
-    QDir dir(m_mountPath);
-
-    // 1. Check for .DirIcon
-    QString dirIconPath = dir.filePath(".DirIcon");
-    if (QFile::exists(dirIconPath))
-    {
-        // If symlink get the target
-        QFileInfo dirIcon(dirIconPath);
-        if(dirIcon.isSymLink())
-            if(QFile::exists(dirIcon.symLinkTarget()))
-                dirIconPath = dirIcon.symLinkTarget();
-
-        return dirIconPath;
-    }
-
     QString mountedDesktopPath = getMountedDesktopPath();
     if (!mountedDesktopPath.isEmpty())
     {
         AppImageUtilMetadata metadata;
         parseDesktopPathForMetadata(mountedDesktopPath, metadata);
-        QDir mountDir(m_mountPath);
 
-        // 2: Absolute or relative path with extension
-        QStringList imageExtensions = { "png", "svg", "xpm", "ico" };
-        for (const QString& ext : imageExtensions) {
-            QString filename = metadata.iconPath + "." + ext;
-            QFileInfo iconInfo(mountDir.filePath(filename));
-            if (iconInfo.exists() && iconInfo.isFile()) {
-                return iconInfo.absoluteFilePath();
-            }
-        }
-
-        // 3. Look for common image formats
+        // 1. Look for common image formats
         QStringList filters = { "*.png", "*.svg", "*.xpm", "*.ico" };
         QStringList iconDirs = {
             m_mountPath + "/usr/share/icons/hicolor/scalable",
+            m_mountPath + "/usr/share/icons/hicolor/512x512",
             m_mountPath + "/usr/share/icons/hicolor/256x256",
             m_mountPath + "/usr/share/icons/hicolor/192x192",
             m_mountPath + "/usr/share/icons/hicolor/128x128",
@@ -306,18 +281,41 @@ QString AppImageUtil::getMountedIconPath()
         };
 
         for (const QString& iconDirPath : iconDirs) {
-            QDir iconDir(iconDirPath);
-            if (!iconDir.exists())
+            if (!QDir(iconDirPath).exists())
                 continue;
 
             QDirIterator dirIterator(iconDirPath, filters, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
 
             while (dirIterator.hasNext()) {
                 QFileInfo fileInfo(dirIterator.next());
-                if (fileInfo.completeBaseName() == metadata.iconPath) {
+                if (fileInfo.completeBaseName() == QFileInfo(metadata.iconPath).completeBaseName()) {
                     return fileInfo.absoluteFilePath();
                 }
             }
+        }
+
+        // 2: Absolute or relative path with extension
+        QDir mountDir(m_mountPath);
+        QStringList imageExtensions = { "png", "svg", "xpm", "ico" };
+        for (const QString& ext : imageExtensions) {
+            QString filename = metadata.iconPath + "." + ext;
+            QFileInfo iconInfo(mountDir.filePath(filename));
+            if (iconInfo.exists() && iconInfo.isFile()) {
+                return iconInfo.absoluteFilePath();
+            }
+        }
+    }
+
+    // 3. Check for .DirIcon
+    QString dirIconPath = m_mountPath + "/.DirIcon";
+    QFileInfo dirIcon(dirIconPath);
+    if (dirIcon.exists()) {
+        if (dirIcon.isSymLink()) {
+            QString target = dirIcon.symLinkTarget();
+            if (QFile::exists(target))
+                return target;
+        } else {
+            return dirIcon.absoluteFilePath();
         }
     }
 
