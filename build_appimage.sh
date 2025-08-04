@@ -33,7 +33,17 @@ export EXTRA_PLATFORM_PLUGINS="libqwayland-generic.so"
 export EXTRA_QT_MODULES="waylandcompositor"
 export QML_SOURCES_PATHS="$PROJECT_ROOT/qml"
 export QT_PLUGIN_PATH="/usr/lib/qt6/plugins"
+export DEPLOY_PLATFORM_THEMES=true
 export NO_STRIP=1
 
-echo "Running linuxdeploy..."
-linuxdeploy --appdir="$APPDIR" --plugin qt --output appimage
+echo "Running linuxdeploy build AppDir..."
+linuxdeploy --appdir="$APPDIR" --plugin qt
+
+echo "Stripping ELF binaries in AppDir using system strip..."
+find "$APPDIR" -type f -print0 | xargs -0 file | grep 'ELF 64-bit' | cut -d: -f1 | while read -r elf_file; do
+    echo "Stripping $elf_file"
+    strip --strip-all "$elf_file" 2>/dev/null
+done
+
+echo "Running linuxdeploy build AppImage..."
+linuxdeploy --appdir="$APPDIR" --output appimage

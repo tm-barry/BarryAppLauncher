@@ -1,5 +1,4 @@
 #!/usr/bin/env fish
-set -e  # Exit on error
 
 # Check if project root argument is given
 if test (count $argv) -lt 1
@@ -17,15 +16,15 @@ echo "Using project root: $PROJECT_ROOT"
 
 # Sync AppDir
 echo "Syncing AppDir..."
-rsync -a --delete $PROJECT_ROOT/AppDir/ $APPDIR/
+rsync -a --delete $PROJECT_ROOT/AppDir/ $APPDIR/ || exit 1
 
 # Create bin directory in AppDir
 echo "Creating bin directory in AppDir..."
-mkdir -p $APPDIR/usr/bin/
+mkdir -p $APPDIR/usr/bin/ || exit 1
 
 # Copy binary to AppDir
 echo "Copying binary to AppDir..."
-cp $BUILD_DIR/$BIN_NAME $APPDIR/usr/bin/
+cp $BUILD_DIR/$BIN_NAME $APPDIR/usr/bin/ || exit 1
 
 # Find qmake6 executable path
 set QMAKE (which qmake6)
@@ -40,7 +39,17 @@ set -x EXTRA_PLATFORM_PLUGINS libqwayland-generic.so
 set -x EXTRA_QT_MODULES waylandcompositor
 set -x QML_SOURCES_PATHS $PROJECT_ROOT/qml
 set -x QT_PLUGIN_PATH /usr/lib/qt6/plugins
+set -x DEPLOY_PLATFORM_THEMES true
 set -x NO_STRIP 1
 
-echo "Running linuxdeploy..."
-linuxdeploy --appdir=$APPDIR --plugin qt --output appimage
+echo "Running linuxdeploy build AppDir..."
+linuxdeploy --appdir=$APPDIR --plugin qt || exit 1
+
+echo "Stripping ELF binaries in AppDir using system strip..."
+find "$APPDIR" -type f -print0 | xargs -0 file | grep 'ELF 64-bit' | cut -d: -f1 | while read -l elf_file
+    echo "Stripping $elf_file"
+    strip --strip-all "$elf_file" ^/dev/null
+end
+
+echo "Running linuxdeploy build appimage..."
+linuxdeploy --appdir=$APPDIR --output appimage || exit 1
