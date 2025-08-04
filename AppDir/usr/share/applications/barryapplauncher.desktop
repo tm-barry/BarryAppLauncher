@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=BarryAppLauncher
+Comment=Lightweight Qt app for integrating AppImages into your desktop menu
+Exec=barryapplauncher
+TryExec=barryapplauncher
+Icon=barryapplauncher
+Categories=Utility;
+MimeType=application/vnd.appimage;
+X-AppImage-Version=0.5.0

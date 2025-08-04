@@ -21,7 +21,7 @@ ApplicationWindow {
             spacing: 10
 
             Image {
-                source: "qrc:/assets/icons/barry-app-launcher.svg"
+                source: "qrc:/assets/icons/barryapplauncher.svg"
                 width: 128
                 height: 128
                 sourceSize.width: width

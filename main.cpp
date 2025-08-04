@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     app.setOrganizationName("tm-barry");
     app.setApplicationName("BarryAppLauncher");
     QCoreApplication::setApplicationVersion("0.5.0");
-    app.setWindowIcon(QIcon(":/assets/icons/barry-app-launcher.svg"));
+    app.setWindowIcon(QIcon(":/assets/icons/barryapplauncher.svg"));
 
     QString fileArg;
     QStringList args = QCoreApplication::arguments();
