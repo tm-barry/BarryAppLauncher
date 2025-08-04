@@ -30,6 +30,7 @@ QVariant AppImageMetadataListModel::data(const QModelIndex &index, int role) con
     case PathRole: return item->path();
     case IntegrationRole: return static_cast<int>(item->integration());
     case DesktopFilePathRole: return item->desktopFilePath();
+    case ExecutableRole: return item->executable();
     default:
         return QVariant();
     }
@@ -48,6 +49,7 @@ QHash<int, QByteArray> AppImageMetadataListModel::roleNames() const
     roles[PathRole] = "path";
     roles[IntegrationRole] = "integration";
     roles[DesktopFilePathRole] = "desktopFilePath";
+    roles[ExecutableRole] = "executable";
     return roles;
 }
 

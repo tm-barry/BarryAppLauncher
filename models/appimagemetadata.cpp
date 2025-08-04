@@ -88,3 +88,11 @@ void AppImageMetadata::setDesktopFilePath(const QString& value) {
         emit desktopFilePathChanged();
     }
 }
+
+bool AppImageMetadata::executable() const { return m_executable; }
+void AppImageMetadata::setExecutable(bool value) {
+    if (m_executable != value) {
+        m_executable = value;
+        emit executableChanged();
+    }
+}

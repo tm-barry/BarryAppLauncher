@@ -19,6 +19,7 @@ class AppImageMetadata : public QObject
     Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
     Q_PROPERTY(IntegrationType integration READ integration WRITE setIntegration NOTIFY integrationChanged)
     Q_PROPERTY(QString desktopFilePath READ desktopFilePath WRITE setDesktopFilePath NOTIFY desktopFilePathChanged)
+    Q_PROPERTY(bool executable READ executable WRITE setExecutable NOTIFY executableChanged)
 
 public:
     explicit AppImageMetadata(QObject* parent = nullptr);
@@ -61,6 +62,9 @@ public:
     QString desktopFilePath() const;
     void setDesktopFilePath(const QString& value);
 
+    bool executable() const;
+    void setExecutable(bool value);
+
 signals:
     void nameChanged();
     void versionChanged();
@@ -72,6 +76,7 @@ signals:
     void pathChanged();
     void integrationChanged();
     void desktopFilePathChanged();
+    void executableChanged();
 
 private:
     QString m_name;
@@ -84,6 +89,7 @@ private:
     QString m_path;
     IntegrationType m_integration = None;
     QString m_desktopFilePath;
+    bool m_executable = false;
 };
 
 #endif // APPIMAGEMETADATA_H

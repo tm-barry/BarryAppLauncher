@@ -18,6 +18,7 @@ public:
     bool internalIntegration = false;
     QString iconPath = QString();
     QString mountedDesktopContents = QString();
+    bool executable = false;
 };
 
 enum MetadataAction {

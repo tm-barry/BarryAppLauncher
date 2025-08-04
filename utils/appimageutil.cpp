@@ -81,8 +81,11 @@ bool AppImageUtil::makeExecutable()
 void AppImageUtil::mountAppImage() {
     unmountAppImage();
 
-    if(!isExecutable(m_path))
-        makeExecutable();
+    if(!isExecutable(m_path)) {
+        QString error = "File is not executable: " + m_path;
+        ErrorManager::instance()->reportError(error);
+        throw std::runtime_error(error.toStdString());;
+    }
 
     QProcess* process = new QProcess();
     m_process = process;
@@ -216,14 +219,16 @@ AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
     AppImageUtilMetadata metadata;
     metadata.path = m_path;
     metadata.type = 2;
-    QString desktopPath = action != MetadataAction::Register ? integratedDesktopPath(m_path) : QString();
+    metadata.executable = isExecutable(m_path);
 
+    // If we the action is Register, we don't want to look at the integrated desktop file.
+    QString desktopPath = action != MetadataAction::Register ? integratedDesktopPath(m_path) : QString();
     if(!desktopPath.isEmpty())
     {
         metadata.desktopFilePath = desktopPath;
         parseDesktopPathForMetadata(desktopPath, metadata);
     }
-    else if(action != MetadataAction::Unregister)
+    else if((metadata.executable && action == MetadataAction::Default) || action == MetadataAction::Register)
     {
         if(!isMounted())
             mountAppImage();
@@ -235,8 +240,16 @@ AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
             metadata.iconPath = getMountedIconPath();
         }
     }
+    else
+    {
+        // The appimage is not executable, so we give it the name of the file
+        // and calculate the checksum.
+        QFileInfo fileInfo(m_path);
+        metadata.name = fileInfo.completeBaseName();
+        metadata.checksum = getChecksum(m_path);
+    }
 
-    if(metadata.version.isEmpty())
+    if(metadata.executable && metadata.version.isEmpty())
     {
         auto md5 = getChecksum(m_path, QCryptographicHash::Md5);
         metadata.version = md5.left(6);

@@ -28,7 +28,8 @@ Item {
                             AppImageManager.appImageMetadata?.path, terminal)
             } else {
                 AppImageManager.launchAppImage(
-                            AppImageManager.appImageMetadata?.desktopFilePath, terminal)
+                            AppImageManager.appImageMetadata?.desktopFilePath,
+                            terminal)
             }
             launchTimer.start()
         }
@@ -74,6 +75,18 @@ Item {
                 sourceSize.height: height
                 fillMode: Image.PreserveAspectFit
                 Layout.alignment: Qt.AlignHCenter
+                visible: AppImageManager.appImageMetadata?.executable
+            }
+
+            Label {
+                text: "\uf023"
+                font.pixelSize: 96
+                Layout.alignment: Qt.AlignHCenter
+                visible: !AppImageManager.appImageMetadata?.executable
+                FontLoader {
+                    id: fontAwesome
+                    source: "/assets/fonts/fa-6-solid-900.otf"
+                }
             }
 
             Label {
@@ -87,11 +100,13 @@ Item {
                 text: AppImageManager.appImageMetadata?.version
                 opacity: 0.6
                 Layout.alignment: Qt.AlignHCenter
+                visible: AppImageManager.appImageMetadata?.executable
             }
 
             Label {
                 text: AppImageManager.appImageMetadata?.comment
-                visible: AppImageManager.appImageMetadata?.comment
+                visible: AppImageManager.appImageMetadata?.executable
+                         && AppImageManager.appImageMetadata?.comment
                 Layout.alignment: Qt.AlignHCenter
                 horizontalAlignment: Text.AlignHCenter
                 Layout.maximumWidth: maximumWidth
@@ -115,6 +130,7 @@ Item {
 
                 RowLayout {
                     spacing: 0
+                    visible: AppImageManager.appImageMetadata?.executable
 
                     ColorButton {
                         id: launchBtn
@@ -154,7 +170,9 @@ Item {
                     text: qsTr("Register")
                     Layout.preferredWidth: 100
                     enabled: !AppImageManager.loadingAppImage
-                    visible: AppImageManager.appImageMetadata?.integration === AppImageMetadata.None
+                    visible: AppImageManager.appImageMetadata?.executable
+                             && AppImageManager.appImageMetadata?.integration
+                             === AppImageMetadata.None
                     onClicked: AppImageManager.registerAppImage(
                                    AppImageManager.appImageMetadata?.path)
                 }
@@ -164,9 +182,18 @@ Item {
                     backgroundColor: "#C43D3D"
                     Layout.preferredWidth: 100
                     enabled: !AppImageManager.loadingAppImage
-                    visible: AppImageManager.appImageMetadata?.integration
+                    visible: AppImageManager.appImageMetadata?.executable
+                             && AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.Internal
                     onClicked: unregisterDialog.open()
+                }
+
+                ColorButton {
+                    text: qsTr("Unlock")
+                    Layout.preferredWidth: 100
+                    visible: !AppImageManager.appImageMetadata?.executable
+                    onClicked: AppImageManager.unlockAppImage(
+                                   AppImageManager.appImageMetadata?.path)
                 }
             }
 
@@ -175,6 +202,16 @@ Item {
                 color: "#C43D3D"
                 Layout.alignment: Qt.AlignHCenter
                 visible: AppImageManager.appImageMetadata?.integration === AppImageMetadata.External
+                horizontalAlignment: Text.AlignHCenter
+                Layout.maximumWidth: maximumWidth
+                wrapMode: TextEdit.Wrap
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: qsTr("Verify the source of this appimage before unlocking it.")
+                Layout.alignment: Qt.AlignHCenter
+                visible: !AppImageManager.appImageMetadata?.executable
                 horizontalAlignment: Text.AlignHCenter
                 Layout.maximumWidth: maximumWidth
                 wrapMode: TextEdit.Wrap
@@ -246,11 +283,45 @@ Item {
                                            AppImageManager.appImageMetadata?.path)
                         }
                     }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: !AppImageManager.appImageMetadata?.executable
+                    }
+
+                    Label {
+                        text: qsTr("Checksum (sha256)")
+                        font.bold: true
+                        visible: !AppImageManager.appImageMetadata?.executable
+                    }
+
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+                        visible: !AppImageManager.appImageMetadata?.executable
+
+                        TextArea {
+                            text: AppImageManager.appImageMetadata?.checksum
+                            readOnly: true
+                            wrapMode: TextEdit.Wrap
+                            Layout.fillWidth: true
+                        }
+                        IconButton {
+                            text: "\uf0c5"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            onClicked: {
+                                ClipboardManager.copyToClipboard(
+                                            AppImageManager.appImageMetadata?.checksum)
+                            }
+                        }
+                    }
                 }
             }
 
             Item {
                 Layout.preferredHeight: 5
+                visible: AppImageManager.appImageMetadata?.executable
             }
 
             Label {
@@ -258,11 +329,13 @@ Item {
                 font.bold: true
                 font.pixelSize: 14
                 Layout.alignment: Qt.AlignHCenter
+                visible: AppImageManager.appImageMetadata?.executable
             }
             RoundedGroupBox {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.minimumWidth: maximumWidth
                 Layout.maximumWidth: maximumWidth
+                visible: AppImageManager.appImageMetadata?.executable
 
                 ColumnLayout {
                     anchors.fill: parent

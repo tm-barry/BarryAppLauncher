@@ -21,7 +21,8 @@ public:
         CategoriesRole,
         PathRole,
         IntegrationRole,
-        DesktopFilePathRole
+        DesktopFilePathRole,
+        ExecutableRole
     };
 
     explicit AppImageMetadataListModel(QObject* parent = nullptr);

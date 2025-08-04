@@ -136,11 +136,17 @@ void AppImageManager::loadAppImageMetadata(const QString& path) {
         AppImageUtil util(path);
         try {
             AppImageUtilMetadata metadata = util.metadata();
-            QImage image(metadata.iconPath);
-            MemoryImageProvider::instance()->setImage(path, image);
+            if(!metadata.iconPath.isEmpty())
+            {
+                QImage image(metadata.iconPath);
+                MemoryImageProvider::instance()->setImage(path, image);
+            }
             QMetaObject::invokeMethod(QGuiApplication::instance(), [=]() {
                 auto* appImageMetadata = parseAppImageMetadata(metadata);
-                appImageMetadata->setIcon(MemoryImageProvider::instance()->getUrl(path));
+                if(!metadata.iconPath.isEmpty())
+                {
+                    appImageMetadata->setIcon(MemoryImageProvider::instance()->getUrl(path));
+                }
                 setAppImageMetadata(appImageMetadata);
             });
             setState(AppInfo);
@@ -232,6 +238,28 @@ void AppImageManager::unregisterAppImage(const QString& path, bool deleteAppImag
     });
 }
 
+void AppImageManager::unlockAppImage(const QUrl& url)
+{
+    unlockAppImage(url.toLocalFile());
+}
+
+void AppImageManager::unlockAppImage(const QString& path)
+{
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setLoadingAppImage(true);
+        try {
+            AppImageUtil util(path);
+            if(util.makeExecutable())
+            {
+                loadAppImageMetadata(path);
+            }
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setLoadingAppImage(false);
+    });
+}
+
 // ----------------- Private -----------------
 
 AppImageManager::AppImageManager(QObject *parent)
@@ -260,6 +288,7 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
     metadata->setPath(utilMetadata.path);
     metadata->setIntegration(integrationType);
     metadata->setDesktopFilePath(utilMetadata.desktopFilePath);
+    metadata->setExecutable(utilMetadata.executable);
 
     return metadata;
 }
