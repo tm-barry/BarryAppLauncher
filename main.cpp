@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Fusion");
     app.setOrganizationName("tm-barry");
     app.setApplicationName("BarryAppLauncher");
-    QCoreApplication::setApplicationVersion("0.5.0");
+    app.setApplicationVersion("0.5.0");
     app.setWindowIcon(QIcon(":/assets/icons/barryapplauncher.svg"));
 
     QString fileArg;
