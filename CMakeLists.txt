@@ -21,7 +21,7 @@ qt_add_qml_module(barryapplauncher
     URI BarryAppLauncher
     VERSION 1.0
     QML_FILES
-    qml/About.qml
+        qml/About.qml
         qml/AppInfo.qml
         qml/AppList.qml
         qml/ColorButton.qml

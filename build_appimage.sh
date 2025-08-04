@@ -84,5 +84,30 @@ for libfile in "${so_files[@]}"; do
     fi
 done
 
+# Delete additional unused
+folders=(
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Imagine"
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Material"
+    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Universal"
+    "$APPDIR/usr/qml/QtQuick/Controls/designer"
+    "$APPDIR/usr/qml/QtQuick/Controls/FluentWinUI3"
+    "$APPDIR/usr/qml/QtQuick/Controls/Imagine"
+    "$APPDIR/usr/qml/QtQuick/Controls/Material"
+    "$APPDIR/usr/qml/QtQuick/Controls/Universal"
+    "$APPDIR/usr/qml/QtQuick/Pdf"
+    "$APPDIR/usr/qml/QtQuick/Timeline"
+    "$APPDIR/usr/qml/QtQuick/tooling"
+    "$APPDIR/usr/qml/QtQuick/VirtualKeyboard"
+)
+
+for dir in "${folders[@]}"; do
+    if [ -d "$dir" ]; then
+        echo "Deleting $dir"
+        rm -rf "$dir"
+    else
+        echo "Skipping missing $dir"
+    fi
+done
+
 echo "Running linuxdeploy build AppImage..."
 linuxdeploy --appdir="$APPDIR" --output appimage
