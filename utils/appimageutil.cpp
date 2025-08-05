@@ -562,6 +562,9 @@ QString AppImageUtil::handleIntegrationFileOperation(QString appName)
 
     newPath = findNextAvailableFilename(newPath);
 
+    // Ensure directory exists
+    QDir().mkpath(QFileInfo(newPath).absolutePath());
+
     bool success = false;
     switch(SettingsManager::instance()->appImageFileOperation()) {
     case SettingsManager::Move:

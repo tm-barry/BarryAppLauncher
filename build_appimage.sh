@@ -1,28 +1,32 @@
 #!/bin/bash
-set -e  # Exit on error
+set -euo pipefail  # Safer: exit on error, undefined vars, or pipe failures
 
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <project_root>"
   exit 1
 fi
 
-PROJECT_ROOT="$1"
-BUILD_DIR="$PROJECT_ROOT/build/Desktop-Release"
+PROJECT_ROOT="$(realpath "$1")"
+BUILD_DIR="$PROJECT_ROOT/build/AppImage-Release"
 APPDIR="$BUILD_DIR/AppDir"
 BIN_NAME="barryapplauncher"
 
 echo "Using project root: $PROJECT_ROOT"
+echo "Build directory: $BUILD_DIR"
+echo "AppDir: $APPDIR"
 
+# Sync AppDir structure
 echo "Syncing AppDir..."
+mkdir -p "$APPDIR"
 rsync -a --delete "$PROJECT_ROOT/AppDir/" "$APPDIR/"
 
-echo "Creating bin directory in AppDir..."
-mkdir -p "$APPDIR/usr/bin/"
-
+# Copy app binary
 echo "Copying binary to AppDir..."
+mkdir -p "$APPDIR/usr/bin/"
 cp "$BUILD_DIR/$BIN_NAME" "$APPDIR/usr/bin/"
 
-QMAKE=$(which qmake6)
+# Set required environment variables for linuxdeploy
+QMAKE=$(command -v qmake6 || true)
 if [ -z "$QMAKE" ]; then
   echo "Error: qmake6 not found in PATH."
   exit 1
@@ -34,80 +38,41 @@ export EXTRA_QT_MODULES="waylandcompositor"
 export QML_SOURCES_PATHS="$PROJECT_ROOT/qml"
 export QT_PLUGIN_PATH="/usr/lib/qt6/plugins"
 export DEPLOY_PLATFORM_THEMES=true
-export NO_STRIP=1
 
+# First pass of linuxdeploy to populate AppDir
 echo "Running linuxdeploy build AppDir..."
 linuxdeploy --appdir="$APPDIR" --plugin qt
 
-echo "Stripping ELF binaries in AppDir using system strip..."
-find "$APPDIR" -type f -print0 | xargs -0 file | grep 'ELF 64-bit' | cut -d: -f1 | while read -r elf_file; do
-    echo "Stripping $elf_file"
-    strip --strip-all "$elf_file" 2>/dev/null
-done
-
-# Path to your AppDir and main binary
-APPBIN="$APPDIR/usr/bin/barryapplauncher"
-
-# Function to collect used libraries from ldd
-collect_used_libs() {
-    local files=("$@")
-    local libs=()
-    for f in "${files[@]}"; do
-        if [[ -f "$f" ]]; then
-            while IFS= read -r line; do
-                libname=$(echo "$line" | awk '{print $1}' | grep '^lib')
-                if [[ -n "$libname" ]]; then
-                    libs+=("$libname")
-                fi
-            done < <(ldd "$f")
-        fi
-    done
-    # Print unique libs
-    printf "%s\n" "${libs[@]}" | sort -u
-}
-
-# Find all .so* files in usr/lib
-mapfile -t so_files < <(find "$APPDIR/usr/lib" -type f -name '*.so*')
-
-# Collect all used libraries from main binary and .so files in usr/lib
-mapfile -t used_libs < <(collect_used_libs "$APPBIN" "${so_files[@]}")
-
-# Convert to a searchable pattern (array would be safer, but string is simple here)
-used_libs_set=$(printf "%s\n" "${used_libs[@]}" | sort -u)
-
-# Delete any .so* file that isn't referenced by ldd
-for libfile in "${so_files[@]}"; do
-    libname=$(basename "$libfile")
-    if ! grep -qx "$libname" <<< "$used_libs_set"; then
-        echo "Removing unused lib: $libname"
-        rm -f "$libfile"
-    fi
-done
-
-# Delete additional unused
+# Prune unneeded QML modules
+echo "Removing unused QML modules..."
 folders=(
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Imagine"
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Material"
-    "$APPDIR/usr/qml/QtQuick/Dialogs/quickimpl/qml/+Universal"
-    "$APPDIR/usr/qml/QtQuick/Controls/designer"
-    "$APPDIR/usr/qml/QtQuick/Controls/FluentWinUI3"
-    "$APPDIR/usr/qml/QtQuick/Controls/Imagine"
-    "$APPDIR/usr/qml/QtQuick/Controls/Material"
-    "$APPDIR/usr/qml/QtQuick/Controls/Universal"
-    "$APPDIR/usr/qml/QtQuick/Pdf"
-    "$APPDIR/usr/qml/QtQuick/Timeline"
-    "$APPDIR/usr/qml/QtQuick/tooling"
-    "$APPDIR/usr/qml/QtQuick/VirtualKeyboard"
+    "QtQuick/Dialogs/quickimpl/qml/+Imagine"
+    "QtQuick/Dialogs/quickimpl/qml/+Material"
+    "QtQuick/Dialogs/quickimpl/qml/+Universal"
+    "QtQuick/Controls/designer"
+    "QtQuick/Controls/FluentWinUI3"
+    "QtQuick/Controls/Imagine"
+    "QtQuick/Controls/Material"
+    "QtQuick/Controls/Universal"
+    "QtQuick/Pdf"
+    "QtQuick/Timeline"
+    "QtQuick/tooling"
+    "QtQuick/VirtualKeyboard"
 )
 
 for dir in "${folders[@]}"; do
-    if [ -d "$dir" ]; then
-        echo "Deleting $dir"
-        rm -rf "$dir"
+    full="$APPDIR/usr/qml/$dir"
+    if [ -d "$full" ]; then
+        echo "Deleting $full"
+        rm -rf "$full"
     else
-        echo "Skipping missing $dir"
+        echo "Skipping missing $full"
     fi
 done
 
+# Generate final AppImage in $BUILD_DIR
 echo "Running linuxdeploy build AppImage..."
+cd "$BUILD_DIR"
 linuxdeploy --appdir="$APPDIR" --output appimage
+
+echo "✅ AppImage created in $BUILD_DIR"
