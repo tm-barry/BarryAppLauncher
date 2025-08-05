@@ -26,4 +26,4 @@ docker run --rm -it \
 
 BarryAppLauncher is licensed under the MIT license.
 
-[Jump to license](license.md)
+[Jump to license](LICENSE)
