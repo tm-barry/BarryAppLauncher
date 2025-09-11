@@ -1,13 +1,12 @@
 #include "appimagemetadata.h"
 
-// Constructor
+// ----------------- Public -----------------
+
 AppImageMetadata::AppImageMetadata(QObject* parent)
     : QObject(parent)
     , m_type(0)
     , m_integration(None)
 {}
-
-// Getters and setters with change notifications
 
 QString AppImageMetadata::name() const { return m_name; }
 void AppImageMetadata::setName(const QString& value) {
@@ -95,4 +94,151 @@ void AppImageMetadata::setExecutable(bool value) {
         m_executable = value;
         emit executableChanged();
     }
+}
+
+QString AppImageMetadata::updateType() const { return m_updateType; }
+void AppImageMetadata::setUpdateType(const QString& value) {
+    if (m_updateType != value) {
+        m_updateType = value;
+        setUpdateDirty(true);
+        emit updateTypeChanged();
+    }
+}
+
+QString AppImageMetadata::updateUrl() const { return m_updateUrl; }
+void AppImageMetadata::setUpdateUrl(const QString& value) {
+    if (m_updateUrl != value) {
+        m_updateUrl = value;
+        setUpdateDirty(true);
+        emit updateUrlChanged();
+    }
+}
+
+QString AppImageMetadata::updateDownloadField() const { return m_updateDownloadField; }
+void AppImageMetadata::setUpdateDownloadField(const QString& value) {
+    if (m_updateDownloadField != value) {
+        m_updateDownloadField = value;
+        setUpdateDirty(true);
+        emit updateDownloadFieldChanged();
+    }
+}
+
+QString AppImageMetadata::updateDownloadPattern() const { return m_updateDownloadPattern; }
+void AppImageMetadata::setUpdateDownloadPattern(const QString& value) {
+    if (m_updateDownloadPattern != value) {
+        m_updateDownloadPattern = value;
+        setUpdateDirty(true);
+        emit updateDownloadPatternChanged();
+    }
+}
+
+QString AppImageMetadata::updateDateField() const { return m_updateDateField; }
+void AppImageMetadata::setUpdateDateField(const QString& value) {
+    if (m_updateDateField != value) {
+        m_updateDateField = value;
+        setUpdateDirty(true);
+        emit updateDateFieldChanged();
+    }
+}
+
+QString AppImageMetadata::updateVersionField() const { return m_updateVersionField; }
+void AppImageMetadata::setUpdateVersionField(const QString& value) {
+    if (m_updateVersionField != value) {
+        m_updateVersionField = value;
+        setUpdateDirty(true);
+        emit updateVersionFieldChanged();
+    }
+}
+
+
+QQmlListProperty<UpdaterFilterModel> AppImageMetadata::updateFilters()
+{
+    return QQmlListProperty<UpdaterFilterModel>(
+        this,
+        this,
+        &AppImageMetadata::appendUpdateFilter,
+        &AppImageMetadata::updateFiltersCount,
+        &AppImageMetadata::updateFilterAt,
+        &AppImageMetadata::clearUpdateFilters
+        );
+}
+
+void AppImageMetadata::addUpdateFilter(UpdaterFilterModel* filter)
+{
+    m_updateFilters.append(filter);
+
+    connect(filter, &UpdaterFilterModel::fieldChanged,
+            this, &AppImageMetadata::onUpdateFilterPropertiesChanged, Qt::UniqueConnection);
+    connect(filter, &UpdaterFilterModel::patternChanged,
+            this, &AppImageMetadata::onUpdateFilterPropertiesChanged, Qt::UniqueConnection);
+
+    onUpdateFilterChanged();
+}
+
+Q_INVOKABLE void AppImageMetadata::addUpdateFilterWithValues(const QString &field, const QString &pattern) {
+    auto* filter = new UpdaterFilterModel(this);
+    filter->setField(field);
+    filter->setPattern(pattern);
+    addUpdateFilter(filter);
+}
+
+Q_INVOKABLE void AppImageMetadata::removeUpdateFilter(int index) {
+    if (index < 0 || index >= m_updateFilters.count())
+        return;
+
+    auto* filter = m_updateFilters.takeAt(index);
+    filter->deleteLater();
+    onUpdateFilterChanged();
+}
+
+bool AppImageMetadata::updateDirty() const { return m_updateDirty; }
+void AppImageMetadata::setUpdateDirty(bool value) {
+    if (m_updateDirty != value) {
+        m_updateDirty = value;
+        emit updateDirtyChanged();
+    }
+}
+
+// ----------------- Prvate -----------------
+
+void AppImageMetadata::onUpdateFilterChanged()
+{
+    emit updateFiltersChanged();
+    setUpdateDirty(true);
+}
+
+void AppImageMetadata::onUpdateFilterPropertiesChanged()
+{
+    setUpdateDirty(true);
+}
+
+void AppImageMetadata::appendUpdateFilter(QQmlListProperty<UpdaterFilterModel>* list, UpdaterFilterModel* filter) {
+    AppImageMetadata* metadata = static_cast<AppImageMetadata*>(list->object);
+    if (!metadata || !filter) return;
+    metadata->addUpdateFilter(filter);
+}
+
+qsizetype AppImageMetadata::updateFiltersCount(QQmlListProperty<UpdaterFilterModel>* list)
+{
+    AppImageMetadata* metadata = static_cast<AppImageMetadata*>(list->object);
+    return metadata ? metadata->m_updateFilters.count() : 0;
+}
+
+UpdaterFilterModel* AppImageMetadata::updateFilterAt(QQmlListProperty<UpdaterFilterModel>* list, qsizetype index)
+{
+    AppImageMetadata* metadata = static_cast<AppImageMetadata*>(list->object);
+    if (!metadata || index < 0 || index >= metadata->m_updateFilters.count())
+        return nullptr;
+    return metadata->m_updateFilters.at(index);
+}
+
+void AppImageMetadata::clearUpdateFilters(QQmlListProperty<UpdaterFilterModel>* list) {
+    AppImageMetadata* metadata = static_cast<AppImageMetadata*>(list->object);
+    if (!metadata) return;
+
+    for (auto* filter : metadata->m_updateFilters)
+        filter->disconnect(metadata);
+
+    metadata->m_updateFilters.clear();
+    metadata->onUpdateFilterChanged();
 }

@@ -289,6 +289,42 @@ void AppImageManager::unlockAppImage(const QString& path)
     });
 }
 
+void AppImageManager::saveUpdateSettings()
+{
+    QFuture<void> future = QtConcurrent::run([=]() {
+        setLoadingAppImage(true);
+        try {
+            QPointer<AppImageMetadata> metadata = m_appImageMetadata;
+            if (!metadata)
+                return;
+
+            UpdaterSettings settings;
+            settings.url = metadata->updateUrl();
+            settings.versionField = metadata->updateVersionField();
+            settings.downloadField = metadata->updateDownloadField();
+            settings.downloadPattern = metadata->updateDownloadPattern();
+            settings.dateField = metadata->updateDateField();
+
+            for (const auto& filter : metadata->getUpdateFilters()) {
+                settings.filters.append({filter->field(), filter->pattern()});
+            }
+
+            bool saved = AppImageUtil::saveUpdaterSettings(
+                metadata->desktopFilePath(),
+                metadata->updateType(),
+                settings
+             );
+
+            if (saved && metadata) {
+                QMetaObject::invokeMethod(metadata, "setUpdateDirty", Qt::QueuedConnection, Q_ARG(bool, false));
+            }
+        } catch (const std::exception &e) {
+            ErrorManager::instance()->reportError(e.what());
+        }
+        setLoadingAppImage(false);
+    });
+}
+
 // ----------------- Private -----------------
 
 AppImageManager::AppImageManager(QObject *parent)
@@ -324,6 +360,19 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
     metadata->setIntegration(integrationType);
     metadata->setDesktopFilePath(utilMetadata.desktopFilePath);
     metadata->setExecutable(utilMetadata.executable);
+    metadata->setUpdateType(utilMetadata.updateType);
+    metadata->setUpdateUrl(utilMetadata.updateUrl);
+    metadata->setUpdateDownloadField(utilMetadata.updateDownloadField);
+    metadata->setUpdateDownloadPattern(utilMetadata.updateDownloadPattern);
+    metadata->setUpdateDateField(utilMetadata.updateDateField);
+    metadata->setUpdateVersionField(utilMetadata.updateVersionField);
+    for (const auto& filter : utilMetadata.updateFilters) {
+        auto* filterModel = new UpdaterFilterModel(metadata);
+        filterModel->setField(filter.field);
+        filterModel->setPattern(filter.pattern);
+        metadata->addUpdateFilter(filterModel);
+    }
+    metadata->setUpdateDirty(false);
 
     return metadata;
 }

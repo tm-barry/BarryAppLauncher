@@ -1,12 +1,15 @@
 #ifndef APPIMAGEUTIL_H
 #define APPIMAGEUTIL_H
 
+#include "utils/updater/updaterfactory.h"
+
 #include <QCryptographicHash>
 #include <QProcess>
 #include <QString>
 
 struct AppImageUtilMetadata {
 public:
+    // Base fields
     QString name = QString();
     QString version = QString();
     QString comment = QString();
@@ -19,6 +22,15 @@ public:
     QString iconPath = QString();
     QString mountedDesktopContents = QString();
     bool executable = false;
+
+    // Update fields
+    QString updateType = QString();
+    QString updateUrl = QString();
+    QString updateDownloadField = QString();
+    QString updateDownloadPattern = QString();
+    QString updateDateField = QString();
+    QString updateVersionField = QString();
+    QList<UpdaterFilter> updateFilters { };
 };
 
 enum MetadataAction {
@@ -116,6 +128,14 @@ public:
      * @return List of registered appimages
      */
     static const QList<AppImageUtilMetadata> getRegisteredList();
+    /**
+     * @brief Save the updater settings to the provided desktop file
+     * @param desktopFilePath path to the desktop file
+     * @param updaterType type of updater
+     * @param settings Updater settings to save
+     * @return Bool indicating if save successful
+     */
+    static const bool saveUpdaterSettings(const QString& desktopFilePath, const QString& updaterType, const UpdaterSettings& settings);
 
 private:
     const QString m_path;
@@ -125,7 +145,9 @@ private:
     static const QRegularExpression invalidChars;
     static const QString balIntegrationField;
 
+    static const QString escapeDesktopValue(const QString &value);
     static const void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent = false);
+    static const QList<UpdaterFilter> parseFilters(const QString &filterStr);
     QString findNextAvailableFilename(const QString& fullPath);
     QString handleIntegrationFileOperation(QString newName);
     static const QStringList getSearchPaths();

@@ -63,6 +63,7 @@ public:
     Q_INVOKABLE void unregisterAppImage(const QString& path, bool deleteAppImage);
     Q_INVOKABLE void unlockAppImage(const QUrl& url);
     Q_INVOKABLE void unlockAppImage(const QString& path);
+    Q_INVOKABLE void saveUpdateSettings();
 
 private:
     explicit AppImageManager(QObject *parent = nullptr);

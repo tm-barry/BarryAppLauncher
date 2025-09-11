@@ -61,7 +61,7 @@ Item {
         id: scrollView
         anchors.fill: parent
         anchors.margins: 10
-        anchors.topMargin: -20
+        anchors.topMargin: -2
 
         ColumnLayout {
             width: scrollView.width
@@ -390,6 +390,249 @@ Item {
                     TextArea {
                         text: AppImageManager.appImageMetadata?.categories
                         readOnly: true
+                    }
+                }
+            }
+
+            Item {
+                Layout.preferredHeight: 5
+                visible: AppImageManager.appImageMetadata?.desktopFilePath
+            }
+
+            Label {
+                text: qsTr("Update")
+                font.bold: true
+                font.pixelSize: 14
+                Layout.alignment: Qt.AlignHCenter
+                visible: AppImageManager.appImageMetadata?.desktopFilePath
+            }
+            RoundedGroupBox {
+                id: updateGroupBox
+                Layout.alignment: Qt.AlignHCenter
+                Layout.minimumWidth: maximumWidth
+                Layout.maximumWidth: maximumWidth
+                visible: AppImageManager.appImageMetadata?.desktopFilePath
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 5
+
+                    Label {
+                        text: qsTr("Update Type")
+                        font.bold: true
+                    }
+
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        ComboBox {
+                            Layout.fillWidth: true
+                            model: ListModel {
+                                ListElement {
+                                    text: "None"
+                                    value: ""
+                                }
+                                ListElement {
+                                    text: "Json"
+                                    value: "json"
+                                }
+                            }
+                            textRole: "text"
+                            valueRole: "value"
+                            currentIndex: {
+                                if (!AppImageManager.appImageMetadata)
+                                    return 0
+                                for (var i = 0; i < model.count; i++) {
+                                    if (model.get(i).value
+                                            === AppImageManager.appImageMetadata.updateType)
+                                        return i
+                                }
+                                return 0
+                            }
+                            onCurrentIndexChanged: {
+                                if (AppImageManager.appImageMetadata) {
+                                    AppImageManager.appImageMetadata.updateType = model.get(
+                                                currentIndex).value
+
+                                    scrollView.ScrollBar.vertical.position = updateGroupBox.y
+                                }
+                            }
+                        }
+                        IconButton {
+                            text: "\uf0c7"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            enabled: AppImageManager.appImageMetadata?.desktopFilePath
+                                     && AppImageManager.appImageMetadata?.updateDirty
+                            onClicked: {
+                                AppImageManager.saveUpdateSettings()
+                            }
+                        }
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Label {
+                        text: qsTr("Url")
+                        font.bold: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    RoundedTextArea {
+                        text: AppImageManager.appImageMetadata?.updateUrl || ""
+                        onTextChanged: {
+                            if (AppImageManager.appImageMetadata)
+                                AppImageManager.appImageMetadata.updateUrl = text
+                        }
+                        placeholderText: "ex: https://api.github.com/repos/dev/proj/releases/latest"
+                        wrapMode: TextEdit.Wrap
+                        Layout.fillWidth: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Label {
+                        text: qsTr("Download Field")
+                        font.bold: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    RoundedTextArea {
+                        text: AppImageManager.appImageMetadata?.updateDownloadField || ""
+                        onTextChanged: {
+                            if (AppImageManager.appImageMetadata)
+                                AppImageManager.appImageMetadata.updateDownloadField = text
+                        }
+                        placeholderText: "ex: assets[*].browser_download_url"
+                        wrapMode: TextEdit.Wrap
+                        Layout.fillWidth: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Label {
+                        text: qsTr("Download Pattern")
+                        font.bold: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    RoundedTextArea {
+                        text: AppImageManager.appImageMetadata?.updateDownloadPattern || ""
+                        onTextChanged: {
+                            if (AppImageManager.appImageMetadata)
+                                AppImageManager.appImageMetadata.updateDownloadPattern = text
+                        }
+                        placeholderText: "ex: appName-.*-x86_64\\.AppImage"
+                        wrapMode: TextEdit.Wrap
+                        Layout.fillWidth: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Label {
+                        text: qsTr("Version Field")
+                        font.bold: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    RoundedTextArea {
+                        text: AppImageManager.appImageMetadata?.updateVersionField || ""
+                        onTextChanged: {
+                            if (AppImageManager.appImageMetadata)
+                                AppImageManager.appImageMetadata.updateVersionField = text
+                        }
+                        placeholderText: "ex: tag_name"
+                        wrapMode: TextEdit.Wrap
+                        Layout.fillWidth: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Label {
+                        text: qsTr("Date Field")
+                        font.bold: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    RoundedTextArea {
+                        text: AppImageManager.appImageMetadata?.updateDateField || ""
+                        onTextChanged: {
+                            if (AppImageManager.appImageMetadata)
+                                AppImageManager.appImageMetadata.updateDateField = text
+                        }
+                        placeholderText: "ex: published_at"
+                        wrapMode: TextEdit.Wrap
+                        Layout.fillWidth: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    Label {
+                        text: qsTr("Filters")
+                        font.bold: true
+                        visible: AppImageManager.appImageMetadata?.updateType
+                    }
+
+                    ColumnLayout {
+                        visible: AppImageManager.appImageMetadata?.updateType
+                        spacing: 5
+
+                        Repeater {
+                            model: AppImageManager.appImageMetadata?.updateFilters
+                            delegate: RowLayout {
+                                spacing: 5
+                                Layout.fillWidth: true
+
+                                TextField {
+                                    text: modelData.field
+                                    onTextChanged: modelData.field = text
+                                    placeholderText: qsTr("Field...")
+                                    Layout.fillWidth: true
+                                }
+                                TextField {
+                                    text: modelData.pattern
+                                    onTextChanged: modelData.pattern = text
+                                    placeholderText: qsTr("Pattern...")
+                                    Layout.fillWidth: true
+                                }
+                                ColorButton {
+                                    text: "x";
+                                    Layout.preferredWidth: 35
+                                    backgroundColor: "#C43D3D"
+                                    onClicked: AppImageManager.appImageMetadata?.removeUpdateFilter(index)
+                                }
+                            }
+                        }
+
+                        ColorButton {
+                            text: "Add Filter"
+                            backgroundColor: "#4E7A6A"
+                            onClicked: AppImageManager.appImageMetadata?.addUpdateFilterWithValues("", "")
+                        }
                     }
                 }
             }

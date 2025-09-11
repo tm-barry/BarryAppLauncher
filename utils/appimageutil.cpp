@@ -13,6 +13,11 @@
 #include <QRegularExpression>
 #include <QThread>
 #include <QUrl>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QJsonParseError>
 
 // ----------------- Public -----------------
 
@@ -484,23 +489,158 @@ const QList<AppImageUtilMetadata> AppImageUtil::getRegisteredList()
     return list;
 }
 
+const bool AppImageUtil::saveUpdaterSettings(const QString& desktopFilePath,
+                                             const QString& updaterType,
+                                             const UpdaterSettings& settings)
+{
+    if (!QFile::exists(desktopFilePath)) {
+        ErrorManager::instance()->reportError("Desktop file does not exist: " + desktopFilePath);
+        return false;
+    }
+
+    QFile file(desktopFilePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        ErrorManager::instance()->reportError("Cannot read desktop file: " + desktopFilePath);
+        return false;
+    }
+
+    QStringList lines;
+    QTextStream in(&file);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    file.close();
+
+    // Remove any existing AppImage updater keys
+    QStringList newLines;
+    bool inDesktopEntry = false;
+
+    for (const QString &line : lines) {
+        QString trimmed = line.trimmed();
+
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            inDesktopEntry = (trimmed == "[Desktop Entry]");
+            newLines.append(line);
+            continue;
+        }
+
+        if (inDesktopEntry) {
+            if (trimmed.startsWith("X-AppImage-BAL-Update") ||
+                (!updaterType.isEmpty() && trimmed.startsWith("X-AppImage-BAL="))) {
+                continue;
+            }
+        }
+
+        newLines.append(line);
+    }
+
+    // Only add updater fields if updaterType is set
+    if (!updaterType.isEmpty()) {
+        QStringList updaterLines;
+        updaterLines.append("X-AppImage-BAL=true");
+        updaterLines.append("X-AppImage-BAL-UpdateType=" + updaterType);
+
+        auto addIfNotEmpty = [&](const QString& key, const QString& value) {
+            if (!value.isEmpty())
+                updaterLines.append(key + "=" + escapeDesktopValue(value));
+        };
+
+        addIfNotEmpty("X-AppImage-BAL-UpdateUrl", settings.url);
+        addIfNotEmpty("X-AppImage-BAL-UpdateDownloadField", settings.downloadField);
+        addIfNotEmpty("X-AppImage-BAL-UpdateDownloadPattern", settings.downloadPattern);
+        addIfNotEmpty("X-AppImage-BAL-UpdateDateField", settings.dateField);
+        addIfNotEmpty("X-AppImage-BAL-UpdateVersionField", settings.versionField);
+
+        if (!settings.filters.isEmpty()) {
+            QJsonArray filterArray;
+            for (const auto& filter : settings.filters) {
+                QJsonObject obj;
+                obj["field"] = filter.field;
+                obj["pattern"] = filter.pattern;
+                filterArray.append(obj);
+            }
+            QJsonDocument doc(filterArray);
+            QString jsonStr = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+            updaterLines.append("X-AppImage-BAL-UpdateFilters=\"" + escapeDesktopValue(jsonStr) + "\"");
+        }
+
+        // Insert updateLines at the end of the [Desktop Entry] section
+        int insertPos = -1;
+        for (int i = 0; i < newLines.size(); ++i) {
+            if (newLines[i].trimmed() == "[Desktop Entry]") {
+                insertPos = i + 1;
+                continue;
+            }
+            if (insertPos != -1 && newLines[i].startsWith("[")) {
+                // Found start of next section
+                insertPos = i;
+                break;
+            }
+        }
+
+        if (insertPos == -1) {
+            insertPos = newLines.size();
+        }
+
+        while (insertPos > 0 && newLines[insertPos - 1].trimmed().isEmpty()) {
+            --insertPos;
+        }
+
+        for (const QString &line : updaterLines) {
+            newLines.insert(insertPos++, line);
+        }
+
+    }
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        ErrorManager::instance()->reportError("Cannot write desktop file: " + desktopFilePath);
+        return false;
+    }
+
+    QTextStream out(&file);
+    out << newLines.join("\n") << "\n";
+    file.close();
+
+    return true;
+}
+
 // ----------------- Private -----------------
 
 const QRegularExpression AppImageUtil::execLineRegex(R"(^Exec=(?:env\s+((?:\S+=\S+\s?)*))?(".*?"|\S+)(?:\s+([^\n\r]*))?$)");
 const QRegularExpression AppImageUtil::invalidChars(R"([/\\:*?"<>|])");
 const QString AppImageUtil::balIntegrationField = "X-AppImage-BAL=true";
 
+const QString AppImageUtil::escapeDesktopValue(const QString &value)
+{
+    QString v = value;
+    v.replace("\\", "\\\\");   // backslash first
+    v.replace("\n", "\\n");    // newlines
+    v.replace("\t", "\\t");    // tabs
+    v.replace("\"", "\\\"");   // quotes
+    return v;
+}
+
 const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent)
 {
     QSettings desktopFile(path, QSettings::IniFormat);
     desktopFile.beginGroup("Desktop Entry");
 
+    // Base fields
     metadata.name = desktopFile.value("Name").toString();
     metadata.version = desktopFile.value("X-AppImage-Version").toString();
     metadata.comment = desktopFile.value("Comment").toString();
     metadata.categories = desktopFile.value("Categories").toString();
     metadata.iconPath = desktopFile.value("Icon").toString();
-    metadata.internalIntegration = desktopFile.value("X-AppImage-BAL").toString() == "true";
+    metadata.internalIntegration = desktopFile.value("X-AppImage-BAL").toBool();
+
+    // Update fields
+    metadata.updateType = desktopFile.value("X-AppImage-BAL-UpdateType").toString();
+    metadata.updateUrl = desktopFile.value("X-AppImage-BAL-UpdateUrl").toString();
+    metadata.updateDownloadField = desktopFile.value("X-AppImage-BAL-UpdateDownloadField").toString();
+    metadata.updateDownloadPattern = desktopFile.value("X-AppImage-BAL-UpdateDownloadPattern").toString();
+    metadata.updateDateField = desktopFile.value("X-AppImage-BAL-UpdateDateField").toString();
+    metadata.updateVersionField = desktopFile.value("X-AppImage-BAL-UpdateVersionField").toString();
+    metadata.updateFilters = parseFilters(desktopFile.value("X-AppImage-BAL-UpdateFilters").toString());
 
     desktopFile.endGroup();
 
@@ -517,6 +657,34 @@ const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppIma
             metadata.mountedDesktopContents = QString();
         }
     }
+}
+
+const QList<UpdaterFilter> AppImageUtil::parseFilters(const QString &filterStr)
+{
+    QList<UpdaterFilter> filters;
+
+    if (filterStr.isEmpty())
+        return filters;
+
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(filterStr.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError || !doc.isArray()) {
+        qWarning() << "Failed to parse UpdateFilters JSON:" << err.errorString();
+        return filters;
+    }
+
+    for (const QJsonValue &val : doc.array()) {
+        if (!val.isObject())
+            continue;
+
+        QJsonObject obj = val.toObject();
+        UpdaterFilter f;
+        f.field   = obj.value("field").toString();
+        f.pattern = obj.value("pattern").toString();
+        filters.append(f);
+    }
+
+    return filters;
 }
 
 QString AppImageUtil::findNextAvailableFilename(const QString& fullPath) {
