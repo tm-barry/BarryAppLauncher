@@ -7,19 +7,23 @@ import QtQuick.Layouts
 ApplicationWindow {
     width: 480
     minimumWidth: 270
-    height: 380
+    height: 460
     minimumHeight: 360
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
     onVisibleChanged: {
         terminalTextField.text = SettingsManager.terminal
+        textEditorTextField.text = SettingsManager.textEditor
     }
 
     Connections {
         target: SettingsManager
         function onTerminalChanged(newValue) {
             terminalTextField.text = newValue
+        }
+        function onTextEditorChanged(newValue) {
+            textEditorTextField.text = newValue
         }
     }
 
@@ -72,16 +76,12 @@ ApplicationWindow {
                             wrapMode: TextEdit.Wrap
                             Layout.fillWidth: true
                         }
-                        IconButton {
-                            text: "\uf0c5"
+                        CopyButton {
+                            copyText: Qt.resolvedUrl(
+                                          SettingsManager.appImageDefaultLocation).toString(
+                                          ).replace("file://", "")
                             width: 55
                             Layout.preferredWidth: 55
-                            onClicked: {
-                                ClipboardManager.copyToClipboard(
-                                            Qt.resolvedUrl(
-                                                SettingsManager.appImageDefaultLocation).toString(
-                                                ).replace("file://", ""))
-                            }
                         }
                         IconButton {
                             text: "\uf07c"
@@ -160,13 +160,58 @@ ApplicationWindow {
                             Layout.preferredWidth: 55
                             enabled: SettingsManager.terminal !== terminalTextField.text
                             onClicked: {
-                                if(!terminalTextField.textSettings || Manager.terminalExists(terminalTextField.text))
-                                {
-                                    SettingsManager.terminal = terminalTextField.text;
+                                if (!terminalTextField.text
+                                        || SettingsManager.terminalExists(
+                                            terminalTextField.text)) {
+                                    SettingsManager.terminal = terminalTextField.text
+                                } else {
+                                    ErrorManager.reportError(
+                                                qsTr("Terminal not found: ")
+                                                + terminalTextField.text)
                                 }
-                                else
-                                {
-                                    ErrorManager.reportError(qsTr("Terminal does not found: ") + terminalTextField.text);
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
+                    }
+
+                    Label {
+                        text: qsTr("Text Editor Override")
+                        font.bold: true
+                    }
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        RoundedTextArea {
+                            id: textEditorTextField
+                            singleLine: true
+                            placeholderText: qsTr("Detect default text editor...")
+                            wrapMode: TextEdit.Wrap
+                            Layout.fillWidth: true
+                        }
+
+                        IconButton {
+                            text: "\uf0c7"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            enabled: SettingsManager.textEditor !== textEditorTextField.text
+                            onClicked: {
+                                if (!textEditorTextField.text
+                                        || SettingsManager.textEditorExists(
+                                            textEditorTextField.text)) {
+                                    SettingsManager.textEditor = textEditorTextField.text
+                                } else {
+                                    ErrorManager.reportError(
+                                                qsTr("Text editor not found: ")
+                                                + textEditorTextField.text)
                                 }
                             }
                         }

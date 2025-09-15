@@ -266,14 +266,10 @@ Item {
                             wrapMode: TextEdit.Wrap
                             Layout.fillWidth: true
                         }
-                        IconButton {
-                            text: "\uf0c5"
+                        CopyButton {
+                            copyText: AppImageManager.appImageMetadata?.path
                             width: 55
                             Layout.preferredWidth: 55
-                            onClicked: {
-                                ClipboardManager.copyToClipboard(
-                                            AppImageManager.appImageMetadata?.path)
-                            }
                         }
                         IconButton {
                             text: "\uf07c"
@@ -306,14 +302,10 @@ Item {
                             wrapMode: TextEdit.Wrap
                             Layout.fillWidth: true
                         }
-                        IconButton {
-                            text: "\uf0c5"
+                        CopyButton {
+                            copyText: AppImageManager.appImageMetadata?.checksum
                             width: 55
                             Layout.preferredWidth: 55
-                            onClicked: {
-                                ClipboardManager.copyToClipboard(
-                                            AppImageManager.appImageMetadata?.checksum)
-                            }
                         }
                     }
                 }
@@ -358,22 +350,26 @@ Item {
                             wrapMode: TextEdit.Wrap
                             Layout.fillWidth: true
                         }
-                        IconButton {
-                            text: "\uf0c5"
-                            width: 55
-                            Layout.preferredWidth: 55
+                        CopyButton {
+                            copyText: AppImageManager.appImageMetadata?.desktopFilePath
+                            width: 35
+                            Layout.preferredWidth: 35
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
-                            onClicked: {
-                                ClipboardManager.copyToClipboard(
-                                            AppImageManager.appImageMetadata?.desktopFilePath)
-                            }
                         }
                         IconButton {
                             text: "\uf07c"
-                            width: 55
-                            Layout.preferredWidth: 55
+                            width: 35
+                            Layout.preferredWidth: 35
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
                             onClicked: utils.openPathFolder(
+                                           AppImageManager.appImageMetadata?.desktopFilePath)
+                        }
+                        IconButton {
+                            text: "\uf044"
+                            width: 35
+                            Layout.preferredWidth: 35
+                            enabled: AppImageManager.appImageMetadata?.desktopFilePath
+                            onClicked: AppImageManager.openDesktopFileInTextEditor(
                                            AppImageManager.appImageMetadata?.desktopFilePath)
                         }
                     }

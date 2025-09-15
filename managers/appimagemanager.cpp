@@ -2,6 +2,7 @@
 #include "errormanager.h"
 #include "providers/memoryimageprovider.h"
 #include "utils/terminalutil.h"
+#include "utils/texteditorutil.h"
 
 #include <QGuiApplication>
 #include <QtConcurrent/QtConcurrentRun>
@@ -207,6 +208,23 @@ void AppImageManager::launchAppImage(const QString& path, const bool useTerminal
         if(!success)
         {
             ErrorManager::instance()->reportError("Failed to launch appimage.");
+        }
+    } catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+    }
+}
+
+void AppImageManager::openDesktopFileInTextEditor(const QUrl& url)
+{
+    launchAppImage(url.toLocalFile());
+}
+
+void AppImageManager::openDesktopFileInTextEditor(const QString& path)
+{
+    try {
+        if(!TextEditorUtil::launchInTextEditor(path))
+        {
+            ErrorManager::instance()->reportError("Failed to open desktop file.");
         }
     } catch (const std::exception &e) {
         ErrorManager::instance()->reportError(e.what());

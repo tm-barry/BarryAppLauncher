@@ -57,6 +57,8 @@ public:
     Q_INVOKABLE void loadAppImageMetadata(const QString& path);
     Q_INVOKABLE void launchAppImage(const QUrl& url, const bool useTerminal = false);
     Q_INVOKABLE void launchAppImage(const QString& path, const bool useTerminal = false);
+    Q_INVOKABLE void openDesktopFileInTextEditor(const QUrl& path);
+    Q_INVOKABLE void openDesktopFileInTextEditor(const QString& path);
     Q_INVOKABLE void registerAppImage(const QUrl& url);
     Q_INVOKABLE void registerAppImage(const QString& path);
     Q_INVOKABLE void unregisterAppImage(const QUrl& url, bool deleteAppImage);
