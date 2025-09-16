@@ -210,7 +210,8 @@ Item {
                             height: Math.min(contentHeight, 210)
 
                             delegate: MenuItem {
-                                text: version
+                                text: isNew ? version + " *" : version
+                                font.bold: isNew
                                 onTriggered: console.log("Selected release:",
                                                          version, date,
                                                          download)

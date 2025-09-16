@@ -357,17 +357,18 @@ void AppImageManager::checkForUpdate()
 
             metadata->clearUpdaterReleases();
             for (const auto &r : updater->releases()) {
-                if((metadata->updateCurrentVersion().isEmpty()
-                     || (SemVerUtil::compareStrings(r.version, metadata->updateCurrentVersion()) == 1))
-                    && (metadata->updateCurrentDate().isEmpty()
-                        || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate()))))
-                {
-                    auto* releaseModel = new UpdaterReleaseModel(metadata);
-                    releaseModel->setVersion(r.version);
-                    releaseModel->setDate(r.date);
-                    releaseModel->setDownload(r.download);
-                    metadata->addUpdaterRelease(releaseModel);
-                }
+                auto* releaseModel = new UpdaterReleaseModel(metadata);
+                releaseModel->setVersion(r.version);
+                releaseModel->setDate(r.date);
+                releaseModel->setDownload(r.download);
+
+                bool isNew = (metadata->updateCurrentVersion().isEmpty()
+                              || (SemVerUtil::compareStrings(r.version, metadata->updateCurrentVersion()) == 1))
+                             && (metadata->updateCurrentDate().isEmpty()
+                                 || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate())));
+                releaseModel->setIsNew(isNew);
+
+                metadata->addUpdaterRelease(releaseModel);
             }
             updater->deleteLater();
             setLoadingAppImage(false);
