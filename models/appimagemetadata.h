@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "models/updatefiltermodel.h"
+#include "models/updaterfiltermodel.h"
+#include "models/updaterreleasemodel.h"
 
 #include <QObject>
 #include <QUrl>
@@ -31,6 +32,7 @@ class AppImageMetadata : public QObject
     Q_PROPERTY(QString updateVersionField READ updateVersionField WRITE setUpdateVersionField NOTIFY updateVersionFieldChanged)
     Q_PROPERTY(QQmlListProperty<UpdaterFilterModel> updateFilters READ updateFilters NOTIFY updateFiltersChanged)
     Q_PROPERTY(bool updateDirty READ updateDirty WRITE setUpdateDirty NOTIFY updateDirtyChanged)
+    Q_PROPERTY(QQmlListProperty<UpdaterReleaseModel> updaterReleases READ updaterReleases NOTIFY updaterReleasesChanged)
 
 public:
     explicit AppImageMetadata(QObject* parent = nullptr);
@@ -103,6 +105,10 @@ public:
     bool updateDirty() const;
     Q_INVOKABLE void setUpdateDirty(bool value);
 
+    QQmlListProperty<UpdaterReleaseModel> updaterReleases();
+    void addUpdaterRelease(UpdaterReleaseModel* release);
+    void clearUpdaterReleases();
+
 signals:
     void nameChanged();
     void versionChanged();
@@ -123,6 +129,7 @@ signals:
     void updateVersionFieldChanged();
     void updateFiltersChanged();
     void updateDirtyChanged();
+    void updaterReleasesChanged();
 
 private:
     QString m_name;
@@ -144,6 +151,7 @@ private:
     QString m_updateVersionField;
     QList<UpdaterFilterModel*> m_updateFilters;
     bool m_updateDirty = false;
+    QList<UpdaterReleaseModel*> m_updaterReleases;
 
     void onUpdateFilterChanged();
     void onUpdateFilterPropertiesChanged();
@@ -152,6 +160,9 @@ private:
     static qsizetype updateFiltersCount(QQmlListProperty<UpdaterFilterModel>* list);
     static UpdaterFilterModel* updateFilterAt(QQmlListProperty<UpdaterFilterModel>* list, qsizetype index);
     static void clearUpdateFilters(QQmlListProperty<UpdaterFilterModel>* list);
+
+    static qsizetype updaterReleasesCount(QQmlListProperty<UpdaterReleaseModel> *list);
+    static UpdaterReleaseModel* updaterReleasesAt(QQmlListProperty<UpdaterReleaseModel> *list, qsizetype index);
 };
 
 #endif // APPIMAGEMETADATA_H

@@ -66,6 +66,7 @@ public:
     Q_INVOKABLE void unlockAppImage(const QUrl& url);
     Q_INVOKABLE void unlockAppImage(const QString& path);
     Q_INVOKABLE void saveUpdateSettings();
+    Q_INVOKABLE void checkForUpdate();
 
 private:
     explicit AppImageManager(QObject *parent = nullptr);
@@ -79,6 +80,7 @@ private:
 
     QString appImagePath();
     AppImageMetadata* parseAppImageMetadata(const AppImageUtilMetadata& appImageMetadata);
+    UpdaterSettings getUpdaterSettings(AppImageMetadata* appImageMetadata);
 
     Q_DISABLE_COPY(AppImageManager);
 

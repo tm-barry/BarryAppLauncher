@@ -159,9 +159,62 @@ Item {
 
                     Menu {
                         id: launchOptionsMenu
+
                         MenuItem {
                             text: qsTr("Launch in Terminal")
                             onTriggered: utils.launchAppImage(true)
+                        }
+                    }
+                }
+
+                ColorButton {
+                    text: qsTr("Check for Update")
+                    Layout.preferredWidth: 130
+                    enabled: !AppImageManager.loadingAppImage
+                    visible: AppImageManager.appImageMetadata.updateType
+                             && AppImageManager.appImageMetadata.updaterReleases.length === 0
+                    onClicked: AppImageManager.checkForUpdate()
+                }
+
+                RowLayout {
+                    spacing: 0
+                    visible: AppImageManager.appImageMetadata.updaterReleases.length > 0
+
+                    ColorButton {
+                        id: updateBtn
+                        text: qsTr("Update")
+                        Layout.preferredWidth: 100
+                        enabled: !AppImageManager.loadingAppImage
+                    }
+
+                    ColorButton {
+                        id: updateOptionsBtn
+                        text: "\u25BE"
+                        Layout.preferredWidth: 30
+                        enabled: updateBtn.enabled
+                        onClicked: {
+                            updateOptionsMenu.y = updateOptionsBtn.y + 30
+                            updateOptionsMenu.open()
+                        }
+                    }
+
+                    Menu {
+                        id: updateOptionsMenu
+
+                        ListView {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            clip: true
+                            model: AppImageManager.appImageMetadata.updaterReleases
+                            spacing: 0
+                            height: Math.min(contentHeight, 210)
+
+                            delegate: MenuItem {
+                                text: version
+                                onTriggered: console.log("Selected release:",
+                                                         version, date,
+                                                         download)
+                            }
                         }
                     }
                 }
@@ -461,6 +514,7 @@ Item {
                             Layout.preferredWidth: 55
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
                                      && AppImageManager.appImageMetadata?.updateDirty
+                                     && !AppImageManager.loadingAppImage
                             onClicked: {
                                 AppImageManager.saveUpdateSettings()
                             }
@@ -502,7 +556,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDownloadField || ""
+                        text: AppImageManager.appImageMetadata?.updateDownloadField
+                              || ""
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDownloadField = text
@@ -525,7 +580,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDownloadPattern || ""
+                        text: AppImageManager.appImageMetadata?.updateDownloadPattern
+                              || ""
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDownloadPattern = text
@@ -548,7 +604,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateVersionField || ""
+                        text: AppImageManager.appImageMetadata?.updateVersionField
+                              || ""
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateVersionField = text
@@ -571,7 +628,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDateField || ""
+                        text: AppImageManager.appImageMetadata?.updateDateField
+                              || ""
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDateField = text
@@ -616,10 +674,11 @@ Item {
                                     Layout.fillWidth: true
                                 }
                                 ColorButton {
-                                    text: "x";
+                                    text: "x"
                                     Layout.preferredWidth: 35
                                     backgroundColor: "#C43D3D"
-                                    onClicked: AppImageManager.appImageMetadata?.removeUpdateFilter(index)
+                                    onClicked: AppImageManager.appImageMetadata?.removeUpdateFilter(
+                                                   index)
                                 }
                             }
                         }
@@ -627,7 +686,8 @@ Item {
                         ColorButton {
                             text: "Add Filter"
                             backgroundColor: "#4E7A6A"
-                            onClicked: AppImageManager.appImageMetadata?.addUpdateFilterWithValues("", "")
+                            onClicked: AppImageManager.appImageMetadata?.addUpdateFilterWithValues(
+                                           "", "")
                         }
                     }
                 }

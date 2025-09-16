@@ -1,6 +1,7 @@
 #include "appimagemanager.h"
 #include "errormanager.h"
 #include "providers/memoryimageprovider.h"
+#include "utils/updater/updaterfactory.h"
 #include "utils/terminalutil.h"
 #include "utils/texteditorutil.h"
 
@@ -316,16 +317,7 @@ void AppImageManager::saveUpdateSettings()
             if (!metadata)
                 return;
 
-            UpdaterSettings settings;
-            settings.url = metadata->updateUrl();
-            settings.versionField = metadata->updateVersionField();
-            settings.downloadField = metadata->updateDownloadField();
-            settings.downloadPattern = metadata->updateDownloadPattern();
-            settings.dateField = metadata->updateDateField();
-
-            for (const auto& filter : metadata->getUpdateFilters()) {
-                settings.filters.append({filter->field(), filter->pattern()});
-            }
+            UpdaterSettings settings = getUpdaterSettings(metadata);
 
             bool saved = AppImageUtil::saveUpdaterSettings(
                 metadata->desktopFilePath(),
@@ -341,6 +333,43 @@ void AppImageManager::saveUpdateSettings()
         }
         setLoadingAppImage(false);
     });
+}
+
+void AppImageManager::checkForUpdate()
+{
+    setLoadingAppImage(true);
+    try {
+        QPointer<AppImageMetadata> metadata = m_appImageMetadata;
+        if (!metadata)
+            return;
+
+        UpdaterSettings settings = getUpdaterSettings(metadata);
+        auto* updater = UpdaterFactory::create(metadata->updateType(), settings);
+
+        connect(updater, &IUpdater::updatesReady, this, [this, updater, metadata]() {
+            if (!metadata) {
+                updater->deleteLater();
+                setLoadingAppImage(false);
+                return;
+            }
+
+            metadata->clearUpdaterReleases();
+            for (const auto &r : updater->releases()) {
+                auto* releaseModel = new UpdaterReleaseModel(metadata);
+                releaseModel->setVersion(r.version);
+                releaseModel->setDate(r.date);
+                releaseModel->setDownload(r.download);
+                metadata->addUpdaterRelease(releaseModel);
+            }
+            updater->deleteLater();
+            setLoadingAppImage(false);
+        });
+
+        updater->fetchUpdatesAsync();
+    } catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+        setLoadingAppImage(false);
+    }
 }
 
 // ----------------- Private -----------------
@@ -393,4 +422,20 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
     metadata->setUpdateDirty(false);
 
     return metadata;
+}
+
+UpdaterSettings AppImageManager::getUpdaterSettings(AppImageMetadata* metadata)
+{
+    UpdaterSettings settings;
+    settings.url = metadata->updateUrl();
+    settings.versionField = metadata->updateVersionField();
+    settings.downloadField = metadata->updateDownloadField();
+    settings.downloadPattern = metadata->updateDownloadPattern();
+    settings.dateField = metadata->updateDateField();
+
+    for (const auto& filter : metadata->getUpdateFilters()) {
+        settings.filters.append({filter->field(), filter->pattern()});
+    }
+
+    return settings;
 }

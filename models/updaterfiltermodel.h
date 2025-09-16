@@ -1,5 +1,5 @@
-#ifndef UPDATEFILTERMODEL_H
-#define UPDATEFILTERMODEL_H
+#ifndef UPDATERFILTERMODEL_H
+#define UPDATERFILTERMODEL_H
 
 #include <QObject>
 
@@ -11,8 +11,7 @@ class UpdaterFilterModel : public QObject
 
 public:
     explicit UpdaterFilterModel(QObject* parent = nullptr)
-        : QObject(parent)
-    {}
+        : QObject(parent) {}
 
     QString field() const { return m_field; }
     void setField(const QString& value) {
@@ -40,4 +39,4 @@ private:
 };
 
 
-#endif // UPDATEFILTERMODEL_H
+#endif // UPDATERFILTERMODEL_H

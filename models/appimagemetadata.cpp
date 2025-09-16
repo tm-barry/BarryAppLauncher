@@ -199,6 +199,28 @@ void AppImageMetadata::setUpdateDirty(bool value) {
     }
 }
 
+QQmlListProperty<UpdaterReleaseModel> AppImageMetadata::updaterReleases() {
+    return QQmlListProperty<UpdaterReleaseModel>(
+        this,
+        this,
+        &AppImageMetadata::updaterReleasesCount,
+        &AppImageMetadata::updaterReleasesAt
+        );
+}
+
+void AppImageMetadata::addUpdaterRelease(UpdaterReleaseModel *release) {
+    release->setParent(this);
+    m_updaterReleases.append(release);
+    emit updaterReleasesChanged();
+}
+
+void AppImageMetadata::clearUpdaterReleases()
+{
+    qDeleteAll(m_updaterReleases);
+    m_updaterReleases.clear();
+    emit updaterReleasesChanged();
+}
+
 // ----------------- Prvate -----------------
 
 void AppImageMetadata::onUpdateFilterChanged()
@@ -237,8 +259,25 @@ void AppImageMetadata::clearUpdateFilters(QQmlListProperty<UpdaterFilterModel>* 
     if (!metadata) return;
 
     for (auto* filter : metadata->m_updateFilters)
+    {
         filter->disconnect(metadata);
+        filter->deleteLater();
+    }
 
     metadata->m_updateFilters.clear();
     metadata->onUpdateFilterChanged();
+}
+
+qsizetype AppImageMetadata::updaterReleasesCount(QQmlListProperty<UpdaterReleaseModel> *list)
+{
+    AppImageMetadata* metadata = static_cast<AppImageMetadata*>(list->data);
+    return metadata ? metadata->m_updaterReleases.size() : 0;
+}
+
+UpdaterReleaseModel* AppImageMetadata::updaterReleasesAt(QQmlListProperty<UpdaterReleaseModel> *list, qsizetype index)
+{
+    AppImageMetadata* metadata = static_cast<AppImageMetadata*>(list->data);
+    if (!metadata || index < 0 || index >= metadata->m_updaterReleases.size())
+        return nullptr;
+    return metadata->m_updaterReleases.at(index);
 }

@@ -1,4 +1,5 @@
 #include "jsonupdater.h"
+#include "managers/errormanager.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
@@ -20,7 +21,7 @@ void JsonUpdater::parseData(const QByteArray &data)
     QJsonParseError err;
     QJsonDocument doc = QJsonDocument::fromJson(data, &err);
     if (err.error != QJsonParseError::NoError) {
-        qWarning() << "JSON parse error:" << err.errorString();
+        ErrorManager::instance()->reportError("JSON parse error: " + err.errorString());
         return;
     }
 
@@ -28,13 +29,14 @@ void JsonUpdater::parseData(const QByteArray &data)
     if (doc.isArray())       root = doc.array();
     else if (doc.isObject()) root = doc.object();
     else {
-        qWarning() << "Unexpected JSON structure";
+        ErrorManager::instance()->reportError("Unexpected JSON structure");
         return;
     }
 
     QRegularExpression downloadRe(m_settings.downloadPattern);
     if (!downloadRe.isValid()) {
-        qWarning() << "Invalid download regex:" << m_settings.downloadPattern;
+        ErrorManager::instance()->reportError("Invalid download regex: " + m_settings.downloadPattern);
+
     }
 
     // Expand releases from the root
@@ -110,7 +112,7 @@ QList<QJsonValue> JsonUpdater::getValuesByPath(const QJsonValue &root, const QSt
         return { root };
 
     QStringList segments = path.split('.', Qt::SkipEmptyParts);
-    QRegularExpression indexRe(R"(^(.*)\[(\d+)\]$)"); // Precompiled once
+    QRegularExpression indexRe(R"(^(.*)\[(\d+)\]$)");
 
     for (QString &seg : segments) {
         seg = seg.trimmed();
@@ -152,9 +154,14 @@ QList<QJsonValue> JsonUpdater::getValuesByPath(const QJsonValue &root, const QSt
             else if (arrayIndex >= 0 && child.isArray()) {
                 QJsonArray arr = child.toArray();
                 if (arrayIndex < arr.size())
+                {
                     next.append(arr[arrayIndex]);
+                }
                 else
-                    qWarning() << "Index" << arrayIndex << "out of range for key" << key;
+                {
+                    QString message = QString("Index %1 out of range for key %2").arg(arrayIndex).arg(key);
+                    ErrorManager::instance()->reportError(message);
+                }
             }
             // Normal key access
             else if (arrayIndex < 0 && !isArrayWildcard) {

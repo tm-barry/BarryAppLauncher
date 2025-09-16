@@ -42,7 +42,8 @@ qt_add_qml_module(barryapplauncher
         managers/settingsmanager.cpp
         models/appimagemetadata.h
         models/appimagemetadata.cpp
-        models/updatefiltermodel.h
+        models/updaterfiltermodel.h
+        models/updaterreleasemodel.h
         models/appimagemetadatalistmodel.h
         models/appimagemetadatalistmodel.cpp
         providers/memoryimageprovider.h
