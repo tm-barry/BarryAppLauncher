@@ -167,24 +167,23 @@ Item {
                     }
                 }
 
-                ColorButton {
-                    text: qsTr("Check for Update")
-                    Layout.preferredWidth: 130
-                    enabled: !AppImageManager.loadingAppImage
-                    visible: AppImageManager.appImageMetadata.updateType
-                             && AppImageManager.appImageMetadata.updaterReleases.length === 0
-                    onClicked: AppImageManager.checkForUpdate()
-                }
-
                 RowLayout {
                     spacing: 0
-                    visible: AppImageManager.appImageMetadata.updaterReleases.length > 0
+                    visible: AppImageManager.appImageMetadata.updateType
 
                     ColorButton {
-                        id: updateBtn
+                        text: qsTr("Check for Update")
+                        Layout.preferredWidth: 130
+                        enabled: !AppImageManager.loadingAppImage
+                        visible: !AppImageManager.appImageMetadata.hasNewRelease
+                        onClicked: AppImageManager.checkForUpdate()
+                    }
+
+                    ColorButton {
                         text: qsTr("Update")
                         Layout.preferredWidth: 100
-                        enabled: !AppImageManager.loadingAppImage && AppImageManager.appImageMetadata.hasNewRelease
+                        enabled: !AppImageManager.loadingAppImage
+                        visible: AppImageManager.appImageMetadata.hasNewRelease
                     }
 
                     ColorButton {
@@ -192,6 +191,7 @@ Item {
                         text: "\u25BE"
                         Layout.preferredWidth: 30
                         enabled: !AppImageManager.loadingAppImage
+                        visible: AppImageManager.appImageMetadata.updaterReleases.length > 0
                         onClicked: {
                             updateOptionsMenu.y = updateOptionsBtn.y + 30
                             updateOptionsMenu.open()
@@ -559,7 +559,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDownloadField || ""
+                        text: AppImageManager.appImageMetadata?.updateDownloadField
+                              || ""
                         enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
@@ -583,7 +584,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDownloadPattern || ""
+                        text: AppImageManager.appImageMetadata?.updateDownloadPattern
+                              || ""
                         enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
@@ -607,7 +609,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateVersionField || ""
+                        text: AppImageManager.appImageMetadata?.updateVersionField
+                              || ""
                         enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
@@ -631,7 +634,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDateField || ""
+                        text: AppImageManager.appImageMetadata?.updateDateField
+                              || ""
                         enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
