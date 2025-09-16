@@ -31,6 +31,8 @@ public:
     QString updateDateField = QString();
     QString updateVersionField = QString();
     QList<UpdaterFilter> updateFilters { };
+    QString updateCurrentVersion = QString();
+    QString updateCurrentDate = QString();
 };
 
 enum MetadataAction {

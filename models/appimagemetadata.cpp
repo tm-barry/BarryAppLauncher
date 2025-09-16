@@ -221,6 +221,22 @@ void AppImageMetadata::clearUpdaterReleases()
     emit updaterReleasesChanged();
 }
 
+QString AppImageMetadata::updateCurrentDate() const { return m_updateCurrentDate; }
+void AppImageMetadata::setUpdateCurrentDate(const QString& value) {
+    if (m_updateCurrentDate != value) {
+        m_updateCurrentDate = value;
+        emit updateCurrentDateChanged();
+    }
+}
+
+QString AppImageMetadata::updateCurrentVersion() const { return m_updateCurrentVersion; }
+void AppImageMetadata::setUpdateCurrentVersion(const QString& value) {
+    if (m_updateCurrentVersion != value) {
+        m_updateCurrentVersion = value;
+        emit updateCurrentVersionChanged();
+    }
+}
+
 // ----------------- Prvate -----------------
 
 void AppImageMetadata::onUpdateFilterChanged()

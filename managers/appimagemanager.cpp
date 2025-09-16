@@ -2,6 +2,8 @@
 #include "errormanager.h"
 #include "providers/memoryimageprovider.h"
 #include "utils/updater/updaterfactory.h"
+#include "utils/semverutil.h"
+#include "utils/stringutil.h"
 #include "utils/terminalutil.h"
 #include "utils/texteditorutil.h"
 
@@ -355,11 +357,17 @@ void AppImageManager::checkForUpdate()
 
             metadata->clearUpdaterReleases();
             for (const auto &r : updater->releases()) {
-                auto* releaseModel = new UpdaterReleaseModel(metadata);
-                releaseModel->setVersion(r.version);
-                releaseModel->setDate(r.date);
-                releaseModel->setDownload(r.download);
-                metadata->addUpdaterRelease(releaseModel);
+                if((metadata->updateCurrentVersion().isEmpty()
+                     || (SemVerUtil::compareStrings(r.version, metadata->updateCurrentVersion()) == 1))
+                    && (metadata->updateCurrentDate().isEmpty()
+                        || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate()))))
+                {
+                    auto* releaseModel = new UpdaterReleaseModel(metadata);
+                    releaseModel->setVersion(r.version);
+                    releaseModel->setDate(r.date);
+                    releaseModel->setDownload(r.download);
+                    metadata->addUpdaterRelease(releaseModel);
+                }
             }
             updater->deleteLater();
             setLoadingAppImage(false);
@@ -419,6 +427,8 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
         filterModel->setPattern(filter.pattern);
         metadata->addUpdateFilter(filterModel);
     }
+    metadata->setUpdateCurrentDate(utilMetadata.updateCurrentDate);
+    metadata->setUpdateCurrentVersion(utilMetadata.updateCurrentVersion);
     metadata->setUpdateDirty(false);
 
     return metadata;

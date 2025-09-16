@@ -566,25 +566,30 @@ const bool AppImageUtil::saveUpdaterSettings(const QString& desktopFilePath,
 
         // Insert updateLines at the end of the [Desktop Entry] section
         int insertPos = -1;
+        bool inDesktopEntry = false;
+
         for (int i = 0; i < newLines.size(); ++i) {
-            if (newLines[i].trimmed() == "[Desktop Entry]") {
-                insertPos = i + 1;
-                continue;
-            }
-            if (insertPos != -1 && newLines[i].startsWith("[")) {
-                // Found start of next section
-                insertPos = i;
-                break;
+            QString trimmed = newLines[i].trimmed();
+            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                if (inDesktopEntry) {
+                    // We reached next section, stop
+                    insertPos = i;
+                    break;
+                }
+                inDesktopEntry = (trimmed == "[Desktop Entry]");
             }
         }
 
+        // If still -1, either there is only [Desktop Entry] section or it's the last section
         if (insertPos == -1) {
             insertPos = newLines.size();
         }
 
+        // Skip trailing empty lines
         while (insertPos > 0 && newLines[insertPos - 1].trimmed().isEmpty()) {
             --insertPos;
         }
+
 
         for (const QString &line : updaterLines) {
             newLines.insert(insertPos++, line);
@@ -641,6 +646,8 @@ const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppIma
     metadata.updateDateField = desktopFile.value("X-AppImage-BAL-UpdateDateField").toString();
     metadata.updateVersionField = desktopFile.value("X-AppImage-BAL-UpdateVersionField").toString();
     metadata.updateFilters = parseFilters(desktopFile.value("X-AppImage-BAL-UpdateFilters").toString());
+    metadata.updateCurrentVersion = desktopFile.value("X-AppImage-BAL-UpdateCurrentVersion").toString();
+    metadata.updateCurrentDate = desktopFile.value("X-AppImage-BAL-UpdateCurrentDate").toString();
 
     desktopFile.endGroup();
 

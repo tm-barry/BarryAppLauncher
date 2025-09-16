@@ -33,6 +33,8 @@ class AppImageMetadata : public QObject
     Q_PROPERTY(QQmlListProperty<UpdaterFilterModel> updateFilters READ updateFilters NOTIFY updateFiltersChanged)
     Q_PROPERTY(bool updateDirty READ updateDirty WRITE setUpdateDirty NOTIFY updateDirtyChanged)
     Q_PROPERTY(QQmlListProperty<UpdaterReleaseModel> updaterReleases READ updaterReleases NOTIFY updaterReleasesChanged)
+    Q_PROPERTY(QString updateCurrentVersion READ updateCurrentVersion WRITE setUpdateCurrentVersion NOTIFY updateCurrentVersionChanged)
+    Q_PROPERTY(QString updateCurrentDate READ updateCurrentDate WRITE setUpdateCurrentDate NOTIFY updateCurrentDateChanged)
 
 public:
     explicit AppImageMetadata(QObject* parent = nullptr);
@@ -109,6 +111,12 @@ public:
     void addUpdaterRelease(UpdaterReleaseModel* release);
     void clearUpdaterReleases();
 
+    QString updateCurrentVersion() const;
+    void setUpdateCurrentVersion(const QString& value);
+
+    QString updateCurrentDate() const;
+    void setUpdateCurrentDate(const QString& value);
+
 signals:
     void nameChanged();
     void versionChanged();
@@ -130,6 +138,8 @@ signals:
     void updateFiltersChanged();
     void updateDirtyChanged();
     void updaterReleasesChanged();
+    void updateCurrentVersionChanged();
+    void updateCurrentDateChanged();
 
 private:
     QString m_name;
@@ -152,6 +162,8 @@ private:
     QList<UpdaterFilterModel*> m_updateFilters;
     bool m_updateDirty = false;
     QList<UpdaterReleaseModel*> m_updaterReleases;
+    QString m_updateCurrentVersion;
+    QString m_updateCurrentDate;
 
     void onUpdateFilterChanged();
     void onUpdateFilterPropertiesChanged();
