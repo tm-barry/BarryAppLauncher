@@ -81,6 +81,7 @@ private:
     QString appImagePath();
     AppImageMetadata* parseAppImageMetadata(const AppImageUtilMetadata& appImageMetadata);
     UpdaterSettings getUpdaterSettings(AppImageMetadata* appImageMetadata);
+    void loadMetadataUpdaterReleases(AppImageMetadata* appImageMetadata, std::function<void()> callback = nullptr);
 
     Q_DISABLE_COPY(AppImageManager);
 

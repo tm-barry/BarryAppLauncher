@@ -184,14 +184,14 @@ Item {
                         id: updateBtn
                         text: qsTr("Update")
                         Layout.preferredWidth: 100
-                        enabled: !AppImageManager.loadingAppImage
+                        enabled: !AppImageManager.loadingAppImage && AppImageManager.appImageMetadata.hasNewRelease
                     }
 
                     ColorButton {
                         id: updateOptionsBtn
                         text: "\u25BE"
                         Layout.preferredWidth: 30
-                        enabled: updateBtn.enabled
+                        enabled: !AppImageManager.loadingAppImage
                         onClicked: {
                             updateOptionsMenu.y = updateOptionsBtn.y + 30
                             updateOptionsMenu.open()
@@ -477,6 +477,7 @@ Item {
                         Layout.fillWidth: true
 
                         ComboBox {
+                            enabled: !AppImageManager.loadingAppImage
                             Layout.fillWidth: true
                             model: ListModel {
                                 ListElement {
@@ -535,6 +536,7 @@ Item {
 
                     RoundedTextArea {
                         text: AppImageManager.appImageMetadata?.updateUrl || ""
+                        enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateUrl = text
@@ -557,8 +559,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDownloadField
-                              || ""
+                        text: AppImageManager.appImageMetadata?.updateDownloadField || ""
+                        enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDownloadField = text
@@ -581,8 +583,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDownloadPattern
-                              || ""
+                        text: AppImageManager.appImageMetadata?.updateDownloadPattern || ""
+                        enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDownloadPattern = text
@@ -605,8 +607,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateVersionField
-                              || ""
+                        text: AppImageManager.appImageMetadata?.updateVersionField || ""
+                        enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateVersionField = text
@@ -629,8 +631,8 @@ Item {
                     }
 
                     RoundedTextArea {
-                        text: AppImageManager.appImageMetadata?.updateDateField
-                              || ""
+                        text: AppImageManager.appImageMetadata?.updateDateField || ""
+                        enabled: !AppImageManager.loadingAppImage
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDateField = text
@@ -664,18 +666,21 @@ Item {
 
                                 TextField {
                                     text: modelData.field
+                                    enabled: !AppImageManager.loadingAppImage
                                     onTextChanged: modelData.field = text
                                     placeholderText: qsTr("Field...")
                                     Layout.fillWidth: true
                                 }
                                 TextField {
                                     text: modelData.pattern
+                                    enabled: !AppImageManager.loadingAppImage
                                     onTextChanged: modelData.pattern = text
                                     placeholderText: qsTr("Pattern...")
                                     Layout.fillWidth: true
                                 }
                                 ColorButton {
                                     text: "x"
+                                    enabled: !AppImageManager.loadingAppImage
                                     Layout.preferredWidth: 35
                                     backgroundColor: "#C43D3D"
                                     onClicked: AppImageManager.appImageMetadata?.removeUpdateFilter(
@@ -686,6 +691,7 @@ Item {
 
                         ColorButton {
                             text: "Add Filter"
+                            enabled: !AppImageManager.loadingAppImage
                             backgroundColor: "#4E7A6A"
                             onClicked: AppImageManager.appImageMetadata?.addUpdateFilterWithValues(
                                            "", "")

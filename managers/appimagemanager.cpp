@@ -341,40 +341,7 @@ void AppImageManager::checkForUpdate()
 {
     setLoadingAppImage(true);
     try {
-        QPointer<AppImageMetadata> metadata = m_appImageMetadata;
-        if (!metadata)
-            return;
-
-        UpdaterSettings settings = getUpdaterSettings(metadata);
-        auto* updater = UpdaterFactory::create(metadata->updateType(), settings);
-
-        connect(updater, &IUpdater::updatesReady, this, [this, updater, metadata]() {
-            if (!metadata) {
-                updater->deleteLater();
-                setLoadingAppImage(false);
-                return;
-            }
-
-            metadata->clearUpdaterReleases();
-            for (const auto &r : updater->releases()) {
-                auto* releaseModel = new UpdaterReleaseModel(metadata);
-                releaseModel->setVersion(r.version);
-                releaseModel->setDate(r.date);
-                releaseModel->setDownload(r.download);
-
-                bool isNew = (metadata->updateCurrentVersion().isEmpty()
-                              || (SemVerUtil::compareStrings(r.version, metadata->updateCurrentVersion()) == 1))
-                             && (metadata->updateCurrentDate().isEmpty()
-                                 || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate())));
-                releaseModel->setIsNew(isNew);
-
-                metadata->addUpdaterRelease(releaseModel);
-            }
-            updater->deleteLater();
-            setLoadingAppImage(false);
-        });
-
-        updater->fetchUpdatesAsync();
+        loadMetadataUpdaterReleases(m_appImageMetadata, [this]() { setLoadingAppImage(false); });
     } catch (const std::exception &e) {
         ErrorManager::instance()->reportError(e.what());
         setLoadingAppImage(false);
@@ -449,4 +416,45 @@ UpdaterSettings AppImageManager::getUpdaterSettings(AppImageMetadata* metadata)
     }
 
     return settings;
+}
+
+void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMetadata, std::function<void()> callback)
+{
+    QPointer<AppImageMetadata> metadata = appImageMetadata;
+    if (!metadata || metadata->updateType().isEmpty())
+    {
+        if (callback) callback();
+        return;
+    }
+
+    UpdaterSettings settings = getUpdaterSettings(metadata);
+    auto* updater = UpdaterFactory::create(metadata->updateType(), settings);
+
+    connect(updater, &IUpdater::updatesReady, this, [this, updater, metadata, callback]() {
+        if (!metadata) {
+            updater->deleteLater();
+            if (callback) callback();
+            return;
+        }
+
+        metadata->clearUpdaterReleases();
+        for (const auto &r : updater->releases()) {
+            auto* releaseModel = new UpdaterReleaseModel(metadata);
+            releaseModel->setVersion(r.version);
+            releaseModel->setDate(r.date);
+            releaseModel->setDownload(r.download);
+
+            bool isNew = (metadata->updateCurrentVersion().isEmpty()
+                          || (SemVerUtil::compareStrings(r.version, metadata->updateCurrentVersion()) == 1))
+                         && (metadata->updateCurrentDate().isEmpty()
+                             || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate())));
+            releaseModel->setIsNew(isNew);
+
+            metadata->addUpdaterRelease(releaseModel);
+        }
+        updater->deleteLater();
+        if (callback) callback();
+    });
+
+    updater->fetchUpdatesAsync();
 }

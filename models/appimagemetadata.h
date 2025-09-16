@@ -33,6 +33,7 @@ class AppImageMetadata : public QObject
     Q_PROPERTY(QQmlListProperty<UpdaterFilterModel> updateFilters READ updateFilters NOTIFY updateFiltersChanged)
     Q_PROPERTY(bool updateDirty READ updateDirty WRITE setUpdateDirty NOTIFY updateDirtyChanged)
     Q_PROPERTY(QQmlListProperty<UpdaterReleaseModel> updaterReleases READ updaterReleases NOTIFY updaterReleasesChanged)
+    Q_PROPERTY(bool hasNewRelease READ hasNewRelease NOTIFY hasNewReleaseChanged)
     Q_PROPERTY(QString updateCurrentVersion READ updateCurrentVersion WRITE setUpdateCurrentVersion NOTIFY updateCurrentVersionChanged)
     Q_PROPERTY(QString updateCurrentDate READ updateCurrentDate WRITE setUpdateCurrentDate NOTIFY updateCurrentDateChanged)
 
@@ -111,6 +112,8 @@ public:
     void addUpdaterRelease(UpdaterReleaseModel* release);
     void clearUpdaterReleases();
 
+    bool hasNewRelease();
+
     QString updateCurrentVersion() const;
     void setUpdateCurrentVersion(const QString& value);
 
@@ -138,6 +141,7 @@ signals:
     void updateFiltersChanged();
     void updateDirtyChanged();
     void updaterReleasesChanged();
+    void hasNewReleaseChanged();
     void updateCurrentVersionChanged();
     void updateCurrentDateChanged();
 

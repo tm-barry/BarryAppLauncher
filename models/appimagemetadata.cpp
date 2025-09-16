@@ -212,6 +212,7 @@ void AppImageMetadata::addUpdaterRelease(UpdaterReleaseModel *release) {
     release->setParent(this);
     m_updaterReleases.append(release);
     emit updaterReleasesChanged();
+    emit hasNewReleaseChanged();
 }
 
 void AppImageMetadata::clearUpdaterReleases()
@@ -219,6 +220,17 @@ void AppImageMetadata::clearUpdaterReleases()
     qDeleteAll(m_updaterReleases);
     m_updaterReleases.clear();
     emit updaterReleasesChanged();
+    emit hasNewReleaseChanged();
+}
+
+bool AppImageMetadata::hasNewRelease()
+{
+    for (const auto &release : m_updaterReleases)
+    {
+        if (release->isNew())
+            return true;
+    }
+    return false;
 }
 
 QString AppImageMetadata::updateCurrentDate() const { return m_updateCurrentDate; }
