@@ -1,7 +1,6 @@
 #include "jsonupdater.h"
 #include "managers/errormanager.h"
 
-#include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QEventLoop>

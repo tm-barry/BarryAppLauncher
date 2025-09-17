@@ -3,8 +3,9 @@
 
 #pragma once
 
+#include "utils/networkutil.h"
+
 #include <QObject>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QByteArray>
@@ -62,7 +63,7 @@ public:
         QString targetUrl = url.isEmpty() ? m_settings.url : url;
         QNetworkRequest req((QUrl(targetUrl)));
         req.setHeader(QNetworkRequest::UserAgentHeader, "BarryAppLauncher");
-        QNetworkReply *reply = manager.get(req);
+        QNetworkReply *reply = NetworkUtil::networkManager()->get(req);
 
         connect(reply, &QNetworkReply::finished, this, [this, reply]() {
             QByteArray data = reply->readAll();
@@ -76,7 +77,6 @@ signals:
     void updatesReady();
 
 protected:
-    QNetworkAccessManager manager;
     UpdaterSettings m_settings;
     QList<UpdaterRelease> m_releases;
 };

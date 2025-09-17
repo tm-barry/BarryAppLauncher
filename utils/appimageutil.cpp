@@ -1,6 +1,7 @@
 #include "appimageutil.h"
 #include "managers/errormanager.h"
 #include "managers/settingsmanager.h"
+#include "utils/networkutil.h"
 
 #include <QCryptographicHash>
 #include <QDebug>
@@ -695,8 +696,7 @@ const void AppImageUtil::updateAppImage(const QString& appImagePath, const QStri
         return;
     }
 
-    QNetworkAccessManager* manager = new QNetworkAccessManager();
-    QNetworkReply* reply = manager->get(QNetworkRequest(QUrl(downloadUrl)));
+    QNetworkReply* reply = NetworkUtil::networkManager()->get(QNetworkRequest(QUrl(downloadUrl)));
     QObject::connect(reply, &QNetworkReply::finished, [=]() {
         bool success = false;
 
@@ -737,7 +737,6 @@ const void AppImageUtil::updateAppImage(const QString& appImagePath, const QStri
         }
 
         reply->deleteLater();
-        manager->deleteLater();
 
         if(!refreshDesktopFile(appImagePath, version, date)) {
             ErrorManager::instance()->reportError("Failed to refresh desktop entry: " + appImagePath);

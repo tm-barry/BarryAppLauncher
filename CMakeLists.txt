@@ -54,6 +54,7 @@ qt_add_qml_module(barryapplauncher
         utils/updater/updaterfactory.cpp
         utils/appimageutil.h
         utils/appimageutil.cpp
+        utils/networkutil.h
         utils/semverutil.h
         utils/stringutil.h
         utils/terminalutil.h

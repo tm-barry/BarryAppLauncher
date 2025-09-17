@@ -5,7 +5,6 @@
 
 #include <QList>
 #include <QString>
-#include <QNetworkAccessManager>
 
 class JsonUpdater : public IUpdater
 {
