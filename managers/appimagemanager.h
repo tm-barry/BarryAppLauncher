@@ -67,6 +67,7 @@ public:
     Q_INVOKABLE void unlockAppImage(const QString& path);
     Q_INVOKABLE void saveUpdateSettings();
     Q_INVOKABLE void checkForUpdate();
+    Q_INVOKABLE void updateAppImage(const QString& downloadUrl, const QString& version, const QString& date);
 
 private:
     explicit AppImageManager(QObject *parent = nullptr);

@@ -7,7 +7,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     width: 480
     minimumWidth: 270
-    height: 460
+    height: 540
     minimumHeight: 360
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
@@ -213,6 +213,37 @@ ApplicationWindow {
                                                 qsTr("Text editor not found: ")
                                                 + textEditorTextField.text)
                                 }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
+                    }
+
+                    Label {
+                        text: qsTr("Keep Backup")
+                        font.bold: true
+                    }
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        Label {
+                            text: qsTr("Keep backup of previous appimage when updating?")
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                        }
+
+                        CheckBox {
+                            checked: SettingsManager.keepBackup
+                            onCheckedChanged: {
+                                SettingsManager.keepBackup = checked
                             }
                         }
                     }

@@ -70,7 +70,7 @@ public:
      * @brief Makes the appimage at path executable
      * @return True if successful, false if not
      */
-    bool makeExecutable();
+    static const bool makeExecutable(const QString& path);
     /**
      * @brief Mounts an appimage
      * and process. The process must be cleaned up using unmountAppImage(...)
@@ -138,6 +138,25 @@ public:
      * @return Bool indicating if save successful
      */
     static const bool saveUpdaterSettings(const QString& desktopFilePath, const QString& updaterType, const UpdaterSettings& settings);
+    /**
+     * @brief Refreshes the integrated desktopfile with the latest values from the appimage's internal desktopfile
+     * @param appImagePath path to the appiamge
+     * @param updateVersion update version override to set in the destkopfile
+     * @param updateDate update date override to set in the destkopfile
+     * @return Bool indicating if refresh successful
+     */
+    static const bool refreshDesktopFile(const QString& appImagePath, const QString& updateVersion = QString(), const QString& updateDate = QString());
+    /**
+     * @brief Updates the appimage at appImagePath with the new downloaded appimage.
+     * @param appImagePath Path of the appimage to update
+     * @param downloadUrl Url to download the new appimage
+     * @param finishedCallback Method to get called on update complete
+     * @param version Version to set in the desktop file
+     * @param date Date to set in the desktop file
+     */
+    static const void updateAppImage(const QString& appImagePath, const QString& downloadUrl,
+                                     const QString& version = QString(), const QString& date = QString(),
+                                     std::function<void(bool)> finishedCallback = nullptr);
 
 private:
     const QString m_path;
@@ -155,6 +174,8 @@ private:
     static const QStringList getSearchPaths();
     static const QString getLocalIntegrationPath();
     static const bool removeFileOrWarn(const QString& path, const QString& label);
+    static const void updateDesktopKey(QString& targetContents, const QString& sourceContents, const QString& key, const QString& fallback = QString());
+    static const QString parseExecLine(const QString& line, const QString& appImagePath);
 };
 
 #endif // APPIMAGEUTIL_H

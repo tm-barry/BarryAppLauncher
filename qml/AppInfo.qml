@@ -180,10 +180,18 @@ Item {
                     }
 
                     ColorButton {
+                        property var firstNewRelease: AppImageManager.appImageMetadata.updaterReleases.find(
+                                                          r => r.isNew)
+
                         text: qsTr("Update")
                         Layout.preferredWidth: 100
                         enabled: !AppImageManager.loadingAppImage
                         visible: AppImageManager.appImageMetadata.hasNewRelease
+                        onClicked: {
+                            if (firstNewRelease) {
+                                AppImageManager.updateAppImage(firstNewRelease.download, firstNewRelease.version, firstNewRelease.date)
+                            }
+                        }
                     }
 
                     ColorButton {
@@ -212,9 +220,10 @@ Item {
                             delegate: MenuItem {
                                 text: isNew ? version + " *" : version
                                 font.bold: isNew
-                                onTriggered: console.log("Selected release:",
-                                                         version, date,
-                                                         download)
+                                onTriggered: {
+                                    AppImageManager.updateAppImage(download, version, date)
+                                    updateOptionsMenu.close()
+                                }
                             }
                         }
                     }

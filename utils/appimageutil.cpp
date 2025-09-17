@@ -64,11 +64,11 @@ const bool AppImageUtil::isExecutable(const QString& path) {
     return fileInfo.isExecutable();
 }
 
-bool AppImageUtil::makeExecutable()
+const bool AppImageUtil::makeExecutable(const QString& path)
 {
-    QFile file(m_path);
+    QFile file(path);
     if (!file.exists()) {
-        ErrorManager::instance()->reportError("File does not exist: " + m_path);
+        ErrorManager::instance()->reportError("File does not exist: " + path);
         return false;
     }
 
@@ -76,7 +76,7 @@ bool AppImageUtil::makeExecutable()
     perms |= QFileDevice::ExeUser | QFileDevice::ExeGroup | QFileDevice::ExeOther;
 
     if (!file.setPermissions(perms)) {
-        ErrorManager::instance()->reportError("Failed to set executable permissions for: " + m_path);
+        ErrorManager::instance()->reportError("Failed to set executable permissions for: " + path);
         return false;
     }
 
@@ -394,19 +394,7 @@ QString AppImageUtil::registerAppImage()
     for (QString& line : lines) {
         if(line.startsWith("Exec="))
         {
-            QRegularExpressionMatch match = execLineRegex.match(line);
-            if (match.hasMatch()) {
-                QString envPart = match.captured(1);  // May be empty
-                QString args = match.captured(3); // May be empty
-
-                QString newExecLine = "Exec=";
-                if (!envPart.isEmpty())
-                    newExecLine += "env " + envPart;
-                newExecLine += cleanNewAppImagePath;
-                if (!args.isEmpty())
-                    newExecLine += " " + args;
-                line = newExecLine;
-            }
+            line = parseExecLine(line, newAppImagePath);
         }
         else if(line.startsWith("TryExec="))
         {
@@ -609,6 +597,156 @@ const bool AppImageUtil::saveUpdaterSettings(const QString& desktopFilePath,
     return true;
 }
 
+const bool AppImageUtil::refreshDesktopFile(const QString& appImagePath, const QString& updateVersion, const QString& updateDate)
+{
+    // Integrated Desktop Contents
+    QString desktopPath = integratedDesktopPath(appImagePath);
+    if(desktopPath.isEmpty()) {
+        ErrorManager::instance()->reportError("Failed to find integrated desktop file for: " + appImagePath);
+        return false;
+    }
+    AppImageUtilMetadata intMetadata;
+    parseDesktopPathForMetadata(desktopPath, intMetadata, true);
+
+    // AppImage Desktop Contents
+    AppImageUtil util(appImagePath);
+    util.mountAppImage();
+    AppImageUtilMetadata metadata;
+    QString mountedDesktopPath = util.getMountedDesktopPath();
+    QString mountedIconPath = util.getMountedIconPath();
+    if(mountedDesktopPath.isEmpty()) {
+        ErrorManager::instance()->reportError("Failed to find mounted desktop file for: " + appImagePath);
+        return false;
+    }
+    parseDesktopPathForMetadata(mountedDesktopPath, metadata, true);
+
+    // Copy new icon
+    if(!mountedIconPath.isEmpty())
+    {
+        QSettings desktopFile(desktopPath, QSettings::IniFormat);
+        desktopFile.beginGroup("Desktop Entry");
+        QString iconPath = desktopFile.value("Icon").toString();
+        desktopFile.endGroup();
+
+        QFile::remove(iconPath);
+        QFile::copy(mountedIconPath, iconPath);
+    }
+
+    util.unmountAppImage();
+
+    // TODO - update desktop contents
+    QString desktopContents = intMetadata.mountedDesktopContents;
+    QString mountedDesktopContents = metadata.mountedDesktopContents;
+
+    // parse exec line
+    QStringList lines = mountedDesktopContents.split('\n');
+    for (QString& line : lines) {
+        if(line.startsWith("Exec="))
+        {
+            line = parseExecLine(line, appImagePath);
+        }
+    }
+    mountedDesktopContents = lines.join('\n');
+
+    updateDesktopKey(desktopContents, mountedDesktopContents, "Exec");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "Name");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "Comment");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "Categories");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateType");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateUrl");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateDownloadField");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateDownloadPattern");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateDateField");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateVersionField");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateFilters");
+
+    QString fallbackVersion = updateVersion;
+    if(fallbackVersion.isEmpty())
+    {
+        auto md5 = getChecksum(appImagePath, QCryptographicHash::Md5);
+        fallbackVersion = md5.left(6);
+    }
+
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-Version", fallbackVersion);
+
+    if (!updateVersion.isEmpty())
+        updateDesktopKey(desktopContents, QString("X-AppImage-BAL-UpdateCurrentVersion=" + updateVersion), "X-AppImage-BAL-UpdateCurrentVersion");
+    if (!updateDate.isEmpty())
+        updateDesktopKey(desktopContents, QString("X-AppImage-BAL-UpdateCurrentDate=" + updateDate), "X-AppImage-BAL-UpdateCurrentDate");
+
+    QFile outFile(desktopPath);
+    if (!outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        ErrorManager::instance()->reportError("Failed to write updated desktop file: " + desktopPath);
+        return false;
+    }
+
+    outFile.write(desktopContents.toUtf8());
+    outFile.close();
+
+    return true;
+}
+
+const void AppImageUtil::updateAppImage(const QString& appImagePath, const QString& downloadUrl,
+                                        const QString& version, const QString& date,
+                                        std::function<void(bool)> finishedCallback)
+{
+    if (appImagePath.isEmpty() || downloadUrl.isEmpty()) {
+        if(finishedCallback) finishedCallback(false);
+        return;
+    }
+
+    QNetworkAccessManager* manager = new QNetworkAccessManager();
+    QNetworkReply* reply = manager->get(QNetworkRequest(QUrl(downloadUrl)));
+    QObject::connect(reply, &QNetworkReply::finished, [=]() {
+        bool success = false;
+
+        if (reply->error() != QNetworkReply::NoError) {
+            ErrorManager::instance()->reportError("Download failed: " + reply->errorString());
+        } else {
+            QByteArray data = reply->readAll();
+
+            // Save to temp .new file
+            QString newPath = appImagePath + ".new";
+            QFile newFile(newPath);
+            if (newFile.open(QIODevice::WriteOnly)) {
+                newFile.write(data);
+                newFile.close();
+
+                // make it executable
+                makeExecutable(newPath);
+
+                // handle backups
+                if (SettingsManager::instance()->keepBackup()) {
+                    QString backupPath = appImagePath + ".bak";
+                    QFile::remove(backupPath);
+                    QFile::rename(appImagePath, backupPath);
+                } else {
+                    QFile::remove(appImagePath);
+                }
+
+                // replace with new
+                if (QFile::rename(newPath, appImagePath)) {
+                    success = true;
+                } else {
+                    ErrorManager::instance()->reportError("Failed to replace AppImage!");
+
+                }
+            } else {
+                ErrorManager::instance()->reportError("Failed to write new AppImage: " + newPath);
+            }
+        }
+
+        reply->deleteLater();
+        manager->deleteLater();
+
+        if(!refreshDesktopFile(appImagePath, version, date)) {
+            ErrorManager::instance()->reportError("Failed to refresh desktop entry: " + appImagePath);
+        }
+
+        if(finishedCallback) finishedCallback(success);
+    });
+}
+
 // ----------------- Private -----------------
 
 const QRegularExpression AppImageUtil::execLineRegex(R"(^Exec=(?:env\s+((?:\S+=\S+\s?)*))?(".*?"|\S+)(?:\s+([^\n\r]*))?$)");
@@ -676,7 +814,7 @@ const QList<UpdaterFilter> AppImageUtil::parseFilters(const QString &filterStr)
     QJsonParseError err;
     QJsonDocument doc = QJsonDocument::fromJson(filterStr.toUtf8(), &err);
     if (err.error != QJsonParseError::NoError || !doc.isArray()) {
-        qWarning() << "Failed to parse UpdateFilters JSON:" << err.errorString();
+        ErrorManager::instance()->reportError("Failed to parse UpdateFilters JSON:" + err.errorString());
         return filters;
     }
 
@@ -779,4 +917,93 @@ const bool AppImageUtil::removeFileOrWarn(const QString& path, const QString& la
         qWarning() << label << "does not exist:" << path;
     }
     return true;
+}
+
+const void AppImageUtil::updateDesktopKey(QString& targetContents,
+                                          const QString& sourceContents,
+                                          const QString& key,
+                                          const QString& fallback)
+{
+    QRegularExpression rx("^" + QRegularExpression::escape(key) + R"(=.+$)",
+                          QRegularExpression::MultilineOption);
+
+    QRegularExpressionMatch match = rx.match(sourceContents);
+    QString lineToUse;
+
+    if (match.hasMatch()) {
+        lineToUse = match.captured(0);
+    } else if (!fallback.isEmpty()) {
+        lineToUse = key + "=" + fallback;
+    } else {
+        // nothing to update
+        return;
+    }
+
+    if (rx.match(targetContents).hasMatch()) {
+        // Replace existing line in target
+        targetContents.replace(rx, lineToUse);
+    } else {
+        // Insert into [Desktop Entry] section or append
+        QRegularExpression entryRx(R"(^\[Desktop Entry\])",
+                                   QRegularExpression::MultilineOption);
+        QRegularExpressionMatch entryMatch = entryRx.match(targetContents);
+        if (entryMatch.hasMatch()) {
+            int sectionStart = entryMatch.capturedEnd();
+
+            // Find the start of the next section
+            QRegularExpression nextSectionRx(R"(^\s*\[[^\]]+\].*$)",
+                                             QRegularExpression::MultilineOption);
+            QRegularExpressionMatch nextMatch = nextSectionRx.match(targetContents, sectionStart);
+
+            int insertPos = nextMatch.hasMatch()
+                                ? nextMatch.capturedStart()
+                                : targetContents.length();
+
+            // Backtrack to skip trailing blank lines before inserting
+            while (insertPos > sectionStart &&
+                   (targetContents[insertPos - 1] == '\n' ||
+                    targetContents[insertPos - 1] == '\r'))
+            {
+                --insertPos;
+            }
+
+            // Insert with a newline before
+            targetContents.insert(insertPos, "\n" + lineToUse);
+        } else {
+            targetContents.append("\n" + lineToUse);
+        }
+    }
+}
+
+const QString AppImageUtil::parseExecLine(const QString& line, const QString& appImagePath)
+{
+    if(line.startsWith("Exec="))
+    {
+        QString cleanNewAppImagePath = appImagePath;
+        if (cleanNewAppImagePath.contains('"'))
+            cleanNewAppImagePath.replace('"', "");
+
+        if(cleanNewAppImagePath.contains(' '))
+            cleanNewAppImagePath = "\"" + cleanNewAppImagePath + "\"";
+
+        QRegularExpressionMatch match = execLineRegex.match(line);
+        if (match.hasMatch()) {
+            QString envPart = match.captured(1);  // May be empty
+            QString args = match.captured(3); // May be empty
+
+            // trim parts
+            envPart = envPart.trimmed();
+            args = args.trimmed();
+
+            QString newExecLine = "Exec=";
+            if (!envPart.isEmpty())
+                newExecLine += "env " + envPart + " ";
+            newExecLine += cleanNewAppImagePath;
+            if (!args.isEmpty())
+                newExecLine += " " + args;
+            return newExecLine;
+        }
+    }
+
+    return line;
 }

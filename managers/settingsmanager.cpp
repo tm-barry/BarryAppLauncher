@@ -76,6 +76,21 @@ void SettingsManager::setTextEditor(QString value) {
     emit textEditorChanged(value);
 }
 
+bool SettingsManager::keepBackup() const {
+    QSettings settings;
+    QVariant v = settings.value("General/keepBackup", false);
+    return v.toBool();
+}
+
+void SettingsManager::setKeepBackup(bool value) {
+    if (keepBackup() == value)
+        return;
+
+    QSettings settings;
+    settings.setValue("General/keepBackup", value);
+    emit keepBackupChanged(value);
+}
+
 bool SettingsManager::terminalExists(const QString& path)
 {
     return TerminalUtil::terminalExists(path);

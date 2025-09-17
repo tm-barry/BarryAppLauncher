@@ -13,6 +13,7 @@ class SettingsManager : public QObject
     Q_PROPERTY(AppImageFileOperation appImageFileOperation READ appImageFileOperation WRITE setAppImageFileOperation NOTIFY appImageFileOperationChanged);
     Q_PROPERTY(QString terminal READ terminal WRITE setTerminal NOTIFY terminalChanged);
     Q_PROPERTY(QString textEditor READ textEditor WRITE setTextEditor NOTIFY textEditorChanged);
+    Q_PROPERTY(bool keepBackup READ keepBackup WRITE setKeepBackup NOTIFY keepBackupChanged);
 
 public:
     static SettingsManager* instance();
@@ -35,6 +36,9 @@ public:
     QString textEditor() const;
     void setTextEditor(QString value);
 
+    bool keepBackup() const;
+    void setKeepBackup(bool value);
+
     Q_INVOKABLE bool terminalExists(const QString& path);
     Q_INVOKABLE bool textEditorExists(const QString& path);
 
@@ -50,6 +54,7 @@ signals:
     void appImageFileOperationChanged(SettingsManager::AppImageFileOperation newValue);
     void terminalChanged(QString newValue);
     void textEditorChanged(QString newValue);
+    void keepBackupChanged(bool newValue);
 };
 
 #endif // SETTINGSMANAGER_H

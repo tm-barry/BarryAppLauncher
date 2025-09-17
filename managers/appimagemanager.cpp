@@ -298,8 +298,7 @@ void AppImageManager::unlockAppImage(const QString& path)
     QFuture<void> future = QtConcurrent::run([=]() {
         setLoadingAppImage(true);
         try {
-            AppImageUtil util(path);
-            if(util.makeExecutable())
+            if(AppImageUtil::makeExecutable(path))
             {
                 loadAppImageMetadata(path);
             }
@@ -342,6 +341,24 @@ void AppImageManager::checkForUpdate()
     setLoadingAppImage(true);
     try {
         loadMetadataUpdaterReleases(m_appImageMetadata, [this]() { setLoadingAppImage(false); });
+    } catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+        setLoadingAppImage(false);
+    }
+}
+
+void AppImageManager::updateAppImage(const QString& downloadUrl, const QString& version, const QString& date)
+{
+    setLoadingAppImage(true);
+    try {
+        AppImageUtil::updateAppImage(m_appImageMetadata->path(), downloadUrl, version, date, [this](bool success) {
+            if(success) {
+                loadAppImageMetadata(m_appImageMetadata->path());
+                loadAppImageList();
+            }
+
+            setLoadingAppImage(false);
+        });
     } catch (const std::exception &e) {
         ErrorManager::instance()->reportError(e.what());
         setLoadingAppImage(false);
