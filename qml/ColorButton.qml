@@ -13,8 +13,8 @@ Button {
     property color disabledTextColor: "#AAAAAA"
 
     background: Rectangle {
-        radius: 4
-        border.color: Qt.darker(button.backgroundColor, 1.6)
+        radius: 2
+        border.color: Qt.darker(button.backgroundColor, 2)
         border.width: 1
 
         color: !button.enabled ? button.disabledColor : button.down ? button.pressedColor : button.hovered ? button.hoverColor : button.backgroundColor
