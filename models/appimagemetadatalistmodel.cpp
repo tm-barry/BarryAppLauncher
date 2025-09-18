@@ -5,6 +5,11 @@ AppImageMetadataListModel::AppImageMetadataListModel(QObject* parent)
 {
 }
 
+const QList<AppImageMetadata*>& AppImageMetadataListModel::items() const
+{
+    return m_items;
+}
+
 int AppImageMetadataListModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
@@ -31,6 +36,7 @@ QVariant AppImageMetadataListModel::data(const QModelIndex &index, int role) con
     case IntegrationRole: return static_cast<int>(item->integration());
     case DesktopFilePathRole: return item->desktopFilePath();
     case ExecutableRole: return item->executable();
+    case HasNewReleaseRole: return item->hasNewRelease();
     default:
         return QVariant();
     }
@@ -50,6 +56,7 @@ QHash<int, QByteArray> AppImageMetadataListModel::roleNames() const
     roles[IntegrationRole] = "integration";
     roles[DesktopFilePathRole] = "desktopFilePath";
     roles[ExecutableRole] = "executable";
+    roles[HasNewReleaseRole] = "hasNewRelease";
     return roles;
 }
 
@@ -68,4 +75,39 @@ void AppImageMetadataListModel::clear()
     m_items.clear();
     endResetModel();
     emit countChanged();
+}
+
+void AppImageMetadataListModel::updateItem(int row) {
+    if (row < 0 || row >= m_items.count())
+        return;
+    QModelIndex idx = index(row);
+    emit dataChanged(idx, idx, {NameRole, VersionRole, CommentRole,
+                                IconRole, TypeRole, IconRole,
+                                ChecksumRole, CategoriesRole, PathRole,
+                                IntegrationRole, DesktopFilePathRole, ExecutableRole,
+                                HasNewReleaseRole});
+}
+
+void AppImageMetadataListModel::updateAllItems() {
+    if (m_items.isEmpty())
+        return;
+
+    QModelIndex topLeft = index(0);
+    QModelIndex bottomRight = index(m_items.count() - 1);
+
+    // Notify QML that all rows have changed for these roles
+    emit dataChanged(topLeft, bottomRight, {
+                                               NameRole,
+                                               VersionRole,
+                                               CommentRole,
+                                               TypeRole,
+                                               IconRole,
+                                               ChecksumRole,
+                                               CategoriesRole,
+                                               PathRole,
+                                               IntegrationRole,
+                                               DesktopFilePathRole,
+                                               ExecutableRole,
+                                               HasNewReleaseRole
+                                           });
 }

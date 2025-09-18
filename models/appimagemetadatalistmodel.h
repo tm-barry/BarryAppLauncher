@@ -22,14 +22,20 @@ public:
         PathRole,
         IntegrationRole,
         DesktopFilePathRole,
-        ExecutableRole
+        ExecutableRole,
+        HasNewReleaseRole
     };
 
     explicit AppImageMetadataListModel(QObject* parent = nullptr);
+
+    const QList<AppImageMetadata*>& items() const;
+
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
     void clear();
+    void updateItem(int row);
+    void updateAllItems();
     Q_INVOKABLE void addMetadata(AppImageMetadata* metadata);
 
 private:

@@ -10,6 +10,7 @@ class UpdaterReleaseModel : public QObject
     Q_PROPERTY(QString download READ download WRITE setDownload NOTIFY downloadChanged)
     Q_PROPERTY(QString version READ version WRITE setVersion NOTIFY versionChanged)
     Q_PROPERTY(bool isNew READ isNew WRITE setIsNew NOTIFY isNewChanged)
+    Q_PROPERTY(bool isSelected READ isSelected WRITE setIsSelected NOTIFY isSelectedChanged)
 public:
     explicit UpdaterReleaseModel(QObject *parent = nullptr)
         : QObject(parent) {}
@@ -46,17 +47,27 @@ public:
         }
     }
 
+    bool isSelected() const { return m_isSelected; }
+    void setIsSelected(bool value) {
+        if (m_isSelected != value) {
+            m_isSelected = value;
+            emit isSelectedChanged();
+        }
+    }
+
 signals:
     void dateChanged();
     void downloadChanged();
     void versionChanged();
     void isNewChanged();
+    void isSelectedChanged();
 
 private:
     QString m_date;
     QString m_download;
     QString m_version;
     bool m_isNew;
+    bool m_isSelected;
 };
 
 #endif // UPDATERRELEASEMODEL_H

@@ -347,6 +347,36 @@ void AppImageManager::checkForUpdate()
     }
 }
 
+void AppImageManager::checkForAllUpdates()
+{
+    setLoadingAppImageList(true);
+
+    try {
+        QList<QFuture<void>> futures;
+        futures.reserve(m_appImageList->items().size());
+
+        for (AppImageMetadata* appImage : m_appImageList->items()) {
+            futures << loadMetadataUpdaterReleasesAsync(appImage);
+        }
+
+        if (futures.isEmpty()) {
+            setLoadingAppImageList(false);
+            return;
+        }
+
+        auto all = QtFuture::whenAll(futures.begin(), futures.end());
+
+        all.then([this](auto) {
+            setLoadingAppImageList(false);
+            m_appImageList->updateAllItems();
+        });
+    }
+    catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+        setLoadingAppImageList(false);
+    }
+}
+
 void AppImageManager::updateAppImage(const QString& downloadUrl, const QString& version, const QString& date)
 {
     setLoadingAppImage(true);
@@ -455,6 +485,7 @@ void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMeta
         }
 
         metadata->clearUpdaterReleases();
+        bool markedLatest = false;
         for (const auto &r : updater->releases()) {
             auto* releaseModel = new UpdaterReleaseModel(metadata);
             releaseModel->setVersion(r.version);
@@ -467,6 +498,11 @@ void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMeta
                              || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate())));
             releaseModel->setIsNew(isNew);
 
+            if(isNew && !markedLatest) {
+                releaseModel->setIsSelected(true);
+                markedLatest = true;
+            }
+
             metadata->addUpdaterRelease(releaseModel);
         }
         updater->deleteLater();
@@ -474,4 +510,15 @@ void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMeta
     });
 
     updater->fetchUpdatesAsync();
+}
+
+QFuture<void> AppImageManager::loadMetadataUpdaterReleasesAsync(AppImageMetadata* appImage)
+{
+    auto promise = QSharedPointer<QPromise<void>>::create();
+
+    loadMetadataUpdaterReleases(appImage, [promise]() {
+        promise->finish();
+    });
+
+    return promise->future();
 }

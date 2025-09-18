@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QObject>
 #include <QUrl>
+#include <QFuture>
 
 class AppImageManager : public QObject
 {
@@ -67,6 +68,7 @@ public:
     Q_INVOKABLE void unlockAppImage(const QString& path);
     Q_INVOKABLE void saveUpdateSettings();
     Q_INVOKABLE void checkForUpdate();
+    Q_INVOKABLE void checkForAllUpdates();
     Q_INVOKABLE void updateAppImage(const QString& downloadUrl, const QString& version, const QString& date);
 
 private:
@@ -83,6 +85,7 @@ private:
     AppImageMetadata* parseAppImageMetadata(const AppImageUtilMetadata& appImageMetadata);
     UpdaterSettings getUpdaterSettings(AppImageMetadata* appImageMetadata);
     void loadMetadataUpdaterReleases(AppImageMetadata* appImageMetadata, std::function<void()> callback = nullptr);
+    QFuture<void> loadMetadataUpdaterReleasesAsync(AppImageMetadata* appImage);
 
     Q_DISABLE_COPY(AppImageManager);
 

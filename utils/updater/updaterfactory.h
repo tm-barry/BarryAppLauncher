@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "managers/errormanager.h"
 #include "utils/networkutil.h"
 
 #include <QObject>
@@ -10,6 +11,8 @@
 #include <QEventLoop>
 #include <QByteArray>
 #include <QString>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 struct UpdaterRelease {
 public:
@@ -66,9 +69,30 @@ public:
         QNetworkReply *reply = NetworkUtil::networkManager()->get(req);
 
         connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+            int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             QByteArray data = reply->readAll();
             reply->deleteLater();
-            parseData(data);
+
+            if (status >= 200 && status < 300) {
+                // Success: parse JSON normally
+                parseData(data);
+            } else {
+                // Generic error handling
+                QString errorMsg = QString("Request failed with status %1").arg(status);
+
+                // Attempt to extract a JSON error message if available
+                QJsonDocument json = QJsonDocument::fromJson(data);
+                if (!json.isNull() && json.isObject()) {
+                    QJsonObject obj = json.object();
+                    if (obj.contains("message")) {
+                        errorMsg += ": " + obj["message"].toString();
+                    }
+                }
+
+                ErrorManager::instance()->reportError("API Error (" + QString::number(status) + "): " + errorMsg);
+            }
+
+            // Always emit updatesReady, even on failure
             emit updatesReady();
         });
     }

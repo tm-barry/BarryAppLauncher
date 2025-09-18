@@ -28,24 +28,37 @@ Item {
                 Layout.alignment: Qt.AlignLeft
             }
 
-            Button {
-                text: "Refresh"
+            RowLayout {
                 Layout.alignment: Qt.AlignRight
-                enabled: !AppImageManager.loadingAppImageList
-                onClicked: {
-                    AppImageManager.loadAppImageList()
+
+                Button {
+                    text: "Check for Updates"
+                    enabled: !AppImageManager.loadingAppImageList
+                    onClicked: {
+                        AppImageManager.checkForAllUpdates()
+                    }
+                }
+
+                Button {
+                    text: "Refresh"
+                    enabled: !AppImageManager.loadingAppImageList
+                    onClicked: {
+                        AppImageManager.loadAppImageList()
+                    }
                 }
             }
         }
 
         Item {
             Layout.preferredHeight: 50
-            visible: !AppImageManager.loadingAppImageList && AppImageManager.appImageList.count === 0
+            visible: !AppImageManager.loadingAppImageList
+                     && AppImageManager.appImageList.count === 0
         }
 
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
-            visible: !AppImageManager.loadingAppImageList && AppImageManager.appImageList.count === 0
+            visible: !AppImageManager.loadingAppImageList
+                     && AppImageManager.appImageList.count === 0
             Layout.minimumWidth: 460
             Layout.maximumWidth: 460
             Layout.preferredWidth: 460
@@ -66,13 +79,15 @@ Item {
                 Button {
                     text: qsTr("Preferences")
                     Layout.preferredWidth: 150
-                    onClicked: AppImageManager.requestModal(AppImageManager.Preferences)
+                    onClicked: AppImageManager.requestModal(
+                                   AppImageManager.Preferences)
                 }
 
                 Button {
                     text: qsTr("Open AppImage")
                     Layout.preferredWidth: 150
-                    onClicked: AppImageManager.requestModal(AppImageManager.OpenDialog)
+                    onClicked: AppImageManager.requestModal(
+                                   AppImageManager.OpenDialog)
                 }
             }
         }
@@ -94,7 +109,8 @@ Item {
                 }
 
                 background: Rectangle {
-                    property color backgroundColor: Qt.lighter(palette.base, 2.2)
+                    property color backgroundColor: Qt.lighter(palette.base,
+                                                               2.2)
                     property color hoverColor: Qt.darker(backgroundColor, 1.1)
                     property color pressedColor: Qt.darker(backgroundColor, 1.3)
                     property color disabledColor: Qt.darker(backgroundColor,
@@ -116,6 +132,17 @@ Item {
                         sourceSize.width: width
                         sourceSize.height: height
                         fillMode: Image.PreserveAspectFit
+
+                        IconButton {
+                            visible: hasNewRelease
+                            text: "\uf35b"
+                            palette.buttonText: "#28a745"
+                            width: 24
+                            height: 24
+                            anchors.bottom: parent.bottom
+                            anchors.right: parent.right
+                            anchors.bottomMargin: -5
+                        }
                     }
 
                     ColumnLayout {
@@ -145,8 +172,6 @@ Item {
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignLeft
                         }
-
-                        Item { Layout.preferredHeight: 5 }
                     }
                 }
             }
