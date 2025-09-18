@@ -14,7 +14,7 @@ Button {
 
     background: Rectangle {
         radius: 2
-        border.color: Qt.darker(button.backgroundColor, 2)
+        border.color: Qt.darker(button.backgroundColor, 3)
         border.width: 1
 
         color: !button.enabled ? button.disabledColor : button.down ? button.pressedColor : button.hovered ? button.hoverColor : button.backgroundColor

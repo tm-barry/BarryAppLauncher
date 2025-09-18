@@ -10,6 +10,15 @@ const QList<AppImageMetadata*>& AppImageMetadataListModel::items() const
     return m_items;
 }
 
+bool AppImageMetadataListModel::hasAnyNewRelease() const
+{
+    for (const auto& item : m_items) {
+        if (item->hasNewRelease())
+            return true;
+    }
+    return false;
+}
+
 int AppImageMetadataListModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
@@ -37,6 +46,7 @@ QVariant AppImageMetadataListModel::data(const QModelIndex &index, int role) con
     case DesktopFilePathRole: return item->desktopFilePath();
     case ExecutableRole: return item->executable();
     case HasNewReleaseRole: return item->hasNewRelease();
+    case UpdaterReleasesRole: return QVariant::fromValue(item->updaterReleases());
     default:
         return QVariant();
     }
@@ -57,6 +67,7 @@ QHash<int, QByteArray> AppImageMetadataListModel::roleNames() const
     roles[DesktopFilePathRole] = "desktopFilePath";
     roles[ExecutableRole] = "executable";
     roles[HasNewReleaseRole] = "hasNewRelease";
+    roles[UpdaterReleasesRole] = "updaterReleases";
     return roles;
 }
 
@@ -65,7 +76,13 @@ void AppImageMetadataListModel::addMetadata(AppImageMetadata* metadata)
     beginInsertRows(QModelIndex(), m_items.count(), m_items.count());
     m_items.append(metadata);
     endInsertRows();
+
+    connect(metadata, &AppImageMetadata::hasNewReleaseChanged, this, [this]() {
+        emit hasAnyNewReleaseChanged();
+    });
+
     emit countChanged();
+    emit hasAnyNewReleaseChanged();
 }
 
 void AppImageMetadataListModel::clear()
@@ -75,17 +92,14 @@ void AppImageMetadataListModel::clear()
     m_items.clear();
     endResetModel();
     emit countChanged();
+    emit hasAnyNewReleaseChanged();
 }
 
 void AppImageMetadataListModel::updateItem(int row) {
     if (row < 0 || row >= m_items.count())
         return;
     QModelIndex idx = index(row);
-    emit dataChanged(idx, idx, {NameRole, VersionRole, CommentRole,
-                                IconRole, TypeRole, IconRole,
-                                ChecksumRole, CategoriesRole, PathRole,
-                                IntegrationRole, DesktopFilePathRole, ExecutableRole,
-                                HasNewReleaseRole});
+    emit dataChanged(idx, idx);
 }
 
 void AppImageMetadataListModel::updateAllItems() {
@@ -94,20 +108,5 @@ void AppImageMetadataListModel::updateAllItems() {
 
     QModelIndex topLeft = index(0);
     QModelIndex bottomRight = index(m_items.count() - 1);
-
-    // Notify QML that all rows have changed for these roles
-    emit dataChanged(topLeft, bottomRight, {
-                                               NameRole,
-                                               VersionRole,
-                                               CommentRole,
-                                               TypeRole,
-                                               IconRole,
-                                               ChecksumRole,
-                                               CategoriesRole,
-                                               PathRole,
-                                               IntegrationRole,
-                                               DesktopFilePathRole,
-                                               ExecutableRole,
-                                               HasNewReleaseRole
-                                           });
+    emit dataChanged(topLeft, bottomRight);
 }

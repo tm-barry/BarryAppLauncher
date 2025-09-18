@@ -51,25 +51,26 @@ public:
     AppState state() const;
     void setState(AppState value);
 
-    Q_INVOKABLE void registerSelf();
+    Q_INVOKABLE QFuture<void> registerSelf();
     Q_INVOKABLE void requestModal(ModalTypes modal);
-    Q_INVOKABLE void loadAppImageList();
-    Q_INVOKABLE void loadAppImageMetadata(const QUrl& url);
-    Q_INVOKABLE void loadAppImageMetadata(const QString& path);
+    Q_INVOKABLE QFuture<void> loadAppImageList();
+    Q_INVOKABLE QFuture<void> loadAppImageMetadata(const QUrl& url);
+    Q_INVOKABLE QFuture<void> loadAppImageMetadata(const QString& path);
     Q_INVOKABLE void launchAppImage(const QUrl& url, const bool useTerminal = false);
     Q_INVOKABLE void launchAppImage(const QString& path, const bool useTerminal = false);
     Q_INVOKABLE void openDesktopFileInTextEditor(const QUrl& path);
     Q_INVOKABLE void openDesktopFileInTextEditor(const QString& path);
-    Q_INVOKABLE void registerAppImage(const QUrl& url);
-    Q_INVOKABLE void registerAppImage(const QString& path);
-    Q_INVOKABLE void unregisterAppImage(const QUrl& url, bool deleteAppImage);
-    Q_INVOKABLE void unregisterAppImage(const QString& path, bool deleteAppImage);
-    Q_INVOKABLE void unlockAppImage(const QUrl& url);
-    Q_INVOKABLE void unlockAppImage(const QString& path);
-    Q_INVOKABLE void saveUpdateSettings();
+    Q_INVOKABLE QFuture<void> registerAppImage(const QUrl& url);
+    Q_INVOKABLE QFuture<void> registerAppImage(const QString& path);
+    Q_INVOKABLE QFuture<void> unregisterAppImage(const QUrl& url, bool deleteAppImage);
+    Q_INVOKABLE QFuture<void> unregisterAppImage(const QString& path, bool deleteAppImage);
+    Q_INVOKABLE QFuture<void> unlockAppImage(const QUrl& url);
+    Q_INVOKABLE QFuture<void> unlockAppImage(const QString& path);
+    Q_INVOKABLE QFuture<void> saveUpdateSettings();
     Q_INVOKABLE void checkForUpdate();
     Q_INVOKABLE void checkForAllUpdates();
     Q_INVOKABLE void updateAppImage(const QString& downloadUrl, const QString& version, const QString& date);
+    Q_INVOKABLE void updateAllAppImages();
 
 private:
     explicit AppImageManager(QObject *parent = nullptr);
@@ -86,6 +87,8 @@ private:
     UpdaterSettings getUpdaterSettings(AppImageMetadata* appImageMetadata);
     void loadMetadataUpdaterReleases(AppImageMetadata* appImageMetadata, std::function<void()> callback = nullptr);
     QFuture<void> loadMetadataUpdaterReleasesAsync(AppImageMetadata* appImage);
+    UpdaterReleaseModel* getSelectedRelease(AppImageMetadata* metadata) const;
+    QFuture<void> updateAppImageAsync(AppImageMetadata* metadata, UpdaterReleaseModel* release);
 
     Q_DISABLE_COPY(AppImageManager);
 

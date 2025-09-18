@@ -29,6 +29,7 @@ int main(int argc, char *argv[])
     qRegisterMetaType<AppImageManager::AppState>("AppImageManager::AppState");
     qRegisterMetaType<AppImageManager::ModalTypes>("AppImageManager::ModalTypes");
     qRegisterMetaType<ErrorManager::MessageType>("ErrorManager::MessageType");
+    qRegisterMetaType<QQmlListProperty<UpdaterReleaseModel>>("QQmlListProperty<UpdaterReleaseModel>");
     qmlRegisterUncreatableType<AppImageMetadata>("BarryAppLauncher", 1, 0, "AppImageMetadata",
                                                  "Enum only - AppImageMetadata is not instantiable");
 

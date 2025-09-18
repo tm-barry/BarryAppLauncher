@@ -63,11 +63,11 @@ signals:
     void isSelectedChanged();
 
 private:
-    QString m_date;
-    QString m_download;
-    QString m_version;
-    bool m_isNew;
-    bool m_isSelected;
+    QString m_date = QString();
+    QString m_download = QString();
+    QString m_version = QString();
+    bool m_isNew = false;
+    bool m_isSelected = false;
 };
 
 #endif // UPDATERRELEASEMODEL_H

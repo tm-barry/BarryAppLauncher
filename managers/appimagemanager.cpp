@@ -89,9 +89,9 @@ void AppImageManager::setState(AppState value) {
     emit stateChanged(value);
 }
 
-void AppImageManager::registerSelf()
+QFuture<void> AppImageManager::registerSelf()
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
+    return QtConcurrent::run([=]() {
         setLoadingAppImage(true);
         try {
             QString path = appImagePath();
@@ -133,9 +133,9 @@ void AppImageManager::requestModal(ModalTypes modal)
     emit modalRequested(modal);
 }
 
-void AppImageManager::loadAppImageList()
+QFuture<void> AppImageManager::loadAppImageList()
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
+    return QtConcurrent::run([=]() {
         setLoadingAppImageList(true);
         try {
             auto utilList = AppImageUtil::getRegisteredList();
@@ -159,12 +159,12 @@ void AppImageManager::loadAppImageList()
     });
 }
 
-void AppImageManager::loadAppImageMetadata(const QUrl& url) {
-    loadAppImageMetadata(url.toLocalFile());
+QFuture<void> AppImageManager::loadAppImageMetadata(const QUrl& url) {
+    return loadAppImageMetadata(url.toLocalFile());
 }
 
-void AppImageManager::loadAppImageMetadata(const QString& path) {
-    QFuture<void> future = QtConcurrent::run([=]() {
+QFuture<void> AppImageManager::loadAppImageMetadata(const QString& path) {
+    return QtConcurrent::run([=]() {
         setLoadingAppImage(true);
         AppImageUtil util(path);
         try {
@@ -234,14 +234,14 @@ void AppImageManager::openDesktopFileInTextEditor(const QString& path)
     }
 }
 
-void AppImageManager::registerAppImage(const QUrl& url)
+QFuture<void> AppImageManager::registerAppImage(const QUrl& url)
 {
-    registerAppImage(url.toLocalFile());
+    return registerAppImage(url.toLocalFile());
 }
 
-void AppImageManager::registerAppImage(const QString& path)
+QFuture<void> AppImageManager::registerAppImage(const QString& path)
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
+    return QtConcurrent::run([=]() {
         setLoadingAppImage(true);
         try {
             AppImageUtil util(path);
@@ -258,14 +258,14 @@ void AppImageManager::registerAppImage(const QString& path)
     });
 }
 
-void AppImageManager::unregisterAppImage(const QUrl& url, bool deleteAppImage)
+QFuture<void> AppImageManager::unregisterAppImage(const QUrl& url, bool deleteAppImage)
 {
-    unregisterAppImage(url.toLocalFile(), deleteAppImage);
+    return unregisterAppImage(url.toLocalFile(), deleteAppImage);
 }
 
-void AppImageManager::unregisterAppImage(const QString& path, bool deleteAppImage)
+QFuture<void> AppImageManager::unregisterAppImage(const QString& path, bool deleteAppImage)
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
+    return QtConcurrent::run([=]() {
         setLoadingAppImage(true);
         try {
             AppImageUtil util(path);
@@ -288,14 +288,14 @@ void AppImageManager::unregisterAppImage(const QString& path, bool deleteAppImag
     });
 }
 
-void AppImageManager::unlockAppImage(const QUrl& url)
+QFuture<void> AppImageManager::unlockAppImage(const QUrl& url)
 {
-    unlockAppImage(url.toLocalFile());
+    return unlockAppImage(url.toLocalFile());
 }
 
-void AppImageManager::unlockAppImage(const QString& path)
+QFuture<void> AppImageManager::unlockAppImage(const QString& path)
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
+    return QtConcurrent::run([=]() {
         setLoadingAppImage(true);
         try {
             if(AppImageUtil::makeExecutable(path))
@@ -309,9 +309,9 @@ void AppImageManager::unlockAppImage(const QString& path)
     });
 }
 
-void AppImageManager::saveUpdateSettings()
+QFuture<void> AppImageManager::saveUpdateSettings()
 {
-    QFuture<void> future = QtConcurrent::run([=]() {
+    return QtConcurrent::run([=]() {
         setLoadingAppImage(true);
         try {
             QPointer<AppImageMetadata> metadata = m_appImageMetadata;
@@ -349,8 +349,8 @@ void AppImageManager::checkForUpdate()
 
 void AppImageManager::checkForAllUpdates()
 {
+    loadAppImageList().waitForFinished();
     setLoadingAppImageList(true);
-
     try {
         QList<QFuture<void>> futures;
         futures.reserve(m_appImageList->items().size());
@@ -394,6 +394,39 @@ void AppImageManager::updateAppImage(const QString& downloadUrl, const QString& 
         setLoadingAppImage(false);
     }
 }
+
+void AppImageManager::updateAllAppImages()
+{
+    setLoadingAppImage(true);
+
+    try {
+        QList<QFuture<void>> futures;
+
+        for (auto* metadata : m_appImageList->items()) {
+            auto* selectedRelease = getSelectedRelease(metadata);
+            if (!selectedRelease)
+                continue;
+
+            futures << updateAppImageAsync(metadata, selectedRelease);
+        }
+
+        if (futures.isEmpty()) {
+            setLoadingAppImage(false);
+            return;
+        }
+
+        auto all = QtFuture::whenAll(futures.begin(), futures.end());
+        all.then([this](auto) {
+            loadAppImageList();
+            setLoadingAppImage(false);
+        });
+    }
+    catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+        setLoadingAppImage(false);
+    }
+}
+
 
 // ----------------- Private -----------------
 
@@ -522,3 +555,35 @@ QFuture<void> AppImageManager::loadMetadataUpdaterReleasesAsync(AppImageMetadata
 
     return promise->future();
 }
+
+UpdaterReleaseModel* AppImageManager::getSelectedRelease(AppImageMetadata* metadata) const
+{
+    auto releases = metadata->updaterReleases();
+    if (!releases.count || !releases.at)
+        return nullptr;
+
+    int count = releases.count(&releases);
+    for (int i = 0; i < count; ++i) {
+        auto* release = releases.at(&releases, i);
+        if (release && release->isSelected())
+            return release;
+    }
+    return nullptr;
+}
+
+QFuture<void> AppImageManager::updateAppImageAsync(AppImageMetadata* metadata, UpdaterReleaseModel* release)
+{
+    auto promise = std::make_shared<QPromise<void>>();
+    QFuture<void> future = promise->future();
+
+    AppImageUtil::updateAppImage(metadata->path(),
+                                 release->download(),
+                                 release->version(),
+                                 release->date(),
+                                 [promise](bool) mutable {
+                                     promise->finish();
+                                 });
+
+    return future;
+}
+

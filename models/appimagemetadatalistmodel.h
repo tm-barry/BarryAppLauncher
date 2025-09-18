@@ -10,6 +10,7 @@ class AppImageMetadataListModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+    Q_PROPERTY(bool hasAnyNewRelease READ hasAnyNewRelease NOTIFY hasAnyNewReleaseChanged)
 public:
     enum Roles {
         NameRole = Qt::UserRole + 1,
@@ -23,12 +24,14 @@ public:
         IntegrationRole,
         DesktopFilePathRole,
         ExecutableRole,
-        HasNewReleaseRole
+        HasNewReleaseRole,
+        UpdaterReleasesRole
     };
 
     explicit AppImageMetadataListModel(QObject* parent = nullptr);
 
     const QList<AppImageMetadata*>& items() const;
+    bool hasAnyNewRelease() const;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -43,6 +46,7 @@ private:
 
 signals:
     void countChanged();
+    void hasAnyNewReleaseChanged();
 };
 
 #endif // APPIMAGEMETADATALISTMODEL_H
