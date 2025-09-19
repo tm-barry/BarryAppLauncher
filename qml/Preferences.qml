@@ -443,6 +443,7 @@ ApplicationWindow {
                                 }
 
                                 Rectangle {
+                                    visible: index < headersModel.count - 1
                                     height: 1
                                     Layout.fillWidth: true
                                     color: palette.mid
