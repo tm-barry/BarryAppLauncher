@@ -7,4 +7,4 @@ TryExec=barryapplauncher
 Icon=barryapplauncher
 Categories=Utility;
 MimeType=application/vnd.appimage;
-X-AppImage-Version=0.5.0
+X-AppImage-Version=0.6.0
