@@ -4,6 +4,7 @@
 #pragma once
 
 #include "managers/errormanager.h"
+#include "managers/settingsmanager.h"
 #include "utils/networkutil.h"
 
 #include <QObject>
@@ -29,6 +30,18 @@ public:
 
 struct UpdaterSettings {
 public:
+    QString url = QString();
+    QString versionField = QString();
+    QString downloadField = QString();
+    QString downloadPattern = QString();
+    QString dateField = QString();
+    QList<UpdaterFilter> filters { };
+};
+
+struct UpdaterSettingsPreset {
+public:
+    QString name = QString();
+    QString type = QString();
     QString url = QString();
     QString versionField = QString();
     QString downloadField = QString();
@@ -66,6 +79,18 @@ public:
         QString targetUrl = url.isEmpty() ? m_settings.url : url;
         QNetworkRequest req((QUrl(targetUrl)));
         req.setHeader(QNetworkRequest::UserAgentHeader, "BarryAppLauncher");
+
+        // Apply custom user update headers
+        auto updateHeaders = SettingsManager::instance()->getUpdateHeaders();
+        for (const auto &header : updateHeaders) {
+            if (header.header.isEmpty() || header.value.isEmpty())
+                continue;
+
+            if (header.website.isEmpty() || targetUrl.contains(header.website)) {
+                req.setRawHeader(header.header.toUtf8(), header.value.toUtf8());
+            }
+        }
+
         QNetworkReply *reply = NetworkUtil::networkManager()->get(req);
 
         connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -111,6 +136,7 @@ public:
     UpdaterFactory();
 
     static IUpdater* create(const QString &type, const UpdaterSettings &settings);
+    static const QList<UpdaterSettingsPreset> getDefaultPresets();
 };
 
 #endif // UPDATERFACTORY_H

@@ -4,6 +4,16 @@
 #pragma once
 
 #include <QObject>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
+
+struct UpdateHeader {
+public:
+    QString website = QString();
+    QString header = QString();
+    QString value = QString();
+};
 
 class SettingsManager : public QObject
 {
@@ -41,6 +51,11 @@ public:
 
     Q_INVOKABLE bool terminalExists(const QString& path);
     Q_INVOKABLE bool textEditorExists(const QString& path);
+
+    Q_INVOKABLE void saveUpdateHeadersJson(const QJsonArray &headers);
+    void saveUpdateHeaders(const QList<UpdateHeader> &headers);
+    Q_INVOKABLE QJsonArray getUpdateHeadersJson() const;
+    QList<UpdateHeader> getUpdateHeaders() const;
 
 private:
     explicit SettingsManager(QObject *parent = nullptr);

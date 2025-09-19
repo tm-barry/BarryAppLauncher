@@ -5,6 +5,9 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QUrl>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
 
 // ----------------- Public -----------------
 
@@ -99,6 +102,42 @@ bool SettingsManager::terminalExists(const QString& path)
 bool SettingsManager::textEditorExists(const QString& path)
 {
     return TextEditorUtil::textEditorExists(path);
+}
+
+void SettingsManager::saveUpdateHeadersJson(const QJsonArray &headers) {
+    QJsonDocument doc(headers);
+    QSettings().setValue("Update/headers", QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+}
+
+void SettingsManager::saveUpdateHeaders(const QList<UpdateHeader> &headers) {
+    QJsonArray array;
+    for (const auto &h : headers) {
+        QJsonObject obj;
+        obj["website"] = h.website;
+        obj["header"] = h.header;
+        obj["value"] = h.value;
+        array.append(obj);
+    }
+    saveUpdateHeadersJson(array);
+}
+
+QJsonArray SettingsManager::getUpdateHeadersJson() const {
+    QString json = QSettings().value("Update/headers", "[]").toString();
+    QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8());
+    return doc.isArray() ? doc.array() : QJsonArray();
+}
+
+QList<UpdateHeader> SettingsManager::getUpdateHeaders() const {
+    QList<UpdateHeader> list;
+    for (const auto &v : getUpdateHeadersJson()) {
+        QJsonObject obj = v.toObject();
+        list.append(UpdateHeader{
+            obj["website"].toString(),
+            obj["header"].toString(),
+            obj["value"].toString()
+        });
+    }
+    return list;
 }
 
 // ----------------- Private -----------------

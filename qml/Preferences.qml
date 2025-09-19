@@ -12,9 +12,35 @@ ApplicationWindow {
     title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
+    FontLoader {
+        id: fontAwesome
+        source: "/assets/fonts/fa-6-solid-900.otf"
+    }
+
     onVisibleChanged: {
         terminalTextField.text = SettingsManager.terminal
         textEditorTextField.text = SettingsManager.textEditor
+
+        loadUpdateHeaders()
+    }
+
+    function loadUpdateHeaders() {
+        headersModel.clear()
+        let headers = SettingsManager.getUpdateHeadersJson()
+        for (var i = 0; i < headers.length; i++) {
+            headersModel.append(headers[i])
+        }
+    }
+
+    function saveUpdateHeaders() {
+        let array = []
+        for (let i = 0; i < headersModel.count; i++) {
+            let item = headersModel.get(i)
+            if (item.website && item.header) {
+                array.push(item)
+            }
+        }
+        SettingsManager.saveUpdateHeadersJson(array)
     }
 
     Connections {
@@ -226,6 +252,50 @@ ApplicationWindow {
                         Layout.bottomMargin: 5
                     }
 
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
+                    }
+
+                    Label {
+                        text: qsTr("Register Self")
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: qsTr("BarryAppLauncher can register itself into your system menu.")
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.alignment: Qt.AlignCenter
+                        Layout.fillWidth: true
+                    }
+
+                    ColorButton {
+                        text: qsTr("Register")
+                        Layout.preferredWidth: 100
+                        onClicked: AppImageManager.registerSelf()
+                        Layout.alignment: Qt.AlignCenter
+                    }
+                }
+            }
+
+            Label {
+                text: qsTr("Updater")
+                font.bold: true
+                font.pixelSize: 14
+                Layout.alignment: Qt.AlignHCenter
+            }
+            RoundedGroupBox {
+                Layout.fillWidth: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 5
+
                     Label {
                         text: qsTr("Keep Backup")
                         font.bold: true
@@ -258,23 +328,130 @@ ApplicationWindow {
                     }
 
                     Label {
-                        text: qsTr("Register Self")
+                        text: qsTr("Update Headers")
                         font.bold: true
                     }
 
-                    Label {
-                        text: qsTr("BarryAppLauncher can register itself into your system menu.")
-                        wrapMode: Text.WordWrap
-                        horizontalAlignment: Text.AlignHCenter
-                        Layout.alignment: Qt.AlignCenter
-                        Layout.fillWidth: true
-                    }
+                    RowLayout {
+                        spacing: 5
+                        Layout.alignment: Qt.AlignHCenter
 
-                    ColorButton {
-                        text: qsTr("Register")
-                        Layout.preferredWidth: 100
-                        onClicked: AppImageManager.registerSelf()
-                        Layout.alignment: Qt.AlignCenter
+                        ColorButton {
+                            text: qsTr("Add Header")
+                            Layout.preferredWidth: 100
+                            onClicked: {
+                                headersModel.append({
+                                                        "website": "",
+                                                        "header": "",
+                                                        "value": ""
+                                                    })
+
+                                scrollView.ScrollBar.vertical.position = headersContainer.y + headersContainer.height
+                            }
+                        }
+
+                        IconButton {
+                            id: saveHeaderButton
+                            text: "\uf0c7"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            onClicked: {
+                                saveUpdateHeaders();
+                                loadUpdateHeaders();
+                                text = "\uf00c"
+                                saveHeaderTimer.start()
+                            }
+
+                            Timer {
+                                id: saveHeaderTimer
+                                interval: 1000
+                                repeat: false
+                                running: true
+                                onTriggered: saveHeaderButton.text = "\uf0c7"
+                            }
+                        }
+                    }
+                    ColumnLayout {
+                        id: headersContainer
+                        width: parent.width
+                        spacing: 5
+
+                        ListModel {
+                            id: headersModel
+                        }
+                        Repeater {
+                            model: headersModel
+
+                            ColumnLayout {
+                                spacing: 5
+
+                                RowLayout {
+                                    spacing: 10
+                                    width: parent.width
+
+                                    ColumnLayout {
+                                        spacing: 5
+
+                                        TextField {
+                                            Component.onCompleted: text = website
+                                            placeholderText: qsTr("Website... ex: api.github.com")
+                                            Layout.fillWidth: true
+                                            onTextChanged: website = text
+                                        }
+                                        TextField {
+                                            Component.onCompleted: text = header
+                                            placeholderText: qsTr("Header... ex: Authorization")
+                                            Layout.fillWidth: true
+                                            onTextChanged: header = text
+                                        }
+                                        RowLayout {
+                                            id: row
+                                            spacing: 0
+                                            Layout.fillWidth: true
+
+                                            property bool masked: true
+
+                                            TextField {
+                                                id: headerValueField
+                                                Component.onCompleted: text = value
+                                                placeholderText: qsTr("Value... ex: token {apikey}")
+                                                echoMode: row.masked ? TextInput.Password : TextInput.Normal
+                                                Layout.fillWidth: true
+                                                onTextChanged: value = text
+                                            }
+
+                                            ColorButton {
+                                                text: row.masked ? "\uf06e" : "\uf070"
+                                                backgroundColor: headerValueField.background.color
+                                                onClicked: row.masked = !row.masked
+                                                Layout.preferredHeight: headerValueField.height
+                                                Layout.preferredWidth: 24
+                                                font.family: fontAwesome.name
+                                            }
+                                        }
+                                    }
+
+                                    ColorButton {
+                                        text: "\uf1f8"
+                                        Layout.preferredWidth: 24
+                                        Layout.preferredHeight: 24
+                                        backgroundColor: "#C43D3D"
+                                        font.family: fontAwesome.name
+                                        Layout.alignment: Qt.AlignVCenter
+                                        onClicked: headersModel.remove(index)
+                                    }
+                                }
+
+                                Rectangle {
+                                    height: 1
+                                    Layout.fillWidth: true
+                                    color: palette.mid
+                                    opacity: 0.6
+                                    Layout.topMargin: 10
+                                    Layout.bottomMargin: 5
+                                }
+                            }
+                        }
                     }
                 }
             }
