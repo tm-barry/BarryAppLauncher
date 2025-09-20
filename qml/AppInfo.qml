@@ -477,6 +477,36 @@ Item {
                     spacing: 5
 
                     Label {
+                        text: qsTr("Refresh Metadata")
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: qsTr("Refreshes the desktop entry with the internal values from the appimage. This is useful for appimages that update themselves.")
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.alignment: Qt.AlignCenter
+                        Layout.fillWidth: true
+                    }
+
+                    ColorButton {
+                        text: qsTr("Refresh")
+                        Layout.preferredWidth: 100
+                        enabled: !AppImageManager.loadingAppImage
+                        Layout.alignment: Qt.AlignCenter
+                        onClicked: AppImageManager.refreshDesktopFile()
+                    }
+
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
+                    }
+
+                    Label {
                         text: qsTr("Update Type")
                         font.bold: true
                     }

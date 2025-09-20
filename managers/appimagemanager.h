@@ -71,6 +71,7 @@ public:
     Q_INVOKABLE void checkForAllUpdates();
     Q_INVOKABLE void updateAppImage(const QString& downloadUrl, const QString& version, const QString& date);
     Q_INVOKABLE void updateAllAppImages();
+    Q_INVOKABLE void refreshDesktopFile();
 
 private:
     explicit AppImageManager(QObject *parent = nullptr);

@@ -427,6 +427,19 @@ void AppImageManager::updateAllAppImages()
     }
 }
 
+void AppImageManager::refreshDesktopFile()
+{
+    setLoadingAppImage(true);
+    try {
+        if(AppImageUtil::refreshDesktopFile(m_appImageMetadata->path()))
+            loadAppImageMetadata(m_appImageMetadata->path());
+    } catch (const std::exception &e) {
+        ErrorManager::instance()->reportError(e.what());
+        setLoadingAppImage(false);
+    }
+    setLoadingAppImage(false);
+}
+
 
 // ----------------- Private -----------------
 
