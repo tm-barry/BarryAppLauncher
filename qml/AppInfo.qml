@@ -494,7 +494,10 @@ Item {
                         Layout.preferredWidth: 100
                         enabled: !AppImageManager.loadingAppImage
                         Layout.alignment: Qt.AlignCenter
-                        onClicked: AppImageManager.refreshDesktopFile()
+                        onClicked: {
+                            AppImageManager.refreshDesktopFile()
+                            scrollView.ScrollBar.vertical.position = 0
+                        }
                     }
 
                     Rectangle {
