@@ -192,7 +192,7 @@ const QString AppImageUtil::integratedDesktopPath(const QString& path)
 
                 if (line.startsWith("Exec=")) {
                     QString execLine = line.mid(QString("Exec=").length());
-                    const QStringList execCommandParts = execLine.split(' ');
+                    const QStringList execCommandParts = QProcess::splitCommand(execLine);
 
                     for (const QString& execCommand : execCommandParts)
                     {
@@ -380,9 +380,6 @@ QString AppImageUtil::registerAppImage()
     QString cleanNewIconPath = newIconPath;
     if (cleanNewIconPath.contains('"'))
         cleanNewIconPath.replace('"', "");
-
-    if(cleanNewIconPath.contains(' '))
-        cleanNewIconPath = "\"" + cleanNewIconPath + "\"";
 
     // Add integration meta
     QString newDesktopContent = utilMetadata.mountedDesktopContents;
@@ -859,7 +856,10 @@ QString AppImageUtil::handleIntegrationFileOperation(QString appName)
         return QString();
     }
 
+    // Replace spaces and invalid characters
+    appName.replace(' ', "-");
     appName.replace(invalidChars, "_");
+
     if(appName.isEmpty())
     {
         QFileInfo info(m_path);
