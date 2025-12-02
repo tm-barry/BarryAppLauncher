@@ -150,6 +150,14 @@ void AppImageMetadata::setUpdateVersionField(const QString& value) {
     }
 }
 
+QString AppImageMetadata::updateVersionPattern() const { return m_updateVersionPattern; }
+void AppImageMetadata::setUpdateVersionPattern(const QString& value) {
+    if (m_updateVersionPattern != value) {
+        m_updateVersionPattern = value;
+        setUpdateDirty(true);
+        emit updateVersionPatternChanged();
+    }
+}
 
 QQmlListProperty<UpdaterFilterModel> AppImageMetadata::updateFilters()
 {

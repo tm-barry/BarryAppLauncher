@@ -1,5 +1,6 @@
 #include "updaterfactory.h"
 #include "jsonupdater.h"
+#include "staticupdater.h"
 
 // ----------------- Public -----------------
 
@@ -10,6 +11,11 @@ IUpdater* UpdaterFactory::create(const QString &type, const UpdaterSettings &set
     if (type == "json") {
         return new JsonUpdater(settings);
     }
+    else if (type == "static")
+    {
+        return new StaticUpdater(settings);
+    }
+
     return nullptr;
 }
 

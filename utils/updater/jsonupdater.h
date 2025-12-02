@@ -14,9 +14,6 @@ public:
     explicit JsonUpdater(const UpdaterSettings &settings, QObject *parent = nullptr);
 
     void parseData(const QByteArray &data) override;
-
-private:
-    QList<QJsonValue> getValuesByPath(const QJsonValue &root, const QString &path);
 };
 
 #endif // JSONUPDATER_H

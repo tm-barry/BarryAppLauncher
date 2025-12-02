@@ -484,6 +484,7 @@ AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetad
     metadata->setUpdateDownloadPattern(utilMetadata.updateDownloadPattern);
     metadata->setUpdateDateField(utilMetadata.updateDateField);
     metadata->setUpdateVersionField(utilMetadata.updateVersionField);
+    metadata->setUpdateVersionPattern(utilMetadata.updateVersionPattern);
     for (const auto& filter : utilMetadata.updateFilters) {
         auto* filterModel = new UpdaterFilterModel(metadata);
         filterModel->setField(filter.field);
@@ -502,6 +503,7 @@ UpdaterSettings AppImageManager::getUpdaterSettings(AppImageMetadata* metadata)
     UpdaterSettings settings;
     settings.url = metadata->updateUrl();
     settings.versionField = metadata->updateVersionField();
+    settings.versionPattern = metadata->updateVersionPattern();
     settings.downloadField = metadata->updateDownloadField();
     settings.downloadPattern = metadata->updateDownloadPattern();
     settings.dateField = metadata->updateDateField();

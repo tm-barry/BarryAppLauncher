@@ -536,6 +536,7 @@ const bool AppImageUtil::saveUpdaterSettings(const QString& desktopFilePath,
         addIfNotEmpty("X-AppImage-BAL-UpdateDownloadPattern", settings.downloadPattern);
         addIfNotEmpty("X-AppImage-BAL-UpdateDateField", settings.dateField);
         addIfNotEmpty("X-AppImage-BAL-UpdateVersionField", settings.versionField);
+        addIfNotEmpty("X-AppImage-BAL-UpdateVersionPattern", settings.versionPattern);
 
         if (!settings.filters.isEmpty()) {
             QJsonArray filterArray;
@@ -656,6 +657,7 @@ const bool AppImageUtil::refreshDesktopFile(const QString& appImagePath, const Q
     updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateDownloadPattern");
     updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateDateField");
     updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateVersionField");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateVersionPattern");
     updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateFilters");
 
     QString fallbackVersion = updateVersion;
@@ -779,6 +781,7 @@ const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppIma
     metadata.updateDownloadPattern = desktopFile.value("X-AppImage-BAL-UpdateDownloadPattern").toString();
     metadata.updateDateField = desktopFile.value("X-AppImage-BAL-UpdateDateField").toString();
     metadata.updateVersionField = desktopFile.value("X-AppImage-BAL-UpdateVersionField").toString();
+    metadata.updateVersionPattern = desktopFile.value("X-AppImage-BAL-UpdateVersionPattern").toString();
     metadata.updateFilters = parseFilters(desktopFile.value("X-AppImage-BAL-UpdateFilters").toString());
     metadata.updateCurrentVersion = desktopFile.value("X-AppImage-BAL-UpdateCurrentVersion").toString();
     metadata.updateCurrentDate = desktopFile.value("X-AppImage-BAL-UpdateCurrentDate").toString();

@@ -30,6 +30,7 @@ class AppImageMetadata : public QObject
     Q_PROPERTY(QString updateDownloadPattern READ updateDownloadPattern WRITE setUpdateDownloadPattern NOTIFY updateDownloadPatternChanged)
     Q_PROPERTY(QString updateDateField READ updateDateField WRITE setUpdateDateField NOTIFY updateDateFieldChanged)
     Q_PROPERTY(QString updateVersionField READ updateVersionField WRITE setUpdateVersionField NOTIFY updateVersionFieldChanged)
+    Q_PROPERTY(QString updateVersionPattern READ updateVersionPattern WRITE setUpdateVersionPattern NOTIFY updateVersionPatternChanged)
     Q_PROPERTY(QQmlListProperty<UpdaterFilterModel> updateFilters READ updateFilters NOTIFY updateFiltersChanged)
     Q_PROPERTY(bool updateDirty READ updateDirty WRITE setUpdateDirty NOTIFY updateDirtyChanged)
     Q_PROPERTY(QQmlListProperty<UpdaterReleaseModel> updaterReleases READ updaterReleases NOTIFY updaterReleasesChanged)
@@ -99,6 +100,9 @@ public:
     QString updateVersionField() const;
     void setUpdateVersionField(const QString& value);
 
+    QString updateVersionPattern() const;
+    void setUpdateVersionPattern(const QString& value);
+
     QQmlListProperty<UpdaterFilterModel> updateFilters();
     const QList<UpdaterFilterModel*>& getUpdateFilters() const { return m_updateFilters; }
     void addUpdateFilter(UpdaterFilterModel* filter);
@@ -138,6 +142,7 @@ signals:
     void updateDownloadPatternChanged();
     void updateDateFieldChanged();
     void updateVersionFieldChanged();
+    void updateVersionPatternChanged();
     void updateFiltersChanged();
     void updateDirtyChanged();
     void updaterReleasesChanged();
@@ -163,6 +168,7 @@ private:
     QString m_updateDownloadPattern;
     QString m_updateDateField;
     QString m_updateVersionField;
+    QString m_updateVersionPattern;
     QList<UpdaterFilterModel*> m_updateFilters;
     bool m_updateDirty = false;
     QList<UpdaterReleaseModel*> m_updaterReleases;

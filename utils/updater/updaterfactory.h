@@ -32,6 +32,7 @@ struct UpdaterSettings {
 public:
     QString url = QString();
     QString versionField = QString();
+    QString versionPattern = QString();
     QString downloadField = QString();
     QString downloadPattern = QString();
     QString dateField = QString();
@@ -44,6 +45,7 @@ public:
     QString type = QString();
     QString url = QString();
     QString versionField = QString();
+    QString versionPattern = QString();
     QString downloadField = QString();
     QString downloadPattern = QString();
     QString dateField = QString();
@@ -91,11 +93,38 @@ public:
             }
         }
 
-        QNetworkReply *reply = NetworkUtil::networkManager()->get(req);
+        QNetworkReply *reply = nullptr;
+
+        if (m_headersOnly) {
+            // HEAD request = fetch headers only
+            reply = NetworkUtil::networkManager()->head(req);
+        } else {
+            // GET request = fetch full body
+            reply = NetworkUtil::networkManager()->get(req);
+        }
 
         connect(reply, &QNetworkReply::finished, this, [this, reply]() {
             int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            QByteArray data = reply->readAll();
+            QByteArray data;
+
+            if (m_headersOnly) {
+                QJsonObject jsonHeaders;
+
+                const QList<QNetworkReply::RawHeaderPair> headers = reply->rawHeaderPairs();
+                for (const auto &header : headers) {
+                    jsonHeaders[QString(header.first)] = QString(header.second);
+                }
+
+                // Add final URL and HTTP status
+                jsonHeaders["url"] = reply->url().toString();
+                jsonHeaders["status"] = status;
+
+                data = QJsonDocument(jsonHeaders).toJson(QJsonDocument::Compact);
+            }
+            else {
+                data = reply->readAll();
+            }
+
             reply->deleteLater();
 
             if (status >= 200 && status < 300) {
@@ -127,6 +156,7 @@ signals:
 
 protected:
     UpdaterSettings m_settings;
+    bool m_headersOnly = false;
     QList<UpdaterRelease> m_releases;
 };
 

@@ -33,6 +33,11 @@ Item {
             }
             launchTimer.start()
         }
+
+        function isType(...types) {
+            return AppImageManager.appImageMetadata
+                   && types.includes(AppImageManager.appImageMetadata.updateType)
+        }
     }
 
     MessageDialog {
@@ -208,8 +213,11 @@ Item {
 
                     Menu {
                         id: updateOptionsMenu
+                        property int maxItemWidth: 0
+                        width: Math.max(160, maxItemWidth + 20)
 
                         ListView {
+                            id: updateListView
                             anchors.left: parent.left
                             anchors.right: parent.right
                             clip: true
@@ -220,6 +228,19 @@ Item {
                             delegate: MenuItem {
                                 text: isNew ? version + " *" : version
                                 font.bold: isNew
+
+                                // Hidden Text for width measurement
+                                Text {
+                                    id: measureText
+                                    text: parent.text
+                                    font: parent.font
+                                    visible: false
+                                    onWidthChanged: {
+                                        if (width > updateOptionsMenu.maxItemWidth)
+                                            updateOptionsMenu.maxItemWidth = width
+                                    }
+                                }
+
                                 onTriggered: {
                                     AppImageManager.updateAppImage(download, version, date)
                                     updateOptionsMenu.close()
@@ -305,7 +326,7 @@ Item {
                         font.bold: true
                     }
 
-                    TextArea {
+                    TransparentTextArea {
                         text: qsTr("AppImage Type ") + AppImageManager.appImageMetadata?.type
                         readOnly: true
                     }
@@ -323,7 +344,7 @@ Item {
                         spacing: 5
                         Layout.fillWidth: true
 
-                        TextArea {
+                        TransparentTextArea {
                             text: AppImageManager.appImageMetadata?.path
                             readOnly: true
                             wrapMode: TextEdit.Wrap
@@ -359,7 +380,7 @@ Item {
                         Layout.fillWidth: true
                         visible: !AppImageManager.appImageMetadata?.executable
 
-                        TextArea {
+                        TransparentTextArea {
                             text: AppImageManager.appImageMetadata?.checksum
                             readOnly: true
                             wrapMode: TextEdit.Wrap
@@ -405,7 +426,7 @@ Item {
                         spacing: 5
                         Layout.fillWidth: true
 
-                        TextArea {
+                        TransparentTextArea {
                             text: AppImageManager.appImageMetadata?.desktopFilePath
                             placeholderText: qsTr("AppImage has not been integrated...")
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
@@ -446,7 +467,7 @@ Item {
                         font.bold: true
                     }
 
-                    TextArea {
+                    TransparentTextArea {
                         text: AppImageManager.appImageMetadata?.categories
                         readOnly: true
                     }
@@ -527,6 +548,10 @@ Item {
                                     value: ""
                                 }
                                 ListElement {
+                                    text: "Static"
+                                    value: "static"
+                                }
+                                ListElement {
                                     text: "Json"
                                     value: "json"
                                 }
@@ -548,7 +573,7 @@ Item {
                                     AppImageManager.appImageMetadata.updateType = model.get(
                                                 currentIndex).value
 
-                                    scrollView.ScrollBar.vertical.position = updateGroupBox.y
+                                    scrollView.contentItem.contentY = updateGroupBox.y
                                 }
                             }
                         }
@@ -573,7 +598,7 @@ Item {
                     Label {
                         text: qsTr("Url")
                         font.bold: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
                     }
 
                     RoundedTextArea {
@@ -586,18 +611,18 @@ Item {
                         placeholderText: "ex: https://api.github.com/repos/dev/proj/releases/latest"
                         wrapMode: TextEdit.Wrap
                         Layout.fillWidth: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
                     }
 
                     Item {
                         Layout.preferredHeight: 5
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
                     }
 
                     Label {
                         text: qsTr("Download Field")
                         font.bold: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("json")
                     }
 
                     RoundedTextArea {
@@ -611,18 +636,18 @@ Item {
                         placeholderText: "ex: assets[*].browser_download_url"
                         wrapMode: TextEdit.Wrap
                         Layout.fillWidth: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible:utils.isType("json")
                     }
 
                     Item {
                         Layout.preferredHeight: 5
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("json")
                     }
 
                     Label {
                         text: qsTr("Download Pattern")
                         font.bold: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("json")
                     }
 
                     RoundedTextArea {
@@ -636,18 +661,26 @@ Item {
                         placeholderText: "ex: appName-.*-x86_64\\.AppImage"
                         wrapMode: TextEdit.Wrap
                         Layout.fillWidth: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("json")
                     }
 
                     Item {
                         Layout.preferredHeight: 5
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("json")
                     }
 
                     Label {
-                        text: qsTr("Version Field")
+                        text: getText()
                         font.bold: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
+
+                        function getText()
+                        {
+                            if(utils.isType("static"))
+                                return qsTr("Version Header")
+                            else
+                                return qsTr("Version Field")
+                        }
                     }
 
                     RoundedTextArea {
@@ -658,21 +691,62 @@ Item {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateVersionField = text
                         }
-                        placeholderText: "ex: tag_name"
+                        placeholderText: getPlaceholderText()
                         wrapMode: TextEdit.Wrap
                         Layout.fillWidth: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
+
+                        function getPlaceholderText()
+                        {
+                            if(utils.isType("static"))
+                                return qsTr("ex: url")
+                            else
+                                return qsTr("ex: tag_name")
+                        }
                     }
 
                     Item {
                         Layout.preferredHeight: 5
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
                     }
 
                     Label {
-                        text: qsTr("Date Field")
+                        text: qsTr("Version Pattern")
                         font.bold: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static")
+                    }
+
+                    RoundedTextArea {
+                        text: AppImageManager.appImageMetadata?.updateVersionPattern
+                              || ""
+                        enabled: !AppImageManager.loadingAppImage
+                        onTextChanged: {
+                            if (AppImageManager.appImageMetadata)
+                                AppImageManager.appImageMetadata.updateVersionPattern = text
+                        }
+                        placeholderText: "ex: appName-(.*)-x86_64\\.AppImage"
+                        wrapMode: TextEdit.Wrap
+                        Layout.fillWidth: true
+                        visible: utils.isType("static")
+                    }
+
+                    Item {
+                        Layout.preferredHeight: 5
+                        visible: utils.isType("static")
+                    }
+
+                    Label {
+                        text: getText()
+                        font.bold: true
+                        visible: utils.isType("static", "json")
+
+                        function getText()
+                        {
+                            if(utils.isType("static"))
+                                return qsTr("Date Header")
+                            else
+                                return qsTr("Date Field")
+                        }
                     }
 
                     RoundedTextArea {
@@ -683,25 +757,33 @@ Item {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDateField = text
                         }
-                        placeholderText: "ex: published_at"
+                        placeholderText: getPlaceholderText()
                         wrapMode: TextEdit.Wrap
                         Layout.fillWidth: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
+
+                        function getPlaceholderText()
+                        {
+                            if(utils.isType("static"))
+                                return qsTr("ex: last-modified")
+                            else
+                                return qsTr("ex: published_at")
+                        }
                     }
 
                     Item {
                         Layout.preferredHeight: 5
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("static", "json")
                     }
 
                     Label {
                         text: qsTr("Filters")
                         font.bold: true
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("json")
                     }
 
                     ColumnLayout {
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: utils.isType("json")
                         spacing: 5
 
                         Repeater {

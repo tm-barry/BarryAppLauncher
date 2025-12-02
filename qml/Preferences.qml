@@ -93,7 +93,7 @@ ApplicationWindow {
                         spacing: 5
                         Layout.fillWidth: true
 
-                        TextArea {
+                        TransparentTextArea {
                             placeholderText: qsTr("AppImage default location")
                             text: Qt.resolvedUrl(
                                       SettingsManager.appImageDefaultLocation).toString(

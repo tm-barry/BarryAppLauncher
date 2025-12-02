@@ -31,6 +31,7 @@ qt_add_qml_module(barryapplauncher
         qml/Preferences.qml
         qml/RoundedGroupBox.qml
         qml/RoundedTextArea.qml
+        qml/TransparentTextArea.qml
     SOURCES
         managers/appimagemanager.h
         managers/appimagemanager.cpp
@@ -50,10 +51,13 @@ qt_add_qml_module(barryapplauncher
         providers/memoryimageprovider.cpp
         utils/updater/jsonupdater.h
         utils/updater/jsonupdater.cpp
+        utils/updater/staticupdater.h
+        utils/updater/staticupdater.cpp
         utils/updater/updaterfactory.h
         utils/updater/updaterfactory.cpp
         utils/appimageutil.h
         utils/appimageutil.cpp
+        utils/jsonutil.h
         utils/networkutil.h
         utils/semverutil.h
         utils/stringutil.h

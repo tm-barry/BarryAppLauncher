@@ -30,6 +30,7 @@ public:
     QString updateDownloadPattern = QString();
     QString updateDateField = QString();
     QString updateVersionField = QString();
+    QString updateVersionPattern = QString();
     QList<UpdaterFilter> updateFilters { };
     QString updateCurrentVersion = QString();
     QString updateCurrentDate = QString();
