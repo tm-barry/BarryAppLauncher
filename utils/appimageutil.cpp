@@ -137,38 +137,42 @@ bool AppImageUtil::isMounted()
 
 void AppImageUtil::unmountAppImage()
 {
+    // First: kill the AppImage-mounted process
+    if (m_process) {
+        m_process->terminate();
+        if (!m_process->waitForFinished(2000)) {
+            m_process->kill();
+            m_process->waitForFinished(1000);
+        }
+        delete m_process;
+        m_process = nullptr;
+    }
+
+    // Second: unmount if still mounted (rare, but good fallback)
     if (!m_mountPath.isEmpty()) {
-        QProcess umountProcess;
-        QStringList args;
+        // Check if it's actually mounted
+        bool stillMounted = QDir(m_mountPath).exists();
 
-        args << "-u" << m_mountPath;  // fusermount -u /mount/path
-        umountProcess.start("fusermount", args);
-        if (!umountProcess.waitForFinished(3000)) {
-            // fallback to "umount" if fusermount fails or is unavailable
-            umountProcess.start("umount", QStringList() << m_mountPath);
+        if (stillMounted) {
+            QProcess umountProcess;
+            umountProcess.start("fusermount", {"-u", m_mountPath});
             umountProcess.waitForFinished(3000);
+
+            // fallback to umount
+            if (QDir(m_mountPath).exists()) {
+                QProcess fallback;
+                fallback.start("umount", {m_mountPath});
+                fallback.waitForFinished(3000);
+            }
         }
 
-        // Remove the directory if it still exists
+        // Remove leftover directory
         QDir mountDir(m_mountPath);
-        if (mountDir.exists()) {
+        if (mountDir.exists())
             mountDir.removeRecursively();
-        }
 
         m_mountPath.clear();
     }
-
-    if (!m_process)
-        return;
-
-    m_process->terminate();
-    if (!m_process->waitForFinished(2000)) {
-        m_process->kill();
-        m_process->waitForFinished(1000);
-    }
-
-    delete m_process;
-    m_process = nullptr;
 }
 
 const QString AppImageUtil::integratedDesktopPath(const QString& path)
@@ -267,12 +271,20 @@ AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
 QString AppImageUtil::getMountedDesktopPath()
 {
     if (m_mountPath.isEmpty())
-        return QString();
+        return {};
 
     QDir mountDir(m_mountPath);
-    QFileInfoList desktopFiles = mountDir.entryInfoList(QStringList() << "*.desktop", QDir::Files);
 
-    return desktopFiles.first().absoluteFilePath();
+    // Wait up to 1 second for the .desktop file
+    for (int i = 0; i < 20; ++i) {
+        QFileInfoList desktopFiles = mountDir.entryInfoList({"*.desktop"}, QDir::Files);
+        if (!desktopFiles.isEmpty())
+            return desktopFiles.first().absoluteFilePath();
+
+        QThread::msleep(50);
+    }
+
+    return {};
 }
 
 QString AppImageUtil::getMountedIconPath()
