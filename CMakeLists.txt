@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(BarryAppLauncher VERSION 0.8.0 LANGUAGES CXX)
+project(BarryAppLauncher VERSION 0.8.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
