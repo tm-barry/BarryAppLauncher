@@ -12,6 +12,7 @@ RUN mkdir -p /var/lib/apt/lists/partial && \
         libx11-dev \
         libxext-dev \
         libxrandr-dev \
+        libxkbcommon-dev \
         rsync \
         file \
         binutils \

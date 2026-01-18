@@ -14,13 +14,14 @@ docker build -t barryapplauncher-builder .
 
 # Build AppImage
 docker run --rm -it \
-  -v "$(pwd):/home/user/project" \
-  barryapplauncher-builder \
-  bash -c "\
-    cd /home/user/project && \
-    qt-cmake . -G Ninja -B build/AppImage-Release -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build build/AppImage-Release && \
-    ./build_appimage.sh /home/user/project"
+    -u $(id -u):$(id -g) \
+    -v "$(pwd):/home/user/project" \
+    barryapplauncher-builder \
+    bash -c "\
+      cd /home/user/project && \
+      qt-cmake . -G Ninja -B build/AppImage-Release -DCMAKE_BUILD_TYPE=Release && \
+      cmake --build build/AppImage-Release && \
+      ./build_appimage.sh /home/user/project"
 ```
 ## License
 

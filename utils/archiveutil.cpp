@@ -46,7 +46,7 @@ const bool ArchiveUtil::extractAppImageFromZip(const QByteArray &zipData, const 
 
         if (fileName.endsWith(".AppImage", Qt::CaseInsensitive)) {
             QFile outFile(outputFilePath);
-            if (!outFile.open(QIODevice::WriteOnly)) {
+            if (!outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
                 archive_read_free(a);
                 return false;
             }
@@ -55,19 +55,17 @@ const bool ArchiveUtil::extractAppImageFromZip(const QByteArray &zipData, const 
             size_t size;
             la_int64_t offset;
 
-            while (true) {
-                r = archive_read_data_block(a, &buff, &size, &offset);
-                if (r == ARCHIVE_EOF)
-                    break;
-                if (r != ARCHIVE_OK) {
-                    archive_read_free(a);
-                    return false;
-                }
-                outFile.seek(offset);
+            while ((r = archive_read_data_block(a, &buff, &size, &offset)) == ARCHIVE_OK) {
                 outFile.write(reinterpret_cast<const char*>(buff), size);
             }
 
             outFile.close();
+
+            if (r != ARCHIVE_EOF) {
+                archive_read_free(a);
+                return false;
+            }
+
             found = true;
             break;
         } else {
