@@ -91,7 +91,7 @@ void AppImageManager::setState(AppState value) {
 
 QFuture<void> AppImageManager::registerSelf()
 {
-    return QtConcurrent::run([=]() {
+    return QtConcurrent::run([=, this]() {
         setLoadingAppImage(true);
         try {
             QString path = appImagePath();
@@ -135,7 +135,7 @@ void AppImageManager::requestModal(ModalTypes modal)
 
 QFuture<void> AppImageManager::loadAppImageList()
 {
-    return QtConcurrent::run([=]() {
+    return QtConcurrent::run([=, this]() {
         setLoadingAppImageList(true);
         try {
             auto utilList = AppImageUtil::getRegisteredList();
@@ -143,7 +143,7 @@ QFuture<void> AppImageManager::loadAppImageList()
                 QImage image(app.iconPath);
                 MemoryImageProvider::instance()->setImage(app.path, image);
             }
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [=]() {
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [=, this]() {
                 QList<AppImageMetadata*> appList;
                 for (const auto& app : utilList) {
                     auto* meta = parseAppImageMetadata(app);
@@ -164,7 +164,7 @@ QFuture<void> AppImageManager::loadAppImageMetadata(const QUrl& url) {
 }
 
 QFuture<void> AppImageManager::loadAppImageMetadata(const QString& path) {
-    return QtConcurrent::run([=]() {
+    return QtConcurrent::run([=, this]() {
         setLoadingAppImage(true);
         AppImageUtil util(path);
         try {
@@ -174,7 +174,7 @@ QFuture<void> AppImageManager::loadAppImageMetadata(const QString& path) {
                 QImage image(metadata.iconPath);
                 MemoryImageProvider::instance()->setImage(path, image);
             }
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [=]() {
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [=, this]() {
                 auto* appImageMetadata = parseAppImageMetadata(metadata);
                 if(!metadata.iconPath.isEmpty())
                 {
@@ -241,7 +241,7 @@ QFuture<void> AppImageManager::registerAppImage(const QUrl& url)
 
 QFuture<void> AppImageManager::registerAppImage(const QString& path)
 {
-    return QtConcurrent::run([=]() {
+    return QtConcurrent::run([=, this]() {
         setLoadingAppImage(true);
         try {
             AppImageUtil util(path);
@@ -265,7 +265,7 @@ QFuture<void> AppImageManager::unregisterAppImage(const QUrl& url, bool deleteAp
 
 QFuture<void> AppImageManager::unregisterAppImage(const QString& path, bool deleteAppImage)
 {
-    return QtConcurrent::run([=]() {
+    return QtConcurrent::run([=, this]() {
         setLoadingAppImage(true);
         try {
             AppImageUtil util(path);
@@ -295,7 +295,7 @@ QFuture<void> AppImageManager::unlockAppImage(const QUrl& url)
 
 QFuture<void> AppImageManager::unlockAppImage(const QString& path)
 {
-    return QtConcurrent::run([=]() {
+    return QtConcurrent::run([=, this]() {
         setLoadingAppImage(true);
         try {
             if(AppImageUtil::makeExecutable(path))
@@ -311,7 +311,7 @@ QFuture<void> AppImageManager::unlockAppImage(const QString& path)
 
 QFuture<void> AppImageManager::saveUpdateSettings()
 {
-    return QtConcurrent::run([=]() {
+    return QtConcurrent::run([=, this]() {
         setLoadingAppImage(true);
         try {
             QPointer<AppImageMetadata> metadata = m_appImageMetadata;

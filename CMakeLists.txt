@@ -2,11 +2,45 @@ cmake_minimum_required(VERSION 3.16)
 
 project(BarryAppLauncher VERSION 0.8.1 LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick Core QuickControls2 QuickDialogs2 Gui)
 
 qt_standard_project_setup(REQUIRES 6.8)
+
+include(FetchContent)
+
+# Force static linking
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+# Disable everything but zip for now
+set(ENABLE_TAR OFF CACHE BOOL "" FORCE)
+set(ENABLE_CPIO OFF CACHE BOOL "" FORCE)
+set(ENABLE_CAT OFF CACHE BOOL "" FORCE)
+set(ENABLE_TEST OFF CACHE BOOL "" FORCE)
+
+set(ENABLE_ACL OFF CACHE BOOL "" FORCE)
+set(ENABLE_XATTR OFF CACHE BOOL "" FORCE)
+set(ENABLE_ICONV OFF CACHE BOOL "" FORCE)
+set(ENABLE_XML OFF CACHE BOOL "" FORCE)
+set(ENABLE_EXPAT OFF CACHE BOOL "" FORCE)
+
+set(ENABLE_LZMA OFF CACHE BOOL "" FORCE)
+set(ENABLE_ZSTD OFF CACHE BOOL "" FORCE)
+set(ENABLE_BZip2 OFF CACHE BOOL "" FORCE)
+set(ENABLE_LIBB2 OFF CACHE BOOL "" FORCE)
+
+set(ENABLE_OPENSSL OFF CACHE BOOL "" FORCE)
+set(ENABLE_NETTLE OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  libarchive
+  GIT_REPOSITORY https://github.com/libarchive/libarchive.git
+  GIT_TAG v3.8.5
+)
+
+FetchContent_MakeAvailable(libarchive)
 
 qt_add_resources(RESOURCES
     resources.qrc
@@ -57,6 +91,8 @@ qt_add_qml_module(barryapplauncher
         utils/updater/updaterfactory.cpp
         utils/appimageutil.h
         utils/appimageutil.cpp
+        utils/archiveutil.h
+        utils/archiveutil.cpp
         utils/jsonutil.h
         utils/networkutil.h
         utils/semverutil.h
@@ -80,6 +116,7 @@ set_target_properties(barryapplauncher PROPERTIES
 
 target_link_libraries(barryapplauncher
     PRIVATE Qt6::Quick Qt6::Core Qt6::QuickControls2 Qt6::QuickDialogs2 Qt6::Gui
+            archive_static
 )
 
 include(GNUInstallDirs)

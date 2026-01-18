@@ -26,4 +26,9 @@ docker run --rm -it \
 
 BarryAppLauncher is licensed under the MIT license.
 
+This software includes **libarchive** (BSD-2-Clause), which is used for ZIP file handling.
+
 [Jump to license](LICENSE)
+
+If you distribute the AppImage, the included LICENSE file contains the full licenses for BarryAppLauncher and all third-party components, including libarchive.
+

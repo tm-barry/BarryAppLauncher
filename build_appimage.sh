@@ -20,6 +20,10 @@ echo "Syncing AppDir..."
 mkdir -p "$APPDIR"
 rsync -a --delete "$PROJECT_ROOT/AppDir/" "$APPDIR/"
 
+# Copy license
+echo "Copying LICENSE..."
+cp "$PROJECT_ROOT/LICENSE" "$APPDIR/LICENSE"
+
 # Copy app binary
 echo "Copying binary to AppDir..."
 mkdir -p "$APPDIR/usr/bin/"

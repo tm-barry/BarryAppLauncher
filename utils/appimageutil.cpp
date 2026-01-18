@@ -1,6 +1,7 @@
 #include "appimageutil.h"
 #include "managers/errormanager.h"
 #include "managers/settingsmanager.h"
+#include "utils/archiveutil.h"
 #include "utils/networkutil.h"
 
 #include <QCryptographicHash>
@@ -715,13 +716,25 @@ const void AppImageUtil::updateAppImage(const QString& appImagePath, const QStri
             ErrorManager::instance()->reportError("Download failed: " + reply->errorString());
         } else {
             QByteArray data = reply->readAll();
-
-            // Save to temp .new file
             QString newPath = appImagePath + ".new";
-            QFile newFile(newPath);
-            if (newFile.open(QIODevice::WriteOnly)) {
-                newFile.write(data);
-                newFile.close();
+            bool newAppImageCreated = false;
+
+            if(ArchiveUtil::isZip(data))
+            {
+                newAppImageCreated = ArchiveUtil::extractAppImageFromZip(data, newPath);
+            }
+            else
+            {
+                QFile newFile(newPath);
+                if (newFile.open(QIODevice::WriteOnly)) {
+                    newFile.write(data);
+                    newFile.close();
+                    newAppImageCreated = true;
+                }
+            }
+
+            // Handle cleanup
+            if (newAppImageCreated && QFile::exists(newPath)) {
 
                 // make it executable
                 makeExecutable(newPath);
