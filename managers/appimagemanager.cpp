@@ -37,6 +37,8 @@ void AppImageManager::setAppImageList(const QList<AppImageMetadata*>& list)
         m_appImageList->addMetadata(metadata);
     }
 
+    m_appImageList->sort();
+
     emit appImageListChanged();
 }
 
@@ -369,6 +371,7 @@ void AppImageManager::checkForAllUpdates()
         all.then([this](auto) {
             setLoadingAppImageList(false);
             m_appImageList->updateAllItems();
+            m_appImageList->sort();
         });
     }
     catch (const std::exception &e) {

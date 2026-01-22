@@ -40,6 +40,7 @@ public:
     void updateItem(int row);
     void updateAllItems();
     Q_INVOKABLE void addMetadata(AppImageMetadata* metadata);
+    Q_INVOKABLE void sort();
 
 private:
     QList<AppImageMetadata*> m_items;

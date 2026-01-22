@@ -21,13 +21,6 @@ Item {
             Layout.maximumWidth: 460
             Layout.preferredWidth: 460
 
-            Label {
-                text: qsTr("Registered")
-                font.pixelSize: 14
-                font.bold: true
-                Layout.alignment: Qt.AlignLeft
-            }
-
             RowLayout {
                 id: rowLayout
                 Layout.alignment: Qt.AlignRight
@@ -117,6 +110,24 @@ Item {
             spacing: 5
             clip: true
             model: AppImageManager.appImageList
+
+            section.property: "hasNewRelease"
+            section.criteria: ViewSection.FullString
+
+            section.delegate: Rectangle {
+                width: ListView.view.width
+                height: 32
+                color: "transparent"
+
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left
+                    font.bold: true
+                    text: section === "true"
+                          ? qsTr("Updates Available")
+                          : qsTr("Registered")
+                }
+            }
 
             delegate: ItemDelegate {
                 width: ListView.view.width

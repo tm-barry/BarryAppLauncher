@@ -110,3 +110,19 @@ void AppImageMetadataListModel::updateAllItems() {
     QModelIndex bottomRight = index(m_items.count() - 1);
     emit dataChanged(topLeft, bottomRight);
 }
+
+void AppImageMetadataListModel::sort()
+{
+    beginResetModel();
+
+    std::sort(m_items.begin(), m_items.end(),
+              [](AppImageMetadata* a, AppImageMetadata* b) {
+
+                  if (a->hasNewRelease() != b->hasNewRelease())
+                      return a->hasNewRelease() > b->hasNewRelease();
+
+                  return QString::localeAwareCompare(a->name(), b->name()) < 0;
+              });
+
+    endResetModel();
+}
