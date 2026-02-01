@@ -5,6 +5,7 @@
 
 #include "models/updaterfiltermodel.h"
 #include "models/updaterreleasemodel.h"
+#include "utils/appimageutil.h"
 
 #include <QObject>
 #include <QUrl>
@@ -37,6 +38,9 @@ class AppImageMetadata : public QObject
     Q_PROPERTY(bool hasNewRelease READ hasNewRelease NOTIFY hasNewReleaseChanged)
     Q_PROPERTY(QString updateCurrentVersion READ updateCurrentVersion WRITE setUpdateCurrentVersion NOTIFY updateCurrentVersionChanged)
     Q_PROPERTY(QString updateCurrentDate READ updateCurrentDate WRITE setUpdateCurrentDate NOTIFY updateCurrentDateChanged)
+    Q_PROPERTY(UpdateProgressState updateProgressState READ updateProgressState WRITE setUpdateProgressState NOTIFY updateProgressStateChanged)
+    Q_PROPERTY(qint64 updateBytesReceived READ updateBytesReceived WRITE setUpdateBytesReceived NOTIFY updateBytesReceivedChanged)
+    Q_PROPERTY(qint64 updateBytesTotal READ updateBytesTotal WRITE setUpdateBytesTotal NOTIFY updateBytesTotalChanged)
 
 public:
     explicit AppImageMetadata(QObject* parent = nullptr);
@@ -47,6 +51,16 @@ public:
         External
     };
     Q_ENUM(IntegrationType)
+
+    enum UpdateProgressState {
+        NotStarted,
+        Downloading,
+        Extracting,
+        Installing,
+        Success,
+        Failed
+    };
+    Q_ENUM(UpdateProgressState);
 
     // Getters and Setters
     QString name() const;
@@ -117,12 +131,23 @@ public:
     void clearUpdaterReleases();
 
     bool hasNewRelease();
+    UpdaterReleaseModel* getSelectedRelease() const;
 
     QString updateCurrentVersion() const;
     void setUpdateCurrentVersion(const QString& value);
 
     QString updateCurrentDate() const;
     void setUpdateCurrentDate(const QString& value);
+
+    UpdateProgressState updateProgressState() const;
+    void setUpdateProgressState(UpdateProgressState value);
+    void setUpdateProgressState(UpdateState value);
+
+    qint64 updateBytesReceived() const;
+    void setUpdateBytesReceived(qint64 value);
+
+    qint64 updateBytesTotal() const;
+    void setUpdateBytesTotal(qint64 value);
 
 signals:
     void nameChanged();
@@ -149,6 +174,9 @@ signals:
     void hasNewReleaseChanged();
     void updateCurrentVersionChanged();
     void updateCurrentDateChanged();
+    void updateProgressStateChanged();
+    void updateBytesReceivedChanged();
+    void updateBytesTotalChanged();
 
 private:
     QString m_name;
@@ -174,6 +202,9 @@ private:
     QList<UpdaterReleaseModel*> m_updaterReleases;
     QString m_updateCurrentVersion;
     QString m_updateCurrentDate;
+    UpdateProgressState m_updateProgressState = NotStarted;
+    qint64 m_updateBytesReceived = -1;
+    qint64 m_updateBytesTotal = -1;
 
     void onUpdateFilterChanged();
     void onUpdateFilterPropertiesChanged();
@@ -185,6 +216,7 @@ private:
 
     static qsizetype updaterReleasesCount(QQmlListProperty<UpdaterReleaseModel> *list);
     static UpdaterReleaseModel* updaterReleasesAt(QQmlListProperty<UpdaterReleaseModel> *list, qsizetype index);
+    static UpdateProgressState toProgress(UpdateState s);
 };
 
 #endif // APPIMAGEMETADATA_H

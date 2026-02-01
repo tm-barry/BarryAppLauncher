@@ -233,12 +233,23 @@ void AppImageMetadata::clearUpdaterReleases()
 
 bool AppImageMetadata::hasNewRelease()
 {
-    for (const auto &release : m_updaterReleases)
+    const auto &releases = m_updaterReleases;
+    for (const auto &release : releases)
     {
         if (release->isNew())
             return true;
     }
     return false;
+}
+
+UpdaterReleaseModel* AppImageMetadata::getSelectedRelease() const
+{
+    for (auto* release : m_updaterReleases) {
+        if (release && release->isSelected()) {
+            return release;
+        }
+    }
+    return nullptr;
 }
 
 QString AppImageMetadata::updateCurrentDate() const { return m_updateCurrentDate; }
@@ -254,6 +265,37 @@ void AppImageMetadata::setUpdateCurrentVersion(const QString& value) {
     if (m_updateCurrentVersion != value) {
         m_updateCurrentVersion = value;
         emit updateCurrentVersionChanged();
+    }
+}
+
+AppImageMetadata::UpdateProgressState AppImageMetadata::updateProgressState() const { return m_updateProgressState; }
+void AppImageMetadata::setUpdateProgressState(AppImageMetadata::UpdateProgressState value)
+{
+    if (m_updateProgressState != value) {
+        m_updateProgressState = value;
+        emit updateProgressStateChanged();
+    }
+}
+void AppImageMetadata::setUpdateProgressState(UpdateState value)
+{
+    setUpdateProgressState(toProgress(value));
+}
+
+qint64 AppImageMetadata::updateBytesReceived() const { return m_updateBytesReceived; }
+void AppImageMetadata::setUpdateBytesReceived(qint64 value)
+{
+    if (m_updateBytesReceived != value) {
+        m_updateBytesReceived = value;
+        emit updateBytesReceivedChanged();
+    }
+}
+
+qint64 AppImageMetadata::updateBytesTotal() const { return m_updateBytesTotal; }
+void AppImageMetadata::setUpdateBytesTotal(qint64 value)
+{
+    if (m_updateBytesTotal != value) {
+        m_updateBytesTotal = value;
+        emit updateBytesTotalChanged();
     }
 }
 
@@ -294,7 +336,8 @@ void AppImageMetadata::clearUpdateFilters(QQmlListProperty<UpdaterFilterModel>* 
     AppImageMetadata* metadata = static_cast<AppImageMetadata*>(list->object);
     if (!metadata) return;
 
-    for (auto* filter : metadata->m_updateFilters)
+    const auto &filters = metadata->m_updateFilters;
+    for (auto* filter : filters)
     {
         filter->disconnect(metadata);
         filter->deleteLater();
@@ -316,4 +359,16 @@ UpdaterReleaseModel* AppImageMetadata::updaterReleasesAt(QQmlListProperty<Update
     if (!metadata || index < 0 || index >= metadata->m_updaterReleases.size())
         return nullptr;
     return metadata->m_updaterReleases.at(index);
+}
+
+AppImageMetadata::UpdateProgressState AppImageMetadata::toProgress(UpdateState s)
+{
+    switch (s) {
+    case UpdateState::Downloading: return Downloading;
+    case UpdateState::Extracting:  return Extracting;
+    case UpdateState::Installing:  return Installing;
+    case UpdateState::Failed:      return Failed;
+    case UpdateState::Success:     return Success;
+    default:                       return NotStarted;
+    }
 }

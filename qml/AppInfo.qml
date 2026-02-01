@@ -3,8 +3,12 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
+import "utils"
+
 Item {
     property int maximumWidth: 460
+
+    FormatterUtil { id: formatter }
 
     QtObject {
         id: utils
@@ -35,8 +39,8 @@ Item {
         }
 
         function isType(...types) {
-            return AppImageManager.appImageMetadata
-                   && types.includes(AppImageManager.appImageMetadata.updateType)
+            return AppImageManager.appImageMetadata && types.includes(
+                        AppImageManager.appImageMetadata.updateType)
         }
     }
 
@@ -106,6 +110,39 @@ Item {
                 opacity: 0.6
                 Layout.alignment: Qt.AlignHCenter
                 visible: AppImageManager.appImageMetadata?.executable
+                         && !AppImageManager.updating
+            }
+
+            Item {
+                height: 24
+                Layout.fillWidth: true
+                Layout.maximumWidth: maximumWidth
+                Layout.alignment: Qt.AlignHCenter
+                visible: AppImageManager.updating
+
+                ProgressBar {
+                    id: updateProgress
+                    anchors.fill: parent
+                    anchors.leftMargin: 5
+                    anchors.rightMargin: 5
+                    from: 0
+                    to: 1
+                    value: AppImageManager.appImageMetadata?.updateBytesTotal> 0
+                           ? AppImageManager.appImageMetadata?.updateBytesReceived / AppImageManager.appImageMetadata?.updateBytesTotal
+                           : 0
+                    indeterminate: AppImageManager.appImageMetadata?.updateBytesTotal < 0
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: AppImageManager.appImageMetadata?.updateBytesTotal > 0
+                          ? formatter.getUpdateDownloadText(
+                                AppImageManager.appImageMetadata?.updateBytesReceived,
+                                AppImageManager.appImageMetadata?.updateBytesTotal)
+                          : formatter.getUpdateProgressText(AppImageManager.appImageMetadata?.updateProgressState)
+                    color: "white"
+                    font.pixelSize: 12
+                }
             }
 
             Label {
@@ -147,6 +184,7 @@ Item {
                         Layout.preferredWidth: 100
                         enabled: !launchTimer.running
                                  && !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         onClicked: utils.launchAppImage()
                     }
 
@@ -180,6 +218,7 @@ Item {
                         text: qsTr("Check for Update")
                         Layout.preferredWidth: 130
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         visible: !AppImageManager.appImageMetadata.hasNewRelease
                         onClicked: AppImageManager.checkForUpdate()
                     }
@@ -191,10 +230,14 @@ Item {
                         text: qsTr("Update")
                         Layout.preferredWidth: 100
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         visible: AppImageManager.appImageMetadata.hasNewRelease
                         onClicked: {
                             if (firstNewRelease) {
-                                AppImageManager.updateAppImage(firstNewRelease.download, firstNewRelease.version, firstNewRelease.date)
+                                AppImageManager.updateAppImage(
+                                            firstNewRelease.download,
+                                            firstNewRelease.version,
+                                            firstNewRelease.date)
                             }
                         }
                     }
@@ -204,6 +247,7 @@ Item {
                         text: "\u25BE"
                         Layout.preferredWidth: 30
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         visible: AppImageManager.appImageMetadata.updaterReleases.length > 0
                         onClicked: {
                             updateOptionsMenu.y = updateOptionsBtn.y + 30
@@ -242,7 +286,9 @@ Item {
                                 }
 
                                 onTriggered: {
-                                    AppImageManager.updateAppImage(download, version, date)
+                                    AppImageManager.updateAppImage(download,
+                                                                   version,
+                                                                   date)
                                     updateOptionsMenu.close()
                                 }
                             }
@@ -254,6 +300,7 @@ Item {
                     text: qsTr("Register")
                     Layout.preferredWidth: 100
                     enabled: !AppImageManager.loadingAppImage
+                             && !AppImageManager.updating
                     visible: AppImageManager.appImageMetadata?.executable
                              && AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.None
@@ -266,6 +313,7 @@ Item {
                     backgroundColor: "#C43D3D"
                     Layout.preferredWidth: 100
                     enabled: !AppImageManager.loadingAppImage
+                             && !AppImageManager.updating
                     visible: AppImageManager.appImageMetadata?.executable
                              && AppImageManager.appImageMetadata?.integration
                              === AppImageMetadata.Internal
@@ -514,6 +562,7 @@ Item {
                         text: qsTr("Refresh")
                         Layout.preferredWidth: 100
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         Layout.alignment: Qt.AlignCenter
                         onClicked: {
                             AppImageManager.refreshDesktopFile()
@@ -541,6 +590,7 @@ Item {
 
                         ComboBox {
                             enabled: !AppImageManager.loadingAppImage
+                                     && !AppImageManager.updating
                             Layout.fillWidth: true
                             model: ListModel {
                                 ListElement {
@@ -584,6 +634,7 @@ Item {
                             enabled: AppImageManager.appImageMetadata?.desktopFilePath
                                      && AppImageManager.appImageMetadata?.updateDirty
                                      && !AppImageManager.loadingAppImage
+                                     && !AppImageManager.updating
                             onClicked: {
                                 AppImageManager.saveUpdateSettings()
                             }
@@ -604,6 +655,7 @@ Item {
                     RoundedTextArea {
                         text: AppImageManager.appImageMetadata?.updateUrl || ""
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateUrl = text
@@ -629,6 +681,7 @@ Item {
                         text: AppImageManager.appImageMetadata?.updateDownloadField
                               || ""
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDownloadField = text
@@ -636,7 +689,7 @@ Item {
                         placeholderText: "ex: assets[*].browser_download_url"
                         wrapMode: TextEdit.Wrap
                         Layout.fillWidth: true
-                        visible:utils.isType("json")
+                        visible: utils.isType("json")
                     }
 
                     Item {
@@ -654,6 +707,7 @@ Item {
                         text: AppImageManager.appImageMetadata?.updateDownloadPattern
                               || ""
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDownloadPattern = text
@@ -674,9 +728,8 @@ Item {
                         font.bold: true
                         visible: utils.isType("static", "json")
 
-                        function getText()
-                        {
-                            if(utils.isType("static"))
+                        function getText() {
+                            if (utils.isType("static"))
                                 return qsTr("Version Header")
                             else
                                 return qsTr("Version Field")
@@ -687,6 +740,7 @@ Item {
                         text: AppImageManager.appImageMetadata?.updateVersionField
                               || ""
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateVersionField = text
@@ -696,9 +750,8 @@ Item {
                         Layout.fillWidth: true
                         visible: utils.isType("static", "json")
 
-                        function getPlaceholderText()
-                        {
-                            if(utils.isType("static"))
+                        function getPlaceholderText() {
+                            if (utils.isType("static"))
                                 return qsTr("ex: url")
                             else
                                 return qsTr("ex: tag_name")
@@ -720,6 +773,7 @@ Item {
                         text: AppImageManager.appImageMetadata?.updateVersionPattern
                               || ""
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateVersionPattern = text
@@ -740,9 +794,8 @@ Item {
                         font.bold: true
                         visible: utils.isType("static", "json")
 
-                        function getText()
-                        {
-                            if(utils.isType("static"))
+                        function getText() {
+                            if (utils.isType("static"))
                                 return qsTr("Date Header")
                             else
                                 return qsTr("Date Field")
@@ -753,6 +806,7 @@ Item {
                         text: AppImageManager.appImageMetadata?.updateDateField
                               || ""
                         enabled: !AppImageManager.loadingAppImage
+                                 && !AppImageManager.updating
                         onTextChanged: {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateDateField = text
@@ -762,9 +816,8 @@ Item {
                         Layout.fillWidth: true
                         visible: utils.isType("static", "json")
 
-                        function getPlaceholderText()
-                        {
-                            if(utils.isType("static"))
+                        function getPlaceholderText() {
+                            if (utils.isType("static"))
                                 return qsTr("ex: last-modified")
                             else
                                 return qsTr("ex: published_at")
@@ -795,6 +848,7 @@ Item {
                                 TextField {
                                     text: modelData.field
                                     enabled: !AppImageManager.loadingAppImage
+                                             && !AppImageManager.updating
                                     onTextChanged: modelData.field = text
                                     placeholderText: qsTr("Field...")
                                     Layout.fillWidth: true
@@ -802,6 +856,7 @@ Item {
                                 TextField {
                                     text: modelData.pattern
                                     enabled: !AppImageManager.loadingAppImage
+                                             && !AppImageManager.updating
                                     onTextChanged: modelData.pattern = text
                                     placeholderText: qsTr("Pattern...")
                                     Layout.fillWidth: true
@@ -809,6 +864,7 @@ Item {
                                 ColorButton {
                                     text: "x"
                                     enabled: !AppImageManager.loadingAppImage
+                                             && !AppImageManager.updating
                                     Layout.preferredWidth: 35
                                     backgroundColor: "#C43D3D"
                                     onClicked: AppImageManager.appImageMetadata?.removeUpdateFilter(
@@ -820,6 +876,7 @@ Item {
                         ColorButton {
                             text: "Add Filter"
                             enabled: !AppImageManager.loadingAppImage
+                                     && !AppImageManager.updating
                             backgroundColor: "#4E7A6A"
                             onClicked: AppImageManager.appImageMetadata?.addUpdateFilterWithValues(
                                            "", "")

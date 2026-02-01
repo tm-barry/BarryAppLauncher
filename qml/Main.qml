@@ -130,12 +130,13 @@ ApplicationWindow {
             Action {
                 text: qsTr("&Open AppImage...")
                 onTriggered: fileDialog.open()
-                enabled: !AppImageManager.loadingAppImage
+                enabled: !AppImageManager.loadingAppImage && !AppImageManager.updating
             }
             MenuSeparator {}
             Action {
                 text: qsTr("&Preferences")
                 onTriggered: modalManager.openPreferencesModal()
+                enabled: !AppImageManager.updating
             }
             MenuSeparator {}
             Action {
@@ -205,7 +206,7 @@ ApplicationWindow {
             indeterminate: true
             anchors.centerIn: parent
             width: parent.width
-            visible: AppImageManager.loadingAppImage || AppImageManager.loadingAppImageList
+            visible: AppImageManager.loadingAppImage || AppImageManager.loadingAppImageList || AppImageManager.updating
         }
     }
 }

@@ -19,6 +19,7 @@ class AppImageManager : public QObject
     Q_PROPERTY(AppImageMetadata* appImageMetadata READ appImageMetadata WRITE setAppImageMetadata NOTIFY appImageMetadataChanged)
     Q_PROPERTY(bool loadingAppImageList READ loadingAppImageList WRITE setLoadingAppImageList NOTIFY loadingAppImageListChanged)
     Q_PROPERTY(bool loadingAppImage READ loadingAppImage WRITE setLoadingAppImage NOTIFY loadingAppImageChanged)
+    Q_PROPERTY(bool updating READ updating WRITE setUpdating NOTIFY updatingChanged)
     Q_PROPERTY(AppState state READ state WRITE setState NOTIFY stateChanged)
 public:
     static AppImageManager* instance();
@@ -47,6 +48,9 @@ public:
 
     bool loadingAppImage() const;
     void setLoadingAppImage(bool value);
+
+    bool updating() const;
+    void setUpdating(bool value);
 
     AppState state() const;
     void setState(AppState value);
@@ -81,6 +85,7 @@ private:
     AppImageMetadata* m_appImageMetadata = nullptr;
     bool m_loadingAppImageList = false;
     bool m_loadingAppImage = false;
+    bool m_updating = false;
     AppState m_state = AppList;
 
     QString appImagePath();
@@ -99,6 +104,7 @@ signals:
     void appImageMetadataChanged(AppImageMetadata* newValue);
     void loadingAppImageListChanged(bool newValue);
     void loadingAppImageChanged(bool newValue);
+    void updatingChanged(bool newValue);
     void stateChanged(AppImageManager::AppState newValue);
 };
 

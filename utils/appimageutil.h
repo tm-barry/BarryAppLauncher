@@ -42,6 +42,14 @@ enum MetadataAction {
     Unregister
 };
 
+enum UpdateState {
+    Downloading,
+    Extracting,
+    Installing,
+    Success,
+    Failed
+};
+
 class AppImageUtil
 {
 public:
@@ -155,9 +163,10 @@ public:
      * @param version Version to set in the desktop file
      * @param date Date to set in the desktop file
      */
-    static const void updateAppImage(const QString& appImagePath, const QString& downloadUrl,
+    static void updateAppImage(const QString& appImagePath, const QString& downloadUrl,
                                      const QString& version = QString(), const QString& date = QString(),
-                                     std::function<void(bool)> finishedCallback = nullptr);
+                                     std::function<void(bool)> finishedCallback = nullptr,
+                                     std::function<void(UpdateState, qint64, qint64)> progressCallback = nullptr);
 
 private:
     const QString m_path;
@@ -168,14 +177,14 @@ private:
     static const QString balIntegrationField;
 
     static const QString escapeDesktopValue(const QString &value);
-    static const void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent = false);
+    static void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent = false);
     static const QList<UpdaterFilter> parseFilters(const QString &filterStr);
     QString findNextAvailableFilename(const QString& fullPath);
     QString handleIntegrationFileOperation(QString newName);
     static const QStringList getSearchPaths();
     static const QString getLocalIntegrationPath();
     static const bool removeFileOrWarn(const QString& path, const QString& label);
-    static const void updateDesktopKey(QString& targetContents, const QString& sourceContents, const QString& key, const QString& fallback = QString());
+    static void updateDesktopKey(QString& targetContents, const QString& sourceContents, const QString& key, const QString& fallback = QString());
     static const QString parseExecLine(const QString& line, const QString& appImagePath);
 };
 

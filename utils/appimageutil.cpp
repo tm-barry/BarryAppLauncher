@@ -4,6 +4,7 @@
 #include "utils/archiveutil.h"
 #include "utils/networkutil.h"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
@@ -20,6 +21,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonParseError>
+#include <QtConcurrent/QtConcurrentRun>
 
 // ----------------- Public -----------------
 
@@ -699,74 +701,98 @@ const bool AppImageUtil::refreshDesktopFile(const QString& appImagePath, const Q
     return true;
 }
 
-const void AppImageUtil::updateAppImage(const QString& appImagePath, const QString& downloadUrl,
+void AppImageUtil::updateAppImage(const QString& appImagePath, const QString& downloadUrl,
                                         const QString& version, const QString& date,
-                                        std::function<void(bool)> finishedCallback)
+                                        std::function<void(bool)> finishedCallback,
+                                        std::function<void(UpdateState, qint64, qint64)> progressCallback)
 {
+    auto invokeFinished = [finishedCallback](bool success) {
+        if (!finishedCallback)
+            return;
+
+        QMetaObject::invokeMethod(
+            QCoreApplication::instance(),
+            [finishedCallback, success]() {
+                finishedCallback(success);
+            }, Qt::QueuedConnection);
+    };
+
     if (appImagePath.isEmpty() || downloadUrl.isEmpty()) {
-        if(finishedCallback) finishedCallback(false);
+        invokeFinished(false);
         return;
     }
 
+    auto invokeProgress = [progressCallback](UpdateState state, qint64 received = -1, qint64 total = -1) {
+        if (!progressCallback)
+            return;
+
+        QMetaObject::invokeMethod(
+            QCoreApplication::instance(),
+            [progressCallback, state, received, total]() {
+                progressCallback(state, received, total);
+            }, Qt::QueuedConnection);
+    };
+
     QNetworkReply* reply = NetworkUtil::networkManager()->get(QNetworkRequest(QUrl(downloadUrl)));
+
+    if (progressCallback) {
+        QObject::connect(reply, &QNetworkReply::downloadProgress, [invokeProgress](qint64 received, qint64 total) {
+            invokeProgress(UpdateState::Downloading, received, total);
+        });
+    }
+
     QObject::connect(reply, &QNetworkReply::finished, [=]() {
-        bool success = false;
-
         if (reply->error() != QNetworkReply::NoError) {
-            ErrorManager::instance()->reportError("Download failed: " + reply->errorString());
-        } else {
-            QByteArray data = reply->readAll();
-            QString newPath = appImagePath + ".new";
-            bool newAppImageCreated = false;
+            ErrorManager::instance()->reportError(
+                "Download failed: " + reply->errorString());
+            reply->deleteLater();
+            invokeProgress(UpdateState::Failed);
+            invokeFinished(false);
+            return;
+        }
 
-            if(ArchiveUtil::isZip(data))
-            {
-                newAppImageCreated = ArchiveUtil::extractAppImageFromZip(data, newPath);
-            }
-            else
-            {
+        QByteArray data = reply->readAll();
+        reply->deleteLater();
+
+        invokeProgress(UpdateState::Extracting);
+
+        // Move heavy work off the UI thread
+        QThreadPool::globalInstance()->start([data = std::move(data), appImagePath, version, date, invokeProgress, invokeFinished]() {
+            bool success = false;
+            QString newPath = appImagePath + ".new";
+
+            if (ArchiveUtil::isZip(data)) {
+                success = ArchiveUtil::extractAppImageFromZip(data, newPath);
+            } else {
                 QFile newFile(newPath);
                 if (newFile.open(QIODevice::WriteOnly)) {
                     newFile.write(data);
                     newFile.close();
-                    newAppImageCreated = true;
+                    success = true;
                 }
             }
 
-            // Handle cleanup
-            if (newAppImageCreated && QFile::exists(newPath)) {
-
-                // make it executable
+            if (success && QFile::exists(newPath)) {
+                invokeProgress(UpdateState::Installing);
                 makeExecutable(newPath);
 
-                // handle backups
                 if (SettingsManager::instance()->keepBackup()) {
-                    QString backupPath = appImagePath + ".bak";
-                    QFile::remove(backupPath);
-                    QFile::rename(appImagePath, backupPath);
+                    QFile::remove(appImagePath + ".bak");
+                    QFile::rename(appImagePath, appImagePath + ".bak");
                 } else {
                     QFile::remove(appImagePath);
                 }
 
-                // replace with new
-                if (QFile::rename(newPath, appImagePath)) {
-                    success = true;
-                } else {
-                    ErrorManager::instance()->reportError("Failed to replace AppImage!");
-
-                }
-            } else {
-                ErrorManager::instance()->reportError("Failed to write new AppImage: " + newPath);
+                success = QFile::rename(newPath, appImagePath);
             }
-        }
 
-        reply->deleteLater();
+            if (!refreshDesktopFile(appImagePath, version, date)) {
+                success = false;
+            }
 
-        if(!refreshDesktopFile(appImagePath, version, date)) {
-            ErrorManager::instance()->reportError("Failed to refresh desktop entry: " + appImagePath);
-        }
-
-        if(finishedCallback) finishedCallback(success);
+            invokeProgress(success ? UpdateState::Success : UpdateState::Failed);
+            invokeFinished(success);
+        });
     });
 }
 
@@ -786,7 +812,7 @@ const QString AppImageUtil::escapeDesktopValue(const QString &value)
     return v;
 }
 
-const void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent)
+void AppImageUtil::parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent)
 {
     QSettings desktopFile(path, QSettings::IniFormat);
     desktopFile.beginGroup("Desktop Entry");
@@ -946,7 +972,7 @@ const bool AppImageUtil::removeFileOrWarn(const QString& path, const QString& la
     return true;
 }
 
-const void AppImageUtil::updateDesktopKey(QString& targetContents,
+void AppImageUtil::updateDesktopKey(QString& targetContents,
                                           const QString& sourceContents,
                                           const QString& key,
                                           const QString& fallback)

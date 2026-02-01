@@ -30,6 +30,7 @@ Item {
                     text: "Check for Updates"
                     Layout.preferredWidth: 130
                     enabled: !AppImageManager.loadingAppImageList
+                             && !AppImageManager.updating
                     visible: !AppImageManager.appImageList.hasAnyNewRelease
                     onClicked: {
                         AppImageManager.checkForAllUpdates()
@@ -42,16 +43,19 @@ Item {
                     Layout.preferredWidth: 85
                     visible: AppImageManager.appImageList.hasAnyNewRelease
                     enabled: !AppImageManager.loadingAppImageList
+                             && !AppImageManager.updating
                     onClicked: {
-                        AppImageManager.updateAllAppImages();
+                        AppImageManager.updateAllAppImages()
                     }
                 }
 
                 IconButton {
                     text: "\uf021"
                     Layout.preferredWidth: 32
-                    Layout.preferredHeight: checkForUpdatesBtn.height || updateAllBtn.height
+                    Layout.preferredHeight: checkForUpdatesBtn.height
+                                            || updateAllBtn.height
                     enabled: !AppImageManager.loadingAppImageList
+                             && !AppImageManager.updating
                     onClicked: {
                         AppImageManager.loadAppImageList()
                     }
@@ -123,9 +127,8 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
                     font.bold: true
-                    text: section === "true"
-                          ? qsTr("Updates Available")
-                          : qsTr("Registered")
+                    text: section === "true" ? qsTr("Updates Available") : qsTr(
+                                                   "Registered")
                 }
             }
 
@@ -133,7 +136,9 @@ Item {
                 width: ListView.view.width
 
                 onClicked: {
-                    AppImageManager.loadAppImageMetadata(model.path)
+                    if (!AppImageManager.updating) {
+                        AppImageManager.loadAppImageMetadata(model.path)
+                    }
                 }
 
                 background: Rectangle {
@@ -163,8 +168,10 @@ Item {
 
                         IconButton {
                             id: updateOptionsBtn
+                            enabled: !AppImageManager.updating
 
-                            property var hasSelected: updaterReleases.some((release) => release.isSelected)
+                            property var hasSelected: updaterReleases.some(
+                                                          release => release.isSelected)
 
                             visible: hasNewRelease
                             text: "\uf35b"
@@ -193,9 +200,10 @@ Item {
 
                                 delegate: MenuItem {
                                     onTriggered: {
-                                        const initialValue = isSelected;
-                                        updaterReleases.forEach((release) => release.isSelected = false);
-                                        isSelected = !initialValue;
+                                        const initialValue = isSelected
+                                        updaterReleases.forEach(
+                                                    release => release.isSelected = false)
+                                        isSelected = !initialValue
                                     }
 
                                     contentItem: RowLayout {

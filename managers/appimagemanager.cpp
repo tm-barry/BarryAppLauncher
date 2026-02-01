@@ -7,6 +7,7 @@
 #include "utils/terminalutil.h"
 #include "utils/texteditorutil.h"
 
+#include <deque>
 #include <QGuiApplication>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QDir>
@@ -16,6 +17,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QUrl>
+
+// TODO - remove me
+#include <QDebug>
 
 // ----------------- Public -----------------
 
@@ -58,10 +62,7 @@ void AppImageManager::setAppImageMetadata(AppImageMetadata* value) {
     emit appImageMetadataChanged(m_appImageMetadata);
 }
 
-bool AppImageManager::loadingAppImageList() const {
-    return m_loadingAppImageList;
-}
-
+bool AppImageManager::loadingAppImageList() const { return m_loadingAppImageList; }
 void AppImageManager::setLoadingAppImageList(bool value) {
     if (m_loadingAppImageList == value)
         return;
@@ -69,15 +70,20 @@ void AppImageManager::setLoadingAppImageList(bool value) {
     emit loadingAppImageListChanged(value);
 }
 
-bool AppImageManager::loadingAppImage() const {
-    return m_loadingAppImage;
-}
-
+bool AppImageManager::loadingAppImage() const { return m_loadingAppImage; }
 void AppImageManager::setLoadingAppImage(bool value) {
     if (m_loadingAppImage == value)
         return;
     m_loadingAppImage = value;
     emit loadingAppImageChanged(value);
+}
+
+bool AppImageManager::updating() const { return m_updating; }
+void AppImageManager::setUpdating(bool value) {
+    if (m_updating == value)
+        return;
+    m_updating = value;
+    emit updatingChanged(value);
 }
 
 AppImageManager::AppState AppImageManager::state() const {
@@ -326,7 +332,7 @@ QFuture<void> AppImageManager::saveUpdateSettings()
                 metadata->desktopFilePath(),
                 metadata->updateType(),
                 settings
-             );
+                );
 
             if (saved && metadata) {
                 QMetaObject::invokeMethod(metadata, "setUpdateDirty", Qt::QueuedConnection, Q_ARG(bool, false));
@@ -382,53 +388,85 @@ void AppImageManager::checkForAllUpdates()
 
 void AppImageManager::updateAppImage(const QString& downloadUrl, const QString& version, const QString& date)
 {
-    setLoadingAppImage(true);
+    setUpdating(true);
     try {
-        AppImageUtil::updateAppImage(m_appImageMetadata->path(), downloadUrl, version, date, [this](bool success) {
-            if(success) {
-                loadAppImageMetadata(m_appImageMetadata->path());
-                loadAppImageList();
-            }
+        AppImageUtil::updateAppImage(m_appImageMetadata->path(), downloadUrl, version, date,
+                                     [this](bool success) {
+                                         if(success) {
+                                             loadAppImageMetadata(m_appImageMetadata->path());
+                                             loadAppImageList();
+                                         }
 
-            setLoadingAppImage(false);
-        });
+                                         setUpdating(false);
+                                     },
+                                     [this](UpdateState state, qint64 received, qint64 total) {
+                                         m_appImageMetadata->setUpdateProgressState(state);
+                                         m_appImageMetadata->setUpdateBytesReceived(received);
+                                         m_appImageMetadata->setUpdateBytesTotal(total);
+                                     }
+                                     );
     } catch (const std::exception &e) {
         ErrorManager::instance()->reportError(e.what());
-        setLoadingAppImage(false);
+        setUpdating(false);
     }
 }
 
 void AppImageManager::updateAllAppImages()
 {
-    setLoadingAppImage(true);
+    setUpdating(true);
 
-    try {
-        QList<QFuture<void>> futures;
+    auto queue = std::make_shared<std::deque<AppImageMetadata*>>(
+        m_appImageList->items().begin(), m_appImageList->items().end()
+        );
+    const int maxConcurrent = 3;
+    auto running = std::make_shared<int>(0);
 
-        for (auto* metadata : m_appImageList->items()) {
-            auto* selectedRelease = getSelectedRelease(metadata);
-            if (!selectedRelease)
-                continue;
+    auto next = std::make_shared<std::function<void()>>();
 
-            futures << updateAppImageAsync(metadata, selectedRelease);
-        }
+    *next = [this, queue, running, maxConcurrent, next]() mutable {
+        if (!queue->empty() && *running < maxConcurrent) {
+            auto* metadata = queue->front();
+            queue->pop_front();
 
-        if (futures.isEmpty()) {
-            setLoadingAppImage(false);
+            auto* release = getSelectedRelease(metadata);
+            if (!release) {
+                QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
+                return;
+            }
+
+            (*running)++;
+            auto future = updateAppImageAsync(metadata, release);
+
+            future.then([running, next, queue]() mutable {
+                (*running)--;
+                QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
+            });
+
+            QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
             return;
         }
 
-        auto all = QtFuture::whenAll(futures.begin(), futures.end());
-        all.then([this](auto) {
-            loadAppImageList();
-            setLoadingAppImage(false);
-        });
-    }
-    catch (const std::exception &e) {
-        ErrorManager::instance()->reportError(e.what());
-        setLoadingAppImage(false);
-    }
+        if (queue->empty() && *running == 0) {
+            bool anyFailed = false;
+            for (auto* item : m_appImageList->items()) {
+                if (item->updateProgressState() == AppImageMetadata::UpdateProgressState::Failed) {
+                    anyFailed = true;
+                    break;
+                }
+            }
+
+            if (!anyFailed) {
+                loadAppImageList();
+            }
+
+            setUpdating(false);
+        }
+    };
+
+    for (int i = 0; i < maxConcurrent; ++i)
+        (*next)();
 }
+
 
 void AppImageManager::refreshDesktopFile()
 {
@@ -600,10 +638,24 @@ QFuture<void> AppImageManager::updateAppImageAsync(AppImageMetadata* metadata, U
                                  release->download(),
                                  release->version(),
                                  release->date(),
-                                 [promise](bool) mutable {
+                                 [promise, metadata, this](bool) mutable {
+                                     if(metadata->updateProgressState() == AppImageMetadata::Success)
+                                     {
+                                         auto selectedRelease = metadata->getSelectedRelease();
+                                         if(selectedRelease != nullptr)
+                                         {
+                                             metadata->setVersion(selectedRelease->version());
+                                         }
+                                         metadata->clearUpdaterReleases();
+                                         m_appImageList->sort();
+                                     }
                                      promise->finish();
+                                 },
+                                 [promise, metadata](UpdateState state, qint64 received, qint64 total) mutable {
+                                     metadata->setUpdateProgressState(state);
+                                     metadata->setUpdateBytesReceived(received);
+                                     metadata->setUpdateBytesTotal(total);
                                  });
 
     return future;
 }
-
