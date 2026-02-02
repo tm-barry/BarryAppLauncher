@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import "utils"
+
 Item {
     Component.onCompleted: {
         if (!AppImageManager.loadingAppImageList
@@ -9,6 +11,8 @@ Item {
             AppImageManager.loadAppImageList()
         }
     }
+
+    FormatterUtil { id: formatter }
 
     ColumnLayout {
         anchors.fill: parent
@@ -154,9 +158,12 @@ Item {
                 }
 
                 contentItem: RowLayout {
+                    id: appItemListItem
                     anchors.fill: parent
                     spacing: 10
                     anchors.margins: 10
+
+                    property var hasSelected: updaterReleases.some(release => release.isSelected)
 
                     Image {
                         source: model.icon
@@ -169,13 +176,9 @@ Item {
                         IconButton {
                             id: updateOptionsBtn
                             enabled: !AppImageManager.updating
-
-                            property var hasSelected: updaterReleases.some(
-                                                          release => release.isSelected)
-
                             visible: hasNewRelease
                             text: "\uf35b"
-                            palette.buttonText: hasSelected ? "#28a745" : undefined
+                            palette.buttonText: appItemListItem.hasSelected ? "#28a745" : undefined
                             width: 24
                             height: 24
                             anchors.bottom: parent.bottom
@@ -262,6 +265,34 @@ Item {
                             opacity: 0.6
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignLeft
+                            visible: !hasNewRelease || !appItemListItem.hasSelected || (appItemListItem.hasSelected && !AppImageManager.updating)
+                        }
+
+                        Item {
+                            height: 24
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignHCenter
+                            visible: appItemListItem.hasSelected && AppImageManager.updating
+
+                            ProgressBar {
+                                id: updateProgress
+                                anchors.fill: parent
+                                from: 0
+                                to: 1
+                                value: updateBytesTotal > 0
+                                       ? updateBytesReceived / updateBytesTotal
+                                       : 0
+                                indeterminate: updateBytesTotal < 0
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: updateBytesTotal > 0
+                                      ? formatter.getUpdateDownloadText(updateBytesReceived, updateBytesTotal)
+                                      : formatter.getUpdateProgressText(updateProgressState)
+                                color: "white"
+                                font.pixelSize: 12
+                            }
                         }
                     }
                 }

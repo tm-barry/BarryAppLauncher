@@ -25,7 +25,10 @@ public:
         DesktopFilePathRole,
         ExecutableRole,
         HasNewReleaseRole,
-        UpdaterReleasesRole
+        UpdaterReleasesRole,
+        UpdateProgressStateRole,
+        UpdateBytesReceivedRole,
+        UpdateBytesTotalRole
     };
 
     explicit AppImageMetadataListModel(QObject* parent = nullptr);
@@ -38,6 +41,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
     void clear();
     void updateItem(int row);
+    void updateItem(AppImageMetadata* item);
     void updateAllItems();
     Q_INVOKABLE void addMetadata(AppImageMetadata* metadata);
     Q_INVOKABLE void sort();

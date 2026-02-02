@@ -47,6 +47,9 @@ QVariant AppImageMetadataListModel::data(const QModelIndex &index, int role) con
     case ExecutableRole: return item->executable();
     case HasNewReleaseRole: return item->hasNewRelease();
     case UpdaterReleasesRole: return QVariant::fromValue(item->updaterReleases());
+    case UpdateProgressStateRole: return item->updateProgressState();
+    case UpdateBytesReceivedRole: return item->updateBytesReceived();
+    case UpdateBytesTotalRole: return item->updateBytesTotal();
     default:
         return QVariant();
     }
@@ -68,6 +71,9 @@ QHash<int, QByteArray> AppImageMetadataListModel::roleNames() const
     roles[ExecutableRole] = "executable";
     roles[HasNewReleaseRole] = "hasNewRelease";
     roles[UpdaterReleasesRole] = "updaterReleases";
+    roles[UpdateProgressStateRole] = "updateProgressState";
+    roles[UpdateBytesReceivedRole] = "updateBytesReceived";
+    roles[UpdateBytesTotalRole] = "updateBytesTotal";
     return roles;
 }
 
@@ -100,6 +106,15 @@ void AppImageMetadataListModel::updateItem(int row) {
         return;
     QModelIndex idx = index(row);
     emit dataChanged(idx, idx);
+}
+
+void AppImageMetadataListModel::updateItem(AppImageMetadata* item)
+{
+    int row = m_items.indexOf(item);
+    if (row < 0)
+        return;
+
+    updateItem(row);
 }
 
 void AppImageMetadataListModel::updateAllItems() {

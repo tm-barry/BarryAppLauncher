@@ -651,10 +651,11 @@ QFuture<void> AppImageManager::updateAppImageAsync(AppImageMetadata* metadata, U
                                      }
                                      promise->finish();
                                  },
-                                 [promise, metadata](UpdateState state, qint64 received, qint64 total) mutable {
+                                 [promise, metadata, this](UpdateState state, qint64 received, qint64 total) mutable {
                                      metadata->setUpdateProgressState(state);
                                      metadata->setUpdateBytesReceived(received);
                                      metadata->setUpdateBytesTotal(total);
+                                     m_appImageList->updateItem(metadata);
                                  });
 
     return future;
