@@ -24,6 +24,7 @@ class SettingsManager : public QObject
     Q_PROPERTY(QString terminal READ terminal WRITE setTerminal NOTIFY terminalChanged);
     Q_PROPERTY(QString textEditor READ textEditor WRITE setTextEditor NOTIFY textEditorChanged);
     Q_PROPERTY(bool keepBackup READ keepBackup WRITE setKeepBackup NOTIFY keepBackupChanged);
+    Q_PROPERTY(int updateConcurrency READ updateConcurrency WRITE setUpdateConcurrency NOTIFY updateConcurrencyChanged);
 
 public:
     static SettingsManager* instance();
@@ -49,6 +50,9 @@ public:
     bool keepBackup() const;
     void setKeepBackup(bool value);
 
+    int updateConcurrency() const;
+    void setUpdateConcurrency(int value);
+
     Q_INVOKABLE bool terminalExists(const QString& path);
     Q_INVOKABLE bool textEditorExists(const QString& path);
 
@@ -70,6 +74,7 @@ signals:
     void terminalChanged(QString newValue);
     void textEditorChanged(QString newValue);
     void keepBackupChanged(bool newValue);
+    void updateConcurrencyChanged(int newValue);
 };
 
 #endif // SETTINGSMANAGER_H

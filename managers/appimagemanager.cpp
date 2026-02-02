@@ -1,5 +1,6 @@
 #include "appimagemanager.h"
 #include "errormanager.h"
+#include "settingsmanager.h"
 #include "providers/memoryimageprovider.h"
 #include "utils/updater/updaterfactory.h"
 #include "utils/semverutil.h"
@@ -418,7 +419,7 @@ void AppImageManager::updateAllAppImages()
     auto queue = std::make_shared<std::deque<AppImageMetadata*>>(
         m_appImageList->items().begin(), m_appImageList->items().end()
         );
-    const int maxConcurrent = 3;
+    const int maxConcurrent = SettingsManager::instance()->updateConcurrency();
     auto running = std::make_shared<int>(0);
 
     auto next = std::make_shared<std::function<void()>>();

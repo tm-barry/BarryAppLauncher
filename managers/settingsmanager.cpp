@@ -94,6 +94,21 @@ void SettingsManager::setKeepBackup(bool value) {
     emit keepBackupChanged(value);
 }
 
+int SettingsManager::updateConcurrency() const {
+    QSettings settings;
+    QVariant v = settings.value("General/updateConcurrency", 3);
+    return v.toInt();
+}
+
+void SettingsManager::setUpdateConcurrency(int value) {
+    if (updateConcurrency() == value)
+        return;
+
+    QSettings settings;
+    settings.setValue("General/updateConcurrency", value);
+    emit updateConcurrencyChanged(value);
+}
+
 bool SettingsManager::terminalExists(const QString& path)
 {
     return TerminalUtil::terminalExists(path);

@@ -328,6 +328,38 @@ ApplicationWindow {
                     }
 
                     Label {
+                        text: qsTr("Update Concurrency")
+                        font.bold: true
+                    }
+                    RowLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        Label {
+                            text: qsTr("Number of concurrent updates to process at once.")
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                        }
+
+                        SpinBox {
+                            from: 1
+                            to: 10
+                            stepSize: 1
+                            value: SettingsManager.updateConcurrency
+                            onValueModified: SettingsManager.updateConcurrency = value
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1
+                        Layout.fillWidth: true
+                        color: palette.mid
+                        opacity: 0.6
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 5
+                    }
+
+                    Label {
                         text: qsTr("Update Headers")
                         font.bold: true
                     }
