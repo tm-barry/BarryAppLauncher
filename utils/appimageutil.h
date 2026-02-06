@@ -50,8 +50,10 @@ enum UpdateState {
     Failed
 };
 
-class AppImageUtil
+class AppImageUtil : public QObject
 {
+    Q_OBJECT
+
 public:
     AppImageUtil(const QString& path);
     ~AppImageUtil();
@@ -84,7 +86,9 @@ public:
      * @brief Mounts an appimage
      * and process. The process must be cleaned up using unmountAppImage(...)
      */
-    void mountAppImage();
+    bool mountAppImage(int timeoutMs = 15000);
+    void mountAppImageAsync();
+    void extractAppImage();
     /**
      * @brief Checks if appimage is currently mounted
      * @return Bool indicating if appimage is mounted
@@ -171,6 +175,7 @@ public:
 private:
     const QString m_path;
     QString m_mountPath;
+    QString m_tempExtractDir;
     QProcess* m_process;
     static const QRegularExpression execLineRegex;
     static const QRegularExpression invalidChars;
@@ -186,6 +191,12 @@ private:
     static const bool removeFileOrWarn(const QString& path, const QString& label);
     static void updateDesktopKey(QString& targetContents, const QString& sourceContents, const QString& key, const QString& fallback = QString());
     static const QString parseExecLine(const QString& line, const QString& appImagePath);
+    void onMountStdoutReady();
+    void onMountFinished(int exitCode, QProcess::ExitStatus status);
+    void onExtractFinished(int exitCode, QProcess::ExitStatus status);
+
+signals:
+    void mountFinished(bool success);
 };
 
 #endif // APPIMAGEUTIL_H

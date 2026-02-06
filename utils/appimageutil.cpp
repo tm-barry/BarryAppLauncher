@@ -15,6 +15,7 @@
 #include <QSettings>
 #include <QRegularExpression>
 #include <QThread>
+#include <QTimer>
 #include <QUrl>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -87,50 +88,146 @@ const bool AppImageUtil::makeExecutable(const QString& path)
     return true;
 }
 
-void AppImageUtil::mountAppImage() {
+void AppImageUtil::mountAppImageAsync()
+{
     unmountAppImage();
 
-    if(!isExecutable(m_path)) {
-        QString error = "File is not executable: " + m_path;
-        ErrorManager::instance()->reportError(error);
-        throw std::runtime_error(error.toStdString());;
-    }
-
-    QProcess* process = new QProcess();
-    m_process = process;
-    process->setProgram(m_path);
-    process->setArguments(QStringList() << "--appimage-mount");
-    process->setProcessChannelMode(QProcess::MergedChannels);
-
-    process->start();
-    if (!process->waitForStarted(3000)) {
-        ErrorManager::instance()->reportError("Failed to start AppImage mount process.");
-        unmountAppImage();
+    if (!isExecutable(m_path)) {
+        ErrorManager::instance()->reportError("File is not executable: " + m_path);
+        emit mountFinished(false);
         return;
     }
 
-    if (!process->waitForReadyRead(1000)) {
-        ErrorManager::instance()->reportError("No output from AppImage mount.");
-        unmountAppImage();
-        return;
-    }
+    m_process = new QProcess(this);
+    m_process->setProgram(m_path);
+    m_process->setArguments({"--appimage-mount"});
+    m_process->setProcessChannelMode(QProcess::MergedChannels);
 
-    // Wait up to 3 second for the mount to become available
-    m_mountPath = QString::fromUtf8(process->readAll()).trimmed();
-    bool pathExists = false;
-    for (int i = 0; i < 30; ++i) {
-        if (QDir(m_mountPath).exists()) {
-            pathExists = true;
-            break;
+    // Called as soon as any stdout is available
+    connect(m_process, &QProcess::readyReadStandardOutput, this,
+            &AppImageUtil::onMountStdoutReady);
+
+    // Called when process exits
+    connect(m_process, &QProcess::finished, this,
+            &AppImageUtil::onMountFinished);
+
+    m_process->start();
+}
+
+bool AppImageUtil::mountAppImage(int timeoutMs)
+{
+    QEventLoop loop;
+    bool result = false;
+
+    QMetaObject::Connection conn = connect(this, &AppImageUtil::mountFinished, [&](bool success) {
+        result = success;
+        loop.quit();
+    });
+
+    mountAppImageAsync();
+
+    QTimer timer;
+    timer.setSingleShot(true);
+    QObject::connect(&timer, &QTimer::timeout, [&]() {
+        // Only apply timeout if we are still mounting
+        if (m_process && !m_tempExtractDir.isEmpty()) {
+            return;
         }
-        QThread::msleep(100);
-    }
 
-    if (!pathExists) {
-        ErrorManager::instance()->reportError("Invalid mount path:" + m_mountPath);
-        unmountAppImage();
+        if (m_process) {
+            ErrorManager::instance()->reportError("AppImage mount timed out.");
+            unmountAppImage();
+        }
+        loop.quit();
+    });
+    timer.start(timeoutMs);
+
+    loop.exec();
+    disconnect(conn);
+
+    return result;
+}
+
+void AppImageUtil::onMountStdoutReady()
+{
+    if (!m_process)
+        return;
+
+    QString output = QString::fromUtf8(m_process->readAll()).trimmed();
+    QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+    QString possiblePath = lines.isEmpty() ? QString() : lines.last();
+
+    if (!possiblePath.isEmpty() && QDir(possiblePath).exists()) {
+        m_mountPath = possiblePath;
+        emit mountFinished(true);
+        disconnect(m_process, &QProcess::readyReadStandardOutput,
+                   this, &AppImageUtil::onMountStdoutReady);
+    }
+}
+
+void AppImageUtil::onMountFinished(int exitCode, QProcess::ExitStatus status)
+{
+    // If already mounted, no fallback
+    if (!m_mountPath.isEmpty())
+        return;
+
+    // Fallback to extract
+    delete m_process;
+    m_process = nullptr;
+    extractAppImage();
+}
+
+void AppImageUtil::extractAppImage()
+{
+    // Create a unique temp folder
+    QString tempDir = QDir::tempPath() + "/appimage-" + QUuid::createUuid().toString();
+    QDir dir(tempDir);
+    if (!dir.mkpath(".")) {
+        ErrorManager::instance()->reportError("Failed to create temp directory: " + tempDir);
+        emit mountFinished(false);
         return;
     }
+
+    m_tempExtractDir = tempDir;
+
+    m_process = new QProcess(this);
+    m_process->setProgram(m_path);
+    m_process->setArguments({"--appimage-extract"});
+    m_process->setProcessChannelMode(QProcess::MergedChannels);
+    m_process->setWorkingDirectory(tempDir);
+
+    connect(m_process, &QProcess::finished,
+            this, &AppImageUtil::onExtractFinished);
+
+    m_process->start();
+}
+
+void AppImageUtil::onExtractFinished(int exitCode, QProcess::ExitStatus status)
+{
+    if (status != QProcess::NormalExit || exitCode != 0) {
+        ErrorManager::instance()->reportError("AppImage does not support mount or extract.");
+        unmountAppImage();
+        emit mountFinished(false);
+        return;
+    }
+
+    QDir tempDir(m_tempExtractDir);
+    if (m_tempExtractDir.isEmpty() || !tempDir.exists()) {
+        ErrorManager::instance()->reportError("Extraction failed.");
+        unmountAppImage();
+        emit mountFinished(false);
+        return;
+    }
+
+    // Get the first subdirectory inside the temp extraction folder
+    QStringList subDirs = tempDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    if (!subDirs.isEmpty()) {
+        m_mountPath = tempDir.filePath(subDirs.first());
+    } else {
+        m_mountPath = m_tempExtractDir;  // fallback in case no subfolders
+    }
+
+    emit mountFinished(true);
 }
 
 bool AppImageUtil::isMounted()
@@ -140,42 +237,51 @@ bool AppImageUtil::isMounted()
 
 void AppImageUtil::unmountAppImage()
 {
-    // First: kill the AppImage-mounted process
+    // Kill process
     if (m_process) {
-        m_process->terminate();
-        if (!m_process->waitForFinished(2000)) {
-            m_process->kill();
-            m_process->waitForFinished(1000);
+        if (m_process->state() != QProcess::NotRunning) {
+            m_process->terminate();
+            if (!m_process->waitForFinished(2000)) {
+                m_process->kill();
+                m_process->waitForFinished(1000);
+            }
         }
         delete m_process;
         m_process = nullptr;
     }
 
-    // Second: unmount if still mounted (rare, but good fallback)
-    if (!m_mountPath.isEmpty()) {
-        // Check if it's actually mounted
-        bool stillMounted = QDir(m_mountPath).exists();
+    // Try to unmount/remove
+    if (!m_mountPath.isEmpty() && QDir(m_mountPath).exists()) {
+        if(m_tempExtractDir.isEmpty()) {
+            auto tryUnmount = [](const QString &cmd, const QStringList &args) {
+                QProcess p;
+                p.start(cmd, args);
+                p.waitForFinished(3000);
+            };
 
-        if (stillMounted) {
-            QProcess umountProcess;
-            umountProcess.start("fusermount", {"-u", m_mountPath});
-            umountProcess.waitForFinished(3000);
+            // fusermount
+            tryUnmount("fusermount", {"-u", m_mountPath});
 
-            // fallback to umount
+            // umount if still exists
             if (QDir(m_mountPath).exists()) {
-                QProcess fallback;
-                fallback.start("umount", {m_mountPath});
-                fallback.waitForFinished(3000);
+                tryUnmount("umount", {m_mountPath});
             }
         }
 
-        // Remove leftover directory
-        QDir mountDir(m_mountPath);
-        if (mountDir.exists())
-            mountDir.removeRecursively();
-
-        m_mountPath.clear();
+        // remove mount directory
+        QDir dir(m_mountPath);
+        dir.removeRecursively();
     }
+
+    // Remove temp extract directory
+    if (!m_tempExtractDir.isEmpty()) {
+        QDir tempDir(m_tempExtractDir);
+        if (tempDir.exists())
+            tempDir.removeRecursively();
+    }
+
+    m_mountPath.clear();
+    m_tempExtractDir.clear();
 }
 
 const QString AppImageUtil::integratedDesktopPath(const QString& path)
