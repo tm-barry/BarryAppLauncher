@@ -46,7 +46,7 @@ ApplicationWindow {
             }
 
             Label {
-                text: qsTr("BarryAppLauncher is a lightweight Qt app for integrating AppImages into your desktop menu.")
+                text: qsTr("BarryAppLauncher is a lightweight Qt app that seamlessly integrates AppImages into your desktop menu and lets you update them in-place.")
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
                 Layout.minimumWidth: 320

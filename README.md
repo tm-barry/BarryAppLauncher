@@ -4,7 +4,7 @@
 
 <h1 align="center">BarryAppLauncher</h1>
 
-BarryAppLauncher is a lightweight Qt app for integrating AppImages into your desktop menu.
+BarryAppLauncher is a lightweight Qt app that seamlessly integrates AppImages into your desktop menu and lets you update them in-place.
 
 ## Build
 

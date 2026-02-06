@@ -14,8 +14,7 @@ ApplicationWindow {
     visible: true
 
     Component.onCompleted: {
-        if(FileArg)
-        {
+        if (FileArg) {
             AppImageManager.loadAppImageMetadata(FileArg)
         }
     }
@@ -32,11 +31,10 @@ ApplicationWindow {
                             "About.qml").createObject(null)
                 modalManager.aboutModal.transientParent = mainWindow
 
-                modalManager.aboutModal.closing.connect(
-                            function () {
-                                modalManager.aboutModal.destroy()
-                                modalManager.aboutModal = null
-                            })
+                modalManager.aboutModal.closing.connect(function () {
+                    modalManager.aboutModal.destroy()
+                    modalManager.aboutModal = null
+                })
             }
 
             modalManager.aboutModal.show()
@@ -48,11 +46,10 @@ ApplicationWindow {
                             "Preferences.qml").createObject(null)
                 modalManager.preferencesModal.transientParent = mainWindow
 
-                modalManager.preferencesModal.closing.connect(
-                            function () {
-                                modalManager.preferencesModal.destroy()
-                                modalManager.preferencesModal = null
-                            })
+                modalManager.preferencesModal.closing.connect(function () {
+                    modalManager.preferencesModal.destroy()
+                    modalManager.preferencesModal = null
+                })
             }
 
             modalManager.preferencesModal.show()
@@ -92,8 +89,7 @@ ApplicationWindow {
             }
         }
 
-        function onModalRequested(modal)
-        {
+        function onModalRequested(modal) {
             switch (modal) {
             case AppImageManager.Preferences:
                 modalManager.openPreferencesModal()
@@ -130,7 +126,8 @@ ApplicationWindow {
             Action {
                 text: qsTr("&Open AppImage...")
                 onTriggered: fileDialog.open()
-                enabled: !AppImageManager.loadingAppImage && !AppImageManager.updating
+                enabled: !AppImageManager.loadingAppImage
+                         && !AppImageManager.updating
             }
             MenuSeparator {}
             Action {
@@ -157,7 +154,8 @@ ApplicationWindow {
 
     Loader {
         id: headerLoader
-        sourceComponent: AppImageManager.state === AppImageManager.AppInfo ? appInfoHeaderComponent : null
+        sourceComponent: AppImageManager.state
+                         === AppImageManager.AppInfo ? appInfoHeaderComponent : null
     }
 
     Component {
@@ -194,6 +192,22 @@ ApplicationWindow {
         }
     }
 
+    DropArea {
+        anchors.fill: parent
+
+        onDropped: function (dropEvent) {
+            for (var i = 0; i < dropEvent.urls.length; i++) {
+                var url = dropEvent.urls[i];
+                var localPath = url.toString().replace("file://", "");
+                if (localPath.toLowerCase().endsWith(".appimage")) {
+                    Qt.callLater(function () {
+                        AppImageManager.loadAppImageMetadata(localPath);
+                    });
+                }
+            }
+        }
+    }
+
     Loader {
         id: pageContent
         anchors.fill: parent
@@ -206,7 +220,9 @@ ApplicationWindow {
             indeterminate: true
             anchors.centerIn: parent
             width: parent.width
-            visible: AppImageManager.loadingAppImage || AppImageManager.loadingAppImageList || AppImageManager.updating
+            visible: AppImageManager.loadingAppImage
+                     || AppImageManager.loadingAppImageList
+                     || AppImageManager.updating
         }
     }
 }
