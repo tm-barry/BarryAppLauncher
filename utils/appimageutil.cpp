@@ -754,7 +754,6 @@ const bool AppImageUtil::refreshDesktopFile(const QString& appImagePath, const Q
 
     util.unmountAppImage();
 
-    // TODO - update desktop contents
     QString desktopContents = intMetadata.mountedDesktopContents;
     QString mountedDesktopContents = metadata.mountedDesktopContents;
 

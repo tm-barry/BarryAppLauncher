@@ -19,9 +19,6 @@
 #include <QRegularExpression>
 #include <QUrl>
 
-// TODO - remove me
-#include <QDebug>
-
 // ----------------- Public -----------------
 
 AppImageManager* AppImageManager::instance() {
