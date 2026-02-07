@@ -10,13 +10,17 @@
 #include <QQmlContext>
 #include <QtQuickControls2/QQuickStyle>
 
+#ifndef APP_VERSION
+#define APP_VERSION "0.0.0"
+#endif
+
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
     QQuickStyle::setStyle("Fusion");
     app.setOrganizationName("tm-barry");
     app.setApplicationName("BarryAppLauncher");
-    app.setApplicationVersion("0.8.4");
+    app.setApplicationVersion(APP_VERSION);
     app.setWindowIcon(QIcon(":/assets/icons/barryapplauncher.svg"));
 
     QString fileArg;

@@ -46,6 +46,10 @@ qt_add_executable(barryapplauncher
     ${RESOURCES}
 )
 
+target_compile_definitions(barryapplauncher
+    PRIVATE APP_VERSION="${PROJECT_VERSION}"
+)
+
 qt_add_qml_module(barryapplauncher
     URI BarryAppLauncher
     VERSION 1.0

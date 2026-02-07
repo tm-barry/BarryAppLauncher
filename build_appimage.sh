@@ -11,6 +11,10 @@ BUILD_DIR="$PROJECT_ROOT/build/AppImage-Release"
 APPDIR="$BUILD_DIR/AppDir"
 BIN_NAME="barryapplauncher"
 
+APP_VERSION=$(grep "project(BarryAppLauncher VERSION" "$PROJECT_ROOT/CMakeLists.txt" \
+              | sed -E 's/.*VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+echo "Building version: $APP_VERSION"
+
 echo "Using project root: $PROJECT_ROOT"
 echo "Build directory: $BUILD_DIR"
 echo "AppDir: $APPDIR"
@@ -28,6 +32,10 @@ cp "$PROJECT_ROOT/LICENSE" "$APPDIR/LICENSE"
 echo "Copying binary to AppDir..."
 mkdir -p "$APPDIR/usr/bin/"
 cp "$BUILD_DIR/$BIN_NAME" "$APPDIR/usr/bin/"
+
+# Add version to desktop file
+DESKTOP_FILE="$APPDIR/usr/share/applications/barryapplauncher.desktop"
+sed -i "s/{APP_VERSION}/$APP_VERSION/g" "$DESKTOP_FILE"
 
 # Set required environment variables for linuxdeploy
 QMAKE=$(command -v qmake6 || true)
@@ -79,4 +87,19 @@ echo "Running linuxdeploy build AppImage..."
 cd "$BUILD_DIR"
 linuxdeploy --appdir="$APPDIR" --output appimage
 
-echo "✅ AppImage created in $BUILD_DIR"
+# Detect architecture and rename appimage
+GEN_FILE=$(find "$BUILD_DIR" -maxdepth 1 -name "BarryAppLauncher-*.AppImage" | head -n1)
+if [ -z "$GEN_FILE" ]; then
+    echo "Error: Generated AppImage not found!"
+    exit 1
+fi
+
+# Extract architecture from the filename
+ARCH=$(basename "$GEN_FILE" | sed -E 's/.*-([^-]+)\.AppImage$/\1/')
+
+# Build final name using version
+FINAL_NAME="$BUILD_DIR/BarryAppLauncher-v$APP_VERSION-$ARCH.AppImage"
+
+mv "$GEN_FILE" "$FINAL_NAME"
+
+echo "AppImage created in $BUILD_DIR"

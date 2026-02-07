@@ -779,6 +779,8 @@ const bool AppImageUtil::refreshDesktopFile(const QString& appImagePath, const Q
     updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateVersionField");
     updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateVersionPattern");
     updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateFilters");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateCurrentVersion");
+    updateDesktopKey(desktopContents, mountedDesktopContents, "X-AppImage-BAL-UpdateCurrentDate");
 
     QString fallbackVersion = updateVersion;
     if(fallbackVersion.isEmpty())
