@@ -67,9 +67,10 @@ ApplicationWindow {
         id: scrollView
         anchors.fill: parent
         anchors.margins: 10
+        contentWidth: availableWidth
 
         ColumnLayout {
-            width: scrollView.width
+            width: scrollView.availableWidth
             spacing: 10
 
             Label {
@@ -80,6 +81,8 @@ ApplicationWindow {
             }
             RoundedGroupBox {
                 Layout.fillWidth: true
+                Layout.leftMargin: 10
+                Layout.rightMargin: 10
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -291,6 +294,8 @@ ApplicationWindow {
             }
             RoundedGroupBox {
                 Layout.fillWidth: true
+                Layout.leftMargin: 10
+                Layout.rightMargin: 10
 
                 ColumnLayout {
                     anchors.fill: parent
