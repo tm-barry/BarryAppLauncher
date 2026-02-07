@@ -1,0 +1,19 @@
+# Ignore build output folders
+build/
+output/
+dist/
+
+# Ignore version control files
+.git
+.gitignore
+
+# Ignore editor and OS files
+*.swp
+*~
+.DS_Store
+.vscode/
+.idea/
+
+# Ignore other caches and logs
+*.log
+*.tmp

@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=BarryAppLauncher
+Comment=Lightweight Qt app for integrating AppImages into your desktop menu
+Exec=barryapplauncher
+TryExec=barryapplauncher
+Icon=barryapplauncher
+Categories=Utility;
+MimeType=application/vnd.appimage;
+X-AppImage-Version={APP_VERSION}
+X-AppImage-BAL=true
+X-AppImage-BAL-UpdateType=json
+X-AppImage-BAL-UpdateUrl=https://api.github.com/repos/tm-barry/BarryAppLauncher/releases/latest
+X-AppImage-BAL-UpdateDownloadField=assets[*].browser_download_url
+X-AppImage-BAL-UpdateDownloadPattern=.*\\.AppImage
+X-AppImage-BAL-UpdateDateField=published_at
+X-AppImage-BAL-UpdateVersionField=tag_name
+X-AppImage-BAL-UpdateCurrentVersion=v{APP_VERSION}

@@ -1,0 +1,202 @@
+#ifndef APPIMAGEUTIL_H
+#define APPIMAGEUTIL_H
+
+#include "utils/updater/updaterfactory.h"
+
+#include <QCryptographicHash>
+#include <QProcess>
+#include <QString>
+
+struct AppImageUtilMetadata {
+public:
+    // Base fields
+    QString name = QString();
+    QString version = QString();
+    QString comment = QString();
+    int type = 0;
+    QString checksum = QString();
+    QString categories = QString();
+    QString path = QString();
+    QString desktopFilePath = QString();
+    bool internalIntegration = false;
+    QString iconPath = QString();
+    QString mountedDesktopContents = QString();
+    bool executable = false;
+
+    // Update fields
+    QString updateType = QString();
+    QString updateUrl = QString();
+    QString updateDownloadField = QString();
+    QString updateDownloadPattern = QString();
+    QString updateDateField = QString();
+    QString updateVersionField = QString();
+    QString updateVersionPattern = QString();
+    QList<UpdaterFilter> updateFilters { };
+    QString updateCurrentVersion = QString();
+    QString updateCurrentDate = QString();
+};
+
+enum MetadataAction {
+    Default,
+    Register,
+    Unregister
+};
+
+enum UpdateState {
+    Downloading,
+    Extracting,
+    Installing,
+    Success,
+    Failed
+};
+
+class AppImageUtil : public QObject
+{
+    Q_OBJECT
+
+public:
+    AppImageUtil(const QString& path);
+    ~AppImageUtil();
+
+    /**
+     * @brief Checks if the appimage is a type 2
+     * @param path Path to appimage
+     * @return Bool indicating if appimage is type 2
+     */
+    static const bool isAppImageType2(const QString& path);
+    /**
+     * @brief Gets the checksum of the given path
+     * @param path Path to file you want the checksum
+     * @param hashType Hash type algorithm to use
+     * @return Checksum of the file at path
+     */
+    static const QString getChecksum(const QString& path, const QCryptographicHash::Algorithm hashType = QCryptographicHash::Sha256);
+    /**
+     * @brief Checks if the path is executable
+     * @param path Path to file to check is executable
+     * @return Bool indicating if file at path is executable
+     */
+    static const bool isExecutable(const QString& path);
+    /**
+     * @brief Makes the appimage at path executable
+     * @return True if successful, false if not
+     */
+    static const bool makeExecutable(const QString& path);
+    /**
+     * @brief Mounts an appimage
+     * and process. The process must be cleaned up using unmountAppImage(...)
+     */
+    bool mountAppImage(int timeoutMs = 15000);
+    void mountAppImageAsync();
+    void extractAppImage();
+    /**
+     * @brief Checks if appimage is currently mounted
+     * @return Bool indicating if appimage is mounted
+     */
+    bool isMounted();
+    /**
+     * @brief Unmounts the appimage mount process
+     */
+    void unmountAppImage();
+    /**
+     * @brief Get the integrated desktop file path
+     * @return Integrated desktop file path, or empty if not integrated
+     */
+    static const QString integratedDesktopPath(const QString& path);
+    /**
+     * @brief Get the metadata for the appimage.
+     * @param integration If true gets the metadata from the appimage's
+     * internal desktop
+     * @return The appimages metadata parsed from the desktop file.
+     * If integrated it will use the integrated desktop file,
+     * if not it will use the appimage's internal one.
+     */
+    AppImageUtilMetadata metadata(MetadataAction action = Default);
+    /**
+     * @brief Gets the mounted appimages desktop path
+     * @return Destkop path of the mounted appimage
+     */
+    QString getMountedDesktopPath();
+    /**
+     * @brief Gets the mounted appimages icon path
+     * @return Icon path of the mounted appimage
+     */
+    QString getMountedIconPath();
+    /**
+     * @brief Registers the app image at the utils path
+     * @return New path of registered app image
+     *
+     */
+    QString registerAppImage();
+    /**
+     * @brief Unregisters the app image at the utils path
+     * @return Bool indicating if unregister is successful
+     */
+    /**
+     * @brief Unregisters the app image at the utils path
+     * @param deleteAppImage Should the appimage be deleted after unregistered
+     * @return Bool indicating if unregister is successful
+     */
+    bool unregisterAppImage(bool deleteAppImage);
+    /**
+     * @brief Get ths list of registered appimages
+     * @return List of registered appimages
+     */
+    static const QList<AppImageUtilMetadata> getRegisteredList();
+    /**
+     * @brief Save the updater settings to the provided desktop file
+     * @param desktopFilePath path to the desktop file
+     * @param updaterType type of updater
+     * @param settings Updater settings to save
+     * @return Bool indicating if save successful
+     */
+    static const bool saveUpdaterSettings(const QString& desktopFilePath, const QString& updaterType, const UpdaterSettings& settings);
+    /**
+     * @brief Refreshes the integrated desktopfile with the latest values from the appimage's internal desktopfile
+     * @param appImagePath path to the appiamge
+     * @param updateVersion update version override to set in the destkopfile
+     * @param updateDate update date override to set in the destkopfile
+     * @return Bool indicating if refresh successful
+     */
+    static const bool refreshDesktopFile(const QString& appImagePath, const QString& updateVersion = QString(), const QString& updateDate = QString());
+    /**
+     * @brief Updates the appimage at appImagePath with the new downloaded appimage.
+     * @param appImagePath Path of the appimage to update
+     * @param downloadUrl Url to download the new appimage
+     * @param finishedCallback Method to get called on update complete
+     * @param version Version to set in the desktop file
+     * @param date Date to set in the desktop file
+     */
+    static void updateAppImage(const QString& appImagePath, const QString& downloadUrl,
+                                     const QString& version = QString(), const QString& date = QString(),
+                                     std::function<void(bool)> finishedCallback = nullptr,
+                                     std::function<void(UpdateState, qint64, qint64)> progressCallback = nullptr);
+
+private:
+    const QString m_path;
+    QString m_mountPath;
+    QString m_tempExtractDir;
+    QProcess* m_process;
+    static const QRegularExpression execLineRegex;
+    static const QRegularExpression invalidChars;
+    static const QString balIntegrationField;
+
+    static const QString escapeDesktopValue(const QString &value);
+    static void parseDesktopPathForMetadata(const QString& path, AppImageUtilMetadata& metadata, bool storeDesktopContent = false);
+    static const QList<UpdaterFilter> parseFilters(const QString &filterStr);
+    QString findNextAvailableFilename(const QString& fullPath);
+    QString handleIntegrationFileOperation(QString newName);
+    static const QStringList getSearchPaths();
+    static const QString getLocalIntegrationPath();
+    static const bool removeFileOrWarn(const QString& path, const QString& label);
+    static void updateDesktopKey(QString& targetContents, const QString& sourceContents, const QString& key, const QString& fallback = QString());
+    static const QString parseExecLine(const QString& line, const QString& appImagePath);
+    void onMountStdoutReady();
+    void onMountFinished(int exitCode, QProcess::ExitStatus status);
+    void onExtractFinished(int exitCode, QProcess::ExitStatus status);
+
+signals:
+    void mountFinished(bool success);
+};
+
+#endif // APPIMAGEUTIL_H
