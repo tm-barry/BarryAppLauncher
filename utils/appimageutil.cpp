@@ -6,7 +6,6 @@
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
-#include <QDebug>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -23,6 +22,9 @@
 #include <QJsonValue>
 #include <QJsonParseError>
 #include <QtConcurrent/QtConcurrentRun>
+
+// TODO - REMOVE ME
+#include <QDebug>
 
 // ----------------- Public -----------------
 
@@ -114,7 +116,7 @@ void AppImageUtil::mountAppImageAsync()
     m_process->start();
 }
 
-bool AppImageUtil::mountAppImage(int timeoutMs)
+bool AppImageUtil::mountAppImage(int mountTimeoutMs)
 {
     QEventLoop loop;
     bool result = false;
@@ -126,9 +128,9 @@ bool AppImageUtil::mountAppImage(int timeoutMs)
 
     mountAppImageAsync();
 
-    QTimer timer;
-    timer.setSingleShot(true);
-    QObject::connect(&timer, &QTimer::timeout, [&]() {
+    QTimer mountTimer;
+    mountTimer.setSingleShot(true);
+    QObject::connect(&mountTimer, &QTimer::timeout, [&]() {
         // Only apply timeout if we are still mounting
         if (m_process && !m_tempExtractDir.isEmpty()) {
             return;
@@ -140,7 +142,7 @@ bool AppImageUtil::mountAppImage(int timeoutMs)
         }
         loop.quit();
     });
-    timer.start(timeoutMs);
+    mountTimer.start(mountTimeoutMs);
 
     loop.exec();
     disconnect(conn);
@@ -153,17 +155,41 @@ void AppImageUtil::onMountStdoutReady()
     if (!m_process)
         return;
 
-    QString output = QString::fromUtf8(m_process->readAll()).trimmed();
+    QString output = QString::fromUtf8(m_process->readAllStandardOutput()).trimmed();
     QStringList lines = output.split('\n', Qt::SkipEmptyParts);
     QString possiblePath = lines.isEmpty() ? QString() : lines.last();
 
-    if (!possiblePath.isEmpty() && QDir(possiblePath).exists()) {
-        m_mountPath = possiblePath;
-        emit mountFinished(true);
-        disconnect(m_process, &QProcess::readyReadStandardOutput,
-                   this, &AppImageUtil::onMountStdoutReady);
-    }
+    if (possiblePath.isEmpty())
+        return;
+
+    auto checkMount = new QTimer(this);
+    checkMount->setInterval(50);
+    checkMount->setSingleShot(false);
+
+    connect(checkMount, &QTimer::timeout, this, [this, possiblePath, checkMount]() {
+        if (!m_process || m_process->state() != QProcess::Running) {
+            checkMount->stop();
+            checkMount->deleteLater();
+            emit mountFinished(false);
+            return;
+        }
+
+        if (QDir(possiblePath).exists()) {
+            m_mountPath = possiblePath;
+            emit mountFinished(true);
+            checkMount->stop();
+            checkMount->deleteLater();
+
+            if (m_process) {
+                disconnect(m_process, &QProcess::readyReadStandardOutput,
+                           this, &AppImageUtil::onMountStdoutReady);
+            }
+        }
+    });
+
+    checkMount->start();
 }
+
 
 void AppImageUtil::onMountFinished(int exitCode, QProcess::ExitStatus status)
 {

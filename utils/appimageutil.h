@@ -86,7 +86,7 @@ public:
      * @brief Mounts an appimage
      * and process. The process must be cleaned up using unmountAppImage(...)
      */
-    bool mountAppImage(int timeoutMs = 15000);
+    bool mountAppImage(int mountTimeoutMs = 15000);
     void mountAppImageAsync();
     void extractAppImage();
     /**
