@@ -23,9 +23,6 @@
 #include <QJsonParseError>
 #include <QtConcurrent/QtConcurrentRun>
 
-// TODO - REMOVE ME
-#include <QDebug>
-
 // ----------------- Public -----------------
 
 AppImageUtil::AppImageUtil(const QString& path)
