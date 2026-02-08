@@ -141,15 +141,19 @@ void AppImageManager::requestModal(ModalTypes modal)
 
 QFuture<void> AppImageManager::loadAppImageList()
 {
-    return QtConcurrent::run([=, this]() {
-        setLoadingAppImageList(true);
+    auto promise = QSharedPointer<QPromise<void>>::create();
+
+    QThreadPool::globalInstance()->start([this, promise]() {
         try {
             auto utilList = AppImageUtil::getRegisteredList();
+            // load icons
             for (const auto& app : utilList) {
                 QImage image(app.iconPath);
                 MemoryImageProvider::instance()->setImage(app.path, image);
             }
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [=, this]() {
+
+            // update appList on gui thread
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [this, utilList, promise]() {
                 QList<AppImageMetadata*> appList;
                 for (const auto& app : utilList) {
                     auto* meta = parseAppImageMetadata(app);
@@ -157,13 +161,23 @@ QFuture<void> AppImageManager::loadAppImageList()
                     appList.append(meta);
                 }
                 setAppImageList(appList);
-            });
+                setLoadingAppImageList(false);
+                promise->finish();
+            }, Qt::QueuedConnection);
+
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [this, promise]() {
+                setLoadingAppImageList(false);
+                promise->finish();
+            }, Qt::QueuedConnection);
         }
-        setLoadingAppImageList(false);
     });
+
+    setLoadingAppImageList(true);
+    return promise->future();
 }
+
 
 QFuture<void> AppImageManager::loadAppImageMetadata(const QUrl& url) {
     return loadAppImageMetadata(url.toLocalFile());
@@ -355,33 +369,52 @@ void AppImageManager::checkForUpdate()
 
 void AppImageManager::checkForAllUpdates()
 {
-    loadAppImageList().waitForFinished();
-    setLoadingAppImageList(true);
-    try {
-        QList<QFuture<void>> futures;
-        futures.reserve(m_appImageList->items().size());
+    loadAppImageList().then([this] {
+        setLoadingAppImageList(true);
 
-        for (AppImageMetadata* appImage : m_appImageList->items()) {
-            futures << loadMetadataUpdaterReleasesAsync(appImage);
-        }
+        auto queue = std::make_shared<std::deque<AppImageMetadata*>>(
+            m_appImageList->items().begin(),
+            m_appImageList->items().end()
+            );
 
-        if (futures.isEmpty()) {
-            setLoadingAppImageList(false);
-            return;
-        }
+        const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
+        auto running = std::make_shared<int>(0);
+        auto next = std::make_shared<std::function<void()>>();
+        QPointer<AppImageManager> self(this);
+        *next = [self, queue, running, maxConcurrent, next]() mutable {
 
-        auto all = QtFuture::whenAll(futures.begin(), futures.end());
+            if (!queue->empty() && *running < maxConcurrent) {
 
-        all.then([this](auto) {
-            setLoadingAppImageList(false);
-            m_appImageList->updateAllItems();
-            m_appImageList->sort();
-        });
-    }
-    catch (const std::exception &e) {
-        ErrorManager::instance()->reportError(e.what());
-        setLoadingAppImageList(false);
-    }
+                auto* metadata = queue->front();
+                queue->pop_front();
+
+                (*running)++;
+
+                self->loadMetadataUpdaterReleases(metadata, [self, running, next]() mutable {
+
+                    if (!self)
+                        return;
+
+                    (*running)--;
+
+                    QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
+                });
+
+                QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
+
+                return;
+            }
+
+            if (queue->empty() && *running == 0) {
+                self->setLoadingAppImageList(false);
+                self->m_appImageList->updateAllItems();
+                self->m_appImageList->sort();
+            }
+        };
+
+        for (int i = 0; i < maxConcurrent; ++i)
+            (*next)();
+    });
 }
 
 void AppImageManager::updateAppImage(const QString& downloadUrl, const QString& version, const QString& date)
@@ -416,7 +449,7 @@ void AppImageManager::updateAllAppImages()
     auto queue = std::make_shared<std::deque<AppImageMetadata*>>(
         m_appImageList->items().begin(), m_appImageList->items().end()
         );
-    const int maxConcurrent = SettingsManager::instance()->updateConcurrency();
+    const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
     auto running = std::make_shared<int>(0);
 
     auto next = std::make_shared<std::function<void()>>();
