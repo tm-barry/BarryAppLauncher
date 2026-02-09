@@ -3,10 +3,10 @@
 #include "settingsmanager.h"
 #include "providers/memoryimageprovider.h"
 #include "utils/updater/updaterfactory.h"
-#include "utils/semverutil.h"
 #include "utils/stringutil.h"
 #include "utils/terminalutil.h"
 #include "utils/texteditorutil.h"
+#include "utils/versionutil.h"
 
 #include <deque>
 #include <QGuiApplication>
@@ -615,7 +615,7 @@ void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMeta
             releaseModel->setDownload(r.download);
 
             bool isNew = (metadata->updateCurrentVersion().isEmpty()
-                          || (SemVerUtil::compareStrings(r.version, metadata->updateCurrentVersion()) == 1))
+                          || (VersionUtil::compareVersions(r.version, metadata->updateCurrentVersion()) == 1))
                          && (metadata->updateCurrentDate().isEmpty()
                              || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate())));
             releaseModel->setIsNew(isNew);

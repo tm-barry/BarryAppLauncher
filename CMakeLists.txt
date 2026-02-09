@@ -95,12 +95,12 @@ qt_add_qml_module(barryapplauncher
         utils/archiveutil.cpp
         utils/jsonutil.h
         utils/networkutil.h
-        utils/semverutil.h
         utils/stringutil.h
         utils/terminalutil.h
         utils/terminalutil.cpp
         utils/texteditorutil.h
         utils/texteditorutil.cpp
+        utils/versionutil.h
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
