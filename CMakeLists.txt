@@ -37,6 +37,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libarchive)
 
+# Fix build with strict compiler: only for libarchive
+if(TARGET archive_static)
+    target_compile_options(archive_static PRIVATE -Wno-error=discarded-qualifiers)
+endif()
+
 qt_add_resources(RESOURCES
     resources.qrc
 )
