@@ -113,7 +113,10 @@ ApplicationWindow {
         title: qsTr("Open AppImage")
         currentFolder: StandardPaths.writableLocation(
                            StandardPaths.HomeLocation)
-        nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
+        nameFilters: [
+            "AppImage Files (*.AppImage *.appimage)",
+            "All Files (*)"
+        ]
         fileMode: FileDialog.OpenFile
         onAccepted: {
             AppImageManager.loadAppImageMetadata(fileDialog.selectedFile)
