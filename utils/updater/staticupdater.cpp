@@ -25,7 +25,7 @@ void StaticUpdater::parseData(const QByteArray &data)
 
     QRegularExpression versionRe(m_settings.versionPattern);
     if (!versionRe.isValid()) {
-        ErrorManager::instance()->reportError("Invalid version regex: " + m_settings.downloadPattern);
+        ErrorManager::instance()->reportError("Invalid version regex: " + m_settings.versionPattern);
 
     }
 

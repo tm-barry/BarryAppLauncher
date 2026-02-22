@@ -39,6 +39,12 @@ void JsonUpdater::parseData(const QByteArray &data)
 
     }
 
+    QRegularExpression versionRe(m_settings.versionPattern);
+    if (!versionRe.isValid()) {
+        ErrorManager::instance()->reportError("Invalid version regex: " + m_settings.versionPattern);
+
+    }
+
     // Expand releases from the root
     QList<QJsonValue> releaseCandidates =
         root.isArray() ? JsonUtil::getValuesByPath(root, "[*]") : QList<QJsonValue>{ root };
@@ -69,8 +75,15 @@ void JsonUpdater::parseData(const QByteArray &data)
         QString version;
         {
             QList<QJsonValue> vals = JsonUtil::getValuesByPath(obj, m_settings.versionField);
-            if (!vals.isEmpty())
+            if (!vals.isEmpty()) {
                 version = vals.first().toVariant().toString();
+                if (!versionRe.pattern().isEmpty()) {
+                    QRegularExpressionMatch match = versionRe.match(version);
+                    if (match.hasMatch()) {
+                        version = match.captured(1).isEmpty() ? match.captured(0) : match.captured(1);
+                    }
+                }
+            }
         }
 
         // Extract date

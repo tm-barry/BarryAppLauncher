@@ -19,7 +19,7 @@ QImage MemoryImageProvider::requestImage(const QString &id, QSize *size, const Q
         *size = img.size();
 
     if (requestedSize.width() > 0 && requestedSize.height() > 0)
-        img = img.scaled(requestedSize);
+        img = img.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
     return img;
 }
@@ -30,6 +30,14 @@ void MemoryImageProvider::setImage(const QString &id, const QImage &img) {
 
 QString MemoryImageProvider::getUrl(const QString &id) {
     return QString("image://%1/%2").arg(providerName, id);
+}
+
+void MemoryImageProvider::clearImages() {
+    m_images.clear();
+}
+
+void MemoryImageProvider::removeImage(const QString &id) {
+    m_images.remove(id);
 }
 
 // ----------------- Private -----------------

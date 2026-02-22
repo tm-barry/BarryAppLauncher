@@ -22,6 +22,10 @@ public:
 
     QString getUrl(const QString &id);
 
+    void clearImages();
+
+    void removeImage(const QString &id);
+
 private:
     MemoryImageProvider();
 

@@ -2,6 +2,7 @@
 #include "managers/clipboardmanager.h"
 #include "managers/errormanager.h"
 #include "managers/settingsmanager.h"
+#include "managers/updatepresetmanager.h"
 #include "providers/memoryimageprovider.h"
 
 #include <QGuiApplication>
@@ -86,6 +87,15 @@ int main(int argc, char *argv[])
         "BarryAppLauncher", 1, 0, "SettingsManager",
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             auto* instance = SettingsManager::instance();
+            QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+            return instance;
+        }
+        );
+
+    qmlRegisterSingletonType<UpdatePresetManager>(
+        "BarryAppLauncher", 1, 0, "UpdatePresetManager",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            auto* instance = UpdatePresetManager::instance();
             QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
             return instance;
         }

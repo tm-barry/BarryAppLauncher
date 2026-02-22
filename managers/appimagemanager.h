@@ -5,7 +5,6 @@
 
 #include "models/appimagemetadata.h"
 #include "models/appimagemetadatalistmodel.h"
-#include "utils/appimageutil.h"
 
 #include <QDir>
 #include <QObject>
@@ -33,7 +32,8 @@ public:
     enum ModalTypes {
         Preferences,
         OpenDialog,
-        About
+        About,
+        ApplyUpdatePreset
     };
     Q_ENUM(ModalTypes);
 
@@ -56,7 +56,7 @@ public:
     void setState(AppState value);
 
     Q_INVOKABLE QFuture<void> registerSelf();
-    Q_INVOKABLE void requestModal(ModalTypes modal);
+    Q_INVOKABLE void requestModal(ModalTypes modal, QVariant data = QVariant());
     Q_INVOKABLE QFuture<void> loadAppImageList();
     Q_INVOKABLE QFuture<void> loadAppImageMetadata(const QUrl& url);
     Q_INVOKABLE QFuture<void> loadAppImageMetadata(const QString& path);
@@ -89,7 +89,6 @@ private:
     AppState m_state = AppList;
 
     QString appImagePath();
-    AppImageMetadata* parseAppImageMetadata(const AppImageUtilMetadata& appImageMetadata);
     UpdaterSettings getUpdaterSettings(AppImageMetadata* appImageMetadata);
     void loadMetadataUpdaterReleases(AppImageMetadata* appImageMetadata, std::function<void()> callback = nullptr);
     QFuture<void> loadMetadataUpdaterReleasesAsync(AppImageMetadata* appImage);
@@ -99,7 +98,7 @@ private:
     Q_DISABLE_COPY(AppImageManager);
 
 signals:
-    void modalRequested(AppImageManager::ModalTypes modal);
+    void modalRequested(AppImageManager::ModalTypes modal, QVariant data = QVariant());
     void appImageListChanged();
     void appImageMetadataChanged(AppImageMetadata* newValue);
     void loadingAppImageListChanged(bool newValue);

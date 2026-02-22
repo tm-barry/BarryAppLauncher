@@ -133,6 +133,19 @@ Item {
             section.property: "hasNewRelease"
             section.criteria: ViewSection.FullString
 
+            onContentYChanged: {
+                forceCloseMenus()
+            }
+
+            function forceCloseMenus() {
+                for (var i = 0; i < count; i++) {
+                    var delegate = itemAtIndex(i)
+                    if (delegate?.updateOptionsMenu?.visible) {
+                        delegate.updateOptionsMenu.close()
+                    }
+                }
+            }
+
             section.delegate: Rectangle {
                 width: ListView.view.width
                 height: 32
@@ -149,6 +162,8 @@ Item {
 
             delegate: ItemDelegate {
                 width: ListView.view.width
+
+                property Menu updateOptionsMenu: updateOptionsMenuInternal
 
                 onClicked: {
                     if (!AppImageManager.updating) {
@@ -170,7 +185,8 @@ Item {
                     id: appItemListItem
                     anchors.fill: parent
                     spacing: SettingsManager.appListCompactView ? 5 : 10
-                    anchors.margins: SettingsManager.appListCompactView ? 5 : 10
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
 
                     property var hasSelected: updaterReleases.some(release => release.isSelected)
 
@@ -194,13 +210,13 @@ Item {
                             anchors.right: parent.right
                             anchors.bottomMargin: -5
                             onClicked: {
-                                updateOptionsMenu.y = updateOptionsBtn.y + 30
-                                updateOptionsMenu.open()
+                                updateOptionsMenuInternal.y = updateOptionsBtn.y + 30
+                                updateOptionsMenuInternal.open()
                             }
                         }
 
                         Menu {
-                            id: updateOptionsMenu
+                            id: updateOptionsMenuInternal
 
                             ListView {
                                 anchors.left: parent.left
@@ -252,29 +268,35 @@ Item {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
 
-                        Label {
-                            text: name
-                            font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
-                            font.bold: true
+                        RowLayout{
+                            spacing: 10
                             Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignLeft
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Label {
+                                text: name
+                                font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
+                                font.bold: true
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignLeft
+                            }
+
+                            Label {
+                                text: version
+                                font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
+                                opacity: 0.6
+                                horizontalAlignment: Text.AlignRight
+                            }
                         }
 
                         Label {
                             text: comment
-                            visible: !SettingsManager.appListCompactView && comment
-                            wrapMode: Text.Wrap
+                            font.pixelSize: SettingsManager.appListCompactView ? 11 : 13
+                            visible: comment && !AppImageManager.updating
+                            elide: Text.ElideRight
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignLeft
-                        }
-
-                        Label {
-                            text: version
-                            opacity: 0.6
-                            Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignLeft
-                            visible: !SettingsManager.appListCompactView || !hasNewRelease
-                                     || !appItemListItem.hasSelected
                         }
 
                         Item {
@@ -285,7 +307,6 @@ Item {
                                      && AppImageManager.updating
 
                             ProgressBar {
-                                id: updateProgress
                                 anchors.fill: parent
                                 from: 0
                                 to: 1

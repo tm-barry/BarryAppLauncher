@@ -63,6 +63,7 @@ qt_add_qml_module(barryapplauncher
         qml/About.qml
         qml/AppInfo.qml
         qml/AppList.qml
+        qml/ApplyUpdatePreset.qml
         qml/ColorButton.qml
         qml/CopyButton.qml
         qml/IconButton.qml
@@ -80,12 +81,15 @@ qt_add_qml_module(barryapplauncher
         managers/errormanager.cpp
         managers/settingsmanager.h
         managers/settingsmanager.cpp
+        managers/updatepresetmanager.h
+        managers/updatepresetmanager.cpp
         models/appimagemetadata.h
         models/appimagemetadata.cpp
-        models/updaterfiltermodel.h
-        models/updaterreleasemodel.h
         models/appimagemetadatalistmodel.h
         models/appimagemetadatalistmodel.cpp
+        models/updaterfiltermodel.h
+        models/updaterpresetmodel.h
+        models/updaterreleasemodel.h
         providers/memoryimageprovider.h
         providers/memoryimageprovider.cpp
         utils/updater/jsonupdater.h
