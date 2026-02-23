@@ -5,12 +5,13 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 ApplicationWindow {
+    title: qsTr("Preferences")
     width: 480
     minimumWidth: 270
     height: 540
     minimumHeight: 360
-    title: qsTr("Preferences")
     flags: Qt.Dialog | Qt.WindowTitleHint
+    modality: Qt.ApplicationModal
 
     FontLoader {
         id: fontAwesome

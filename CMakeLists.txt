@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(BarryAppLauncher VERSION 0.8.6 LANGUAGES CXX)
+project(BarryAppLauncher VERSION 0.9.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,6 +37,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libarchive)
 
+# Fix build with strict compiler: only for libarchive
+if(TARGET archive_static)
+    target_compile_options(archive_static PRIVATE -Wno-error=discarded-qualifiers)
+endif()
+
 qt_add_resources(RESOURCES
     resources.qrc
 )
@@ -58,6 +63,7 @@ qt_add_qml_module(barryapplauncher
         qml/About.qml
         qml/AppInfo.qml
         qml/AppList.qml
+        qml/ApplyUpdatePreset.qml
         qml/ColorButton.qml
         qml/CopyButton.qml
         qml/IconButton.qml
@@ -75,12 +81,15 @@ qt_add_qml_module(barryapplauncher
         managers/errormanager.cpp
         managers/settingsmanager.h
         managers/settingsmanager.cpp
+        managers/updatepresetmanager.h
+        managers/updatepresetmanager.cpp
         models/appimagemetadata.h
         models/appimagemetadata.cpp
-        models/updaterfiltermodel.h
-        models/updaterreleasemodel.h
         models/appimagemetadatalistmodel.h
         models/appimagemetadatalistmodel.cpp
+        models/updaterfiltermodel.h
+        models/updaterpresetmodel.h
+        models/updaterreleasemodel.h
         providers/memoryimageprovider.h
         providers/memoryimageprovider.cpp
         utils/updater/jsonupdater.h

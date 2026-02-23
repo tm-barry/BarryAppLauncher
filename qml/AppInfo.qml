@@ -72,6 +72,15 @@ Item {
         anchors.margins: 10
         anchors.topMargin: -2
 
+        Connections {
+            target: scrollView.contentItem
+            function onContentYChanged() {
+                if (launchOptionsMenu.visible) { launchOptionsMenu.close() }
+                if (updateOptionsMenu.visible) { updateOptionsMenu.close() }
+                if (presetsMenu.visible) { presetsMenu.close() }
+            }
+        }
+
         ColumnLayout {
             width: scrollView.width
             spacing: 5
@@ -628,6 +637,77 @@ Item {
                             }
                         }
                         IconButton {
+                            id: presetsMenuBtn
+                            text: "\uf022"
+                            width: 55
+                            Layout.preferredWidth: 55
+                            ToolTip.visible: hovered
+                            ToolTip.text: qsTr("Presets")
+                            enabled: !AppImageManager.loadingAppImage
+                                     && !AppImageManager.updating
+                            onClicked: {
+                                presetsMenu.y = presetsMenuBtn.y + 30
+                                presetsMenu.x = presetsMenuBtn.x
+                                presetsMenu.open()
+                            }
+                        }
+                        Menu {
+                            id: presetsMenu
+
+                            Column {
+                                id: header
+                                spacing: 0
+
+                                MenuItem {
+                                    text: qsTr("System Presets")
+                                    width: presetsMenu.width
+                                    enabled: false
+                                    font.bold: true
+                                }
+                                MenuSeparator {  width: presetsMenu.width }
+                            }
+
+                            Flickable {
+                                id: flick
+                                width: parent.width
+                                clip: true
+
+                                height: Math.min(column.implicitHeight, Window.height * 0.5)
+                                contentHeight: column.implicitHeight
+                                boundsBehavior: Flickable.StopAtBounds
+
+                                Column {
+                                    id: column
+                                    width: flick.width
+                                    spacing: 0
+
+                                    Repeater {
+                                        model: UpdatePresetManager.presets
+                                        delegate: MenuItem {
+                                            text: modelData.name
+                                            width: presetsMenu.width
+                                            onTriggered: {
+                                                AppImageManager.requestModal(
+                                                            AppImageManager.ApplyUpdatePreset,
+                                                            modelData)
+                                                presetsMenu.close()
+                                            }
+
+                                            contentItem: Text {
+                                                text: parent.text
+                                                color: parent.palette.text
+                                                font: parent.font
+                                                wrapMode: Text.Wrap
+                                                elide: Text.ElideNone
+                                            }
+                                        }
+                                    }
+                                }
+
+                                ScrollBar.vertical: ScrollBar {}
+                            }
+                        }
+                        IconButton {
                             text: "\uf0c7"
                             width: 55
                             Layout.preferredWidth: 55
@@ -766,7 +846,7 @@ Item {
                     Label {
                         text: qsTr("Version Pattern")
                         font.bold: true
-                        visible: utils.isType("static")
+                        visible: utils.isType("static", "json")
                     }
 
                     RoundedTextArea {
@@ -778,15 +858,17 @@ Item {
                             if (AppImageManager.appImageMetadata)
                                 AppImageManager.appImageMetadata.updateVersionPattern = text
                         }
-                        placeholderText: "ex: appName-(.*)-x86_64\\.AppImage"
+                        placeholderText: utils.isType("static")
+                                         ? "ex: appName-(.*)-x86_64\\.AppImage"
+                                         : "ex: appName-(.*)"
                         wrapMode: TextEdit.Wrap
                         Layout.fillWidth: true
-                        visible: utils.isType("static")
+                        visible: utils.isType("static", "json")
                     }
 
                     Item {
                         Layout.preferredHeight: 5
-                        visible: utils.isType("static")
+                        visible: utils.isType("static", "json")
                     }
 
                     Label {

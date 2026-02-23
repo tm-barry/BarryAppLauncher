@@ -30,18 +30,6 @@ public:
 
 struct UpdaterSettings {
 public:
-    QString url = QString();
-    QString versionField = QString();
-    QString versionPattern = QString();
-    QString downloadField = QString();
-    QString downloadPattern = QString();
-    QString dateField = QString();
-    QList<UpdaterFilter> filters { };
-};
-
-struct UpdaterSettingsPreset {
-public:
-    QString name = QString();
     QString type = QString();
     QString url = QString();
     QString versionField = QString();
@@ -49,7 +37,13 @@ public:
     QString downloadField = QString();
     QString downloadPattern = QString();
     QString dateField = QString();
-    QList<UpdaterFilter> filters { };
+    QList<UpdaterFilter> filters;
+};
+
+struct UpdaterSettingsPreset {
+public:
+    QString name = QString();
+    UpdaterSettings settings;
 };
 
 class IUpdater : public QObject

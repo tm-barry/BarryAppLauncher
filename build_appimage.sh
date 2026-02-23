@@ -44,11 +44,11 @@ if [ -z "$QMAKE" ]; then
   exit 1
 fi
 
-export QMAKE
-export EXTRA_PLATFORM_PLUGINS="libqwayland-generic.so"
+export QMAKE=/opt/Qt/6.10.2/gcc_64/bin/qmake
+export EXTRA_PLATFORM_PLUGINS="libqwayland.so"
 export EXTRA_QT_MODULES="waylandcompositor"
 export QML_SOURCES_PATHS="$PROJECT_ROOT/qml"
-export QT_PLUGIN_PATH="/usr/lib/qt6/plugins"
+export QT_PLUGIN_PATH="/opt/Qt/6.10.2/gcc_64/plugins"
 export DEPLOY_PLATFORM_THEMES=true
 
 # First pass of linuxdeploy to populate AppDir

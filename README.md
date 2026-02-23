@@ -8,40 +8,36 @@
 	BarryAppLauncher is a lightweight Qt app that seamlessly integrates AppImages into your desktop menu and lets you update them in-place.
 </p>
 
-<h2>App List / App Info</h2>
-<p>
-	Quickly view/update all registered AppImages. View info, unlock, register, and update single AppImages.
-</p>
-<div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-  <img src="assets/images/barryapplauncher-main.png" alt="App List" style="flex:1; max-width:50%; height:auto;">
-  <img src="assets/images/barryapplauncher-appinfo.png" alt="App Info" style="flex:1; max-width:50%; height:auto;">
-</div>
+## App List / App Info
 
-<h2>AppImage Updater</h2>
-<p>
-	Supports updating AppImages that have releases exposed through a JSON API or static download link.
-</p>
-<div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-  <img src="assets/images/barryapplauncher-appinfo-update-json.png" alt="JSON Updater" style="flex:1; max-width:50%; height:auto;">
-  <img src="assets/images/barryapplauncher-appinfo-update-static.png" alt="Static Updater" style="flex:1; max-width:50%; height:auto;">
-</div>
+Quickly view/update all registered AppImages. View info, unlock, register, and update single AppImages.
 
-<h2>Preferences</h2>
-<h3>General</h3>
-<ul>
-  <li>Allows users to specify where registered AppImages are stored.</li>
-  <li>Specify whether to move or copy AppImages when registering.</li>
-  <li>BarryAppLauncher can register itself into the desktop menu.</li>
-</ul>
-<h3>Updater</h3>
-<ul>
-  <li>Keep a backup of the previous version when updating AppImages.</li>
-  <li>Allows setting headers used when updating. Useful for setting authorization headers for web APIs.</li>
-</ul>
-<div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-  <img src="assets/images/barryapplauncher-preferences-general.png" alt="General Preferences" style="flex:1; max-width:50%; height:auto;">
-  <img src="assets/images/barryapplauncher-preferences-updater.png" alt="Updater Preferences" style="flex:1; max-width:50%; height:auto;">
-</div>
+| App List | App Info |
+|:--------:|:--------:|
+| ![App List](assets/images/barryapplauncher-main.png) | ![App Info](assets/images/barryapplauncher-appinfo.png) |
+
+## AppImage Updater
+
+Supports updating AppImages that have releases exposed through a JSON API or static download link.
+
+| JSON Updater | Static Updater |
+|:------------:|:--------------:|
+| ![JSON Updater](assets/images/barryapplauncher-appinfo-update-json.png) | ![Static Updater](assets/images/barryapplauncher-appinfo-update-static.png) |
+
+## Preferences
+
+### General
+- Allows users to specify where registered AppImages are stored.
+- Specify whether to move or copy AppImages when registering.
+- BarryAppLauncher can register itself into the desktop menu.
+
+### Updater
+- Keep a backup of the previous version when updating AppImages.
+- Allows setting headers used when updating. Useful for setting authorization headers for web APIs.
+
+| General Preferences | Updater Preferences |
+|:-----------------:|:-----------------:|
+| ![General Preferences](assets/images/barryapplauncher-preferences-general.png) | ![Updater Preferences](assets/images/barryapplauncher-preferences-updater.png) |
 
 ## Build
 

@@ -24,6 +24,7 @@ ApplicationWindow {
 
         property var aboutModal: null
         property var preferencesModal: null
+        property var applyPresetModal: null
 
         function openAboutModal() {
             if (modalManager.aboutModal == null) {
@@ -53,6 +54,21 @@ ApplicationWindow {
             }
 
             modalManager.preferencesModal.show()
+        }
+
+        function openApplyPresetModal(preset) {
+            if (!applyPresetModal) {
+                const component = Qt.createComponent("ApplyUpdatePreset.qml")
+                applyPresetModal = component.createObject(null)
+                applyPresetModal.transientParent = mainWindow
+                applyPresetModal.closing.connect(function() {
+                    applyPresetModal.destroy()
+                    applyPresetModal = null
+                })
+            }
+
+            applyPresetModal.preset = preset
+            applyPresetModal.show()
         }
     }
 
@@ -89,7 +105,7 @@ ApplicationWindow {
             }
         }
 
-        function onModalRequested(modal) {
+        function onModalRequested(modal, data) {
             switch (modal) {
             case AppImageManager.Preferences:
                 modalManager.openPreferencesModal()
@@ -97,7 +113,10 @@ ApplicationWindow {
             case AppImageManager.OpenDialog:
                 fileDialog.open()
                 break
-            }
+            case AppImageManager.ApplyUpdatePreset:
+                modalManager.openApplyPresetModal(data)
+                break
+            }   
         }
     }
 
@@ -113,7 +132,10 @@ ApplicationWindow {
         title: qsTr("Open AppImage")
         currentFolder: StandardPaths.writableLocation(
                            StandardPaths.HomeLocation)
-        nameFilters: ["AppImage Files (*.AppImage *.appimage)"]
+        nameFilters: [
+            "AppImage Files (*.AppImage *.appimage)",
+            "All Files (*)"
+        ]
         fileMode: FileDialog.OpenFile
         onAccepted: {
             AppImageManager.loadAppImageMetadata(fileDialog.selectedFile)

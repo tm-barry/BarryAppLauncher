@@ -20,6 +20,7 @@ class SettingsManager : public QObject
     Q_OBJECT
 
     Q_PROPERTY(QUrl appImageDefaultLocation READ appImageDefaultLocation WRITE setAppImageDefaultLocation NOTIFY appImageDefaultLocationChanged);
+    Q_PROPERTY(bool appListCompactView READ appListCompactView WRITE setAppListCompactView NOTIFY appListCompactViewChanged);
     Q_PROPERTY(AppImageFileOperation appImageFileOperation READ appImageFileOperation WRITE setAppImageFileOperation NOTIFY appImageFileOperationChanged);
     Q_PROPERTY(QString terminal READ terminal WRITE setTerminal NOTIFY terminalChanged);
     Q_PROPERTY(QString textEditor READ textEditor WRITE setTextEditor NOTIFY textEditorChanged);
@@ -37,6 +38,9 @@ public:
 
     QUrl appImageDefaultLocation() const;
     void setAppImageDefaultLocation(QUrl value);
+
+    bool appListCompactView() const;
+    void setAppListCompactView(bool value);
 
     AppImageFileOperation appImageFileOperation() const;
     void setAppImageFileOperation(AppImageFileOperation value);
@@ -70,6 +74,7 @@ private:
 
 signals:
     void appImageDefaultLocationChanged(QUrl newValue);
+    void appListCompactViewChanged(bool newValue);
     void appImageFileOperationChanged(SettingsManager::AppImageFileOperation newValue);
     void terminalChanged(QString newValue);
     void textEditorChanged(QString newValue);

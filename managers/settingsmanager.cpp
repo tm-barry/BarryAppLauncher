@@ -30,6 +30,21 @@ void SettingsManager::setAppImageDefaultLocation(QUrl value) {
     emit appImageDefaultLocationChanged(value);
 }
 
+bool SettingsManager::appListCompactView() const {
+    QSettings settings;
+    QVariant v = settings.value("General/appListCompactView", false);
+    return v.toBool();
+}
+
+void SettingsManager::setAppListCompactView(bool value) {
+    if (appListCompactView() == value)
+        return;
+
+    QSettings settings;
+    settings.setValue("General/appListCompactView", value);
+    emit appListCompactViewChanged(value);
+}
+
 SettingsManager::AppImageFileOperation SettingsManager::appImageFileOperation() const {
     QSettings settings;
     return static_cast<AppImageFileOperation>(settings.value("General/appImageFileOperation", static_cast<int>(AppImageFileOperation::Move)).value<int>());

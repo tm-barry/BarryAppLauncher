@@ -45,6 +45,8 @@ class AppImageMetadata : public QObject
 public:
     explicit AppImageMetadata(QObject* parent = nullptr);
 
+    static AppImageMetadata* createFromUtil(const AppImageUtilMetadata& util, QObject* parent = nullptr);
+
     enum IntegrationType {
         None,
         Internal,
@@ -122,6 +124,7 @@ public:
     void addUpdateFilter(UpdaterFilterModel* filter);
     Q_INVOKABLE void addUpdateFilterWithValues(const QString &field, const QString &pattern);
     Q_INVOKABLE void removeUpdateFilter(int index);
+    Q_INVOKABLE void clearUpdateFilters();
 
     bool updateDirty() const;
     Q_INVOKABLE void setUpdateDirty(bool value);

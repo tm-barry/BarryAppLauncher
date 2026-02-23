@@ -8,6 +8,48 @@ AppImageMetadata::AppImageMetadata(QObject* parent)
     , m_integration(None)
 {}
 
+AppImageMetadata* AppImageMetadata::createFromUtil(
+    const AppImageUtilMetadata& util,
+    QObject* parent)
+{
+    auto* metadata = new AppImageMetadata(parent);
+
+    AppImageMetadata::IntegrationType integration =
+        util.desktopFilePath.isEmpty()
+            ? AppImageMetadata::IntegrationType::None
+            : (util.internalIntegration
+                   ? AppImageMetadata::IntegrationType::Internal
+                   : AppImageMetadata::IntegrationType::External);
+
+    metadata->setName(util.name);
+    metadata->setVersion(util.version);
+    metadata->setComment(util.comment);
+    metadata->setType(util.type);
+    metadata->setChecksum(util.checksum);
+    metadata->setCategories(util.categories);
+    metadata->setPath(util.path);
+    metadata->setIntegration(integration);
+    metadata->setDesktopFilePath(util.desktopFilePath);
+    metadata->setExecutable(util.executable);
+    metadata->setUpdateType(util.updateType);
+    metadata->setUpdateUrl(util.updateUrl);
+    metadata->setUpdateDownloadField(util.updateDownloadField);
+    metadata->setUpdateDownloadPattern(util.updateDownloadPattern);
+    metadata->setUpdateDateField(util.updateDateField);
+    metadata->setUpdateVersionField(util.updateVersionField);
+    metadata->setUpdateVersionPattern(util.updateVersionPattern);
+    metadata->setUpdateCurrentDate(util.updateCurrentDate);
+    metadata->setUpdateCurrentVersion(util.updateCurrentVersion);
+
+    for (const auto& filter : util.updateFilters) {
+        metadata->addUpdateFilter(UpdaterFilterModel::createFromUtil(filter, metadata));
+    }
+
+    metadata->setUpdateDirty(false);
+
+    return metadata;
+}
+
 QString AppImageMetadata::name() const { return m_name; }
 void AppImageMetadata::setName(const QString& value) {
     if (m_name != value) {
@@ -196,6 +238,13 @@ Q_INVOKABLE void AppImageMetadata::removeUpdateFilter(int index) {
 
     auto* filter = m_updateFilters.takeAt(index);
     filter->deleteLater();
+    onUpdateFilterChanged();
+}
+
+Q_INVOKABLE void AppImageMetadata::clearUpdateFilters()
+{
+    qDeleteAll(m_updateFilters);
+    m_updateFilters.clear();
     onUpdateFilterChanged();
 }
 

@@ -54,6 +54,17 @@ Item {
                 }
 
                 IconButton {
+                    text: "\uf2d0"
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: checkForUpdatesBtn.height
+                    onClicked: {
+                        SettingsManager.appListCompactView = !SettingsManager.appListCompactView
+                    }
+                    ToolTip.visible: hovered
+                    ToolTip.text: SettingsManager.appListCompactView ? "Default View" : "Compact View"
+                }
+
+                IconButton {
                     text: "\uf021"
                     Layout.preferredWidth: 32
                     Layout.preferredHeight: checkForUpdatesBtn.height
@@ -122,6 +133,19 @@ Item {
             section.property: "hasNewRelease"
             section.criteria: ViewSection.FullString
 
+            onContentYChanged: {
+                forceCloseMenus()
+            }
+
+            function forceCloseMenus() {
+                for (var i = 0; i < count; i++) {
+                    var delegate = itemAtIndex(i)
+                    if (delegate?.updateOptionsMenu?.visible) {
+                        delegate.updateOptionsMenu.close()
+                    }
+                }
+            }
+
             section.delegate: Rectangle {
                 width: ListView.view.width
                 height: 32
@@ -139,6 +163,8 @@ Item {
             delegate: ItemDelegate {
                 width: ListView.view.width
 
+                property Menu updateOptionsMenu: updateOptionsMenuInternal
+
                 onClicked: {
                     if (!AppImageManager.updating) {
                         AppImageManager.loadAppImageMetadata(model.path)
@@ -146,12 +172,10 @@ Item {
                 }
 
                 background: Rectangle {
-                    property color backgroundColor: Qt.lighter(palette.base,
-                                                               2.2)
+                    property color backgroundColor: Qt.lighter(palette.base, 2.2)
                     property color hoverColor: Qt.darker(backgroundColor, 1.1)
                     property color pressedColor: Qt.darker(backgroundColor, 1.3)
-                    property color disabledColor: Qt.darker(backgroundColor,
-                                                            1.4)
+                    property color disabledColor: Qt.darker(backgroundColor, 1.4)
 
                     radius: 8
                     color: !parent.enabled ? disabledColor : parent.down ? pressedColor : parent.hovered ? hoverColor : backgroundColor
@@ -160,15 +184,16 @@ Item {
                 contentItem: RowLayout {
                     id: appItemListItem
                     anchors.fill: parent
-                    spacing: 10
-                    anchors.margins: 10
+                    spacing: SettingsManager.appListCompactView ? 5 : 10
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
 
                     property var hasSelected: updaterReleases.some(release => release.isSelected)
 
                     Image {
                         source: model.icon
-                        width: 48
-                        height: 48
+                        width: SettingsManager.appListCompactView ? 32 : 48
+                        height: SettingsManager.appListCompactView ? 32 : 48
                         sourceSize.width: width
                         sourceSize.height: height
                         fillMode: Image.PreserveAspectFit
@@ -179,19 +204,19 @@ Item {
                             visible: hasNewRelease
                             text: "\uf35b"
                             palette.buttonText: appItemListItem.hasSelected ? "#28a745" : undefined
-                            width: 24
-                            height: 24
+                            width: SettingsManager.appListCompactView ? 20 : 24
+                            height: SettingsManager.appListCompactView ? 20 : 24
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
                             anchors.bottomMargin: -5
                             onClicked: {
-                                updateOptionsMenu.y = updateOptionsBtn.y + 30
-                                updateOptionsMenu.open()
+                                updateOptionsMenuInternal.y = updateOptionsBtn.y + 30
+                                updateOptionsMenuInternal.open()
                             }
                         }
 
                         Menu {
-                            id: updateOptionsMenu
+                            id: updateOptionsMenuInternal
 
                             ListView {
                                 anchors.left: parent.left
@@ -204,8 +229,7 @@ Item {
                                 delegate: MenuItem {
                                     onTriggered: {
                                         const initialValue = isSelected
-                                        updaterReleases.forEach(
-                                                    release => release.isSelected = false)
+                                        updaterReleases.forEach(release => release.isSelected = false)
                                         isSelected = !initialValue
                                     }
 
@@ -240,48 +264,53 @@ Item {
                     }
 
                     ColumnLayout {
-                        spacing: 5
+                        spacing: SettingsManager.appListCompactView ? 0 : 5
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
 
-                        Label {
-                            text: name
-                            font.pixelSize: 14
-                            font.bold: true
+                        RowLayout{
+                            spacing: 10
                             Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignLeft
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Label {
+                                text: name
+                                font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
+                                font.bold: true
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignLeft
+                            }
+
+                            Label {
+                                text: version
+                                font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
+                                opacity: 0.6
+                                horizontalAlignment: Text.AlignRight
+                            }
                         }
 
                         Label {
                             text: comment
-                            visible: comment
-                            wrapMode: Text.Wrap
+                            font.pixelSize: SettingsManager.appListCompactView ? 11 : 13
+                            visible: comment && !AppImageManager.updating
+                            elide: Text.ElideRight
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignLeft
-                        }
-
-                        Label {
-                            text: version
-                            opacity: 0.6
-                            Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignLeft
-                            visible: !hasNewRelease || !appItemListItem.hasSelected || (appItemListItem.hasSelected && !AppImageManager.updating)
                         }
 
                         Item {
-                            height: 24
+                            height: SettingsManager.appListCompactView ? 20 : 24
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignHCenter
-                            visible: appItemListItem.hasSelected && AppImageManager.updating
+                            visible: appItemListItem.hasSelected
+                                     && AppImageManager.updating
 
                             ProgressBar {
-                                id: updateProgress
                                 anchors.fill: parent
                                 from: 0
                                 to: 1
-                                value: updateBytesTotal > 0
-                                       ? updateBytesReceived / updateBytesTotal
-                                       : 0
+                                value: updateBytesTotal > 0 ? updateBytesReceived / updateBytesTotal : 0
                                 indeterminate: updateBytesTotal < 0
                             }
 
@@ -291,7 +320,7 @@ Item {
                                       ? formatter.getUpdateDownloadText(updateBytesReceived, updateBytesTotal)
                                       : formatter.getUpdateProgressText(updateProgressState)
                                 color: "white"
-                                font.pixelSize: 12
+                                font.pixelSize: SettingsManager.appListCompactView ? 10 : 12
                             }
                         }
                     }

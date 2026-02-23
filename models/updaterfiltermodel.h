@@ -1,6 +1,8 @@
 #ifndef UPDATERFILTERMODEL_H
 #define UPDATERFILTERMODEL_H
 
+#include "utils/updater/updaterfactory.h"
+
 #include <QObject>
 
 class UpdaterFilterModel : public QObject
@@ -12,6 +14,15 @@ class UpdaterFilterModel : public QObject
 public:
     explicit UpdaterFilterModel(QObject* parent = nullptr)
         : QObject(parent) {}
+
+    static UpdaterFilterModel* createFromUtil(const UpdaterFilter& filter, QObject* parent = nullptr)
+    {
+        auto* filterModel = new UpdaterFilterModel(parent);
+        filterModel->setField(filter.field);
+        filterModel->setPattern(filter.pattern);
+
+        return filterModel;
+    }
 
     QString field() const { return m_field; }
     void setField(const QString& value) {

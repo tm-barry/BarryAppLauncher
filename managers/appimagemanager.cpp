@@ -134,9 +134,9 @@ QFuture<void> AppImageManager::registerSelf()
     });
 }
 
-void AppImageManager::requestModal(ModalTypes modal)
+void AppImageManager::requestModal(ModalTypes modal, QVariant data)
 {
-    emit modalRequested(modal);
+    emit modalRequested(modal, data);
 }
 
 QFuture<void> AppImageManager::loadAppImageList()
@@ -147,6 +147,7 @@ QFuture<void> AppImageManager::loadAppImageList()
         try {
             auto utilList = AppImageUtil::getRegisteredList();
             // load icons
+            MemoryImageProvider::instance()->clearImages();
             for (const auto& app : utilList) {
                 QImage image(app.iconPath);
                 MemoryImageProvider::instance()->setImage(app.path, image);
@@ -156,7 +157,7 @@ QFuture<void> AppImageManager::loadAppImageList()
             QMetaObject::invokeMethod(QGuiApplication::instance(), [this, utilList, promise]() {
                 QList<AppImageMetadata*> appList;
                 for (const auto& app : utilList) {
-                    auto* meta = parseAppImageMetadata(app);
+                    auto* meta = AppImageMetadata::createFromUtil(app, this);
                     meta->setIcon(MemoryImageProvider::instance()->getUrl(app.path));
                     appList.append(meta);
                 }
@@ -178,7 +179,6 @@ QFuture<void> AppImageManager::loadAppImageList()
     return promise->future();
 }
 
-
 QFuture<void> AppImageManager::loadAppImageMetadata(const QUrl& url) {
     return loadAppImageMetadata(url.toLocalFile());
 }
@@ -192,10 +192,11 @@ QFuture<void> AppImageManager::loadAppImageMetadata(const QString& path) {
             if(!metadata.iconPath.isEmpty())
             {
                 QImage image(metadata.iconPath);
+                MemoryImageProvider::instance()->removeImage(path);
                 MemoryImageProvider::instance()->setImage(path, image);
             }
             QMetaObject::invokeMethod(QGuiApplication::instance(), [=, this]() {
-                auto* appImageMetadata = parseAppImageMetadata(metadata);
+                auto* appImageMetadata = AppImageMetadata::createFromUtil(metadata, this);
                 if(!metadata.iconPath.isEmpty())
                 {
                     appImageMetadata->setIcon(MemoryImageProvider::instance()->getUrl(path));
@@ -527,47 +528,6 @@ QString AppImageManager::appImagePath() {
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     QString path = env.value("APPIMAGE");
     return QFile::exists(path) ? path : QString();
-}
-
-AppImageMetadata* AppImageManager::parseAppImageMetadata(const AppImageUtilMetadata& utilMetadata)
-{
-    AppImageMetadata::IntegrationType integrationType = AppImageMetadata::IntegrationType::None;
-    if(!utilMetadata.desktopFilePath.isEmpty())
-    {
-        integrationType = utilMetadata.internalIntegration
-                              ? AppImageMetadata::IntegrationType::Internal
-                              : AppImageMetadata::IntegrationType::External;
-    }
-
-    auto* metadata = new AppImageMetadata(this);
-    metadata->setName(utilMetadata.name);
-    metadata->setVersion(utilMetadata.version);
-    metadata->setComment(utilMetadata.comment);
-    metadata->setType(utilMetadata.type);
-    metadata->setChecksum(utilMetadata.checksum);
-    metadata->setCategories(utilMetadata.categories);
-    metadata->setPath(utilMetadata.path);
-    metadata->setIntegration(integrationType);
-    metadata->setDesktopFilePath(utilMetadata.desktopFilePath);
-    metadata->setExecutable(utilMetadata.executable);
-    metadata->setUpdateType(utilMetadata.updateType);
-    metadata->setUpdateUrl(utilMetadata.updateUrl);
-    metadata->setUpdateDownloadField(utilMetadata.updateDownloadField);
-    metadata->setUpdateDownloadPattern(utilMetadata.updateDownloadPattern);
-    metadata->setUpdateDateField(utilMetadata.updateDateField);
-    metadata->setUpdateVersionField(utilMetadata.updateVersionField);
-    metadata->setUpdateVersionPattern(utilMetadata.updateVersionPattern);
-    for (const auto& filter : utilMetadata.updateFilters) {
-        auto* filterModel = new UpdaterFilterModel(metadata);
-        filterModel->setField(filter.field);
-        filterModel->setPattern(filter.pattern);
-        metadata->addUpdateFilter(filterModel);
-    }
-    metadata->setUpdateCurrentDate(utilMetadata.updateCurrentDate);
-    metadata->setUpdateCurrentVersion(utilMetadata.updateCurrentVersion);
-    metadata->setUpdateDirty(false);
-
-    return metadata;
 }
 
 UpdaterSettings AppImageManager::getUpdaterSettings(AppImageMetadata* metadata)

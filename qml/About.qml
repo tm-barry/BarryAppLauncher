@@ -3,11 +3,11 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 ApplicationWindow {
+    title: qsTr("About")
     width: 360
     minimumWidth: 360
     height: 360
     minimumHeight: 360
-    title: qsTr("About")
     flags: Qt.Dialog | Qt.WindowTitleHint
 
     ScrollView {
