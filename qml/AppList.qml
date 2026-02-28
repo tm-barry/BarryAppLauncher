@@ -188,7 +188,8 @@ Item {
                     anchors.leftMargin: 10
                     anchors.rightMargin: 10
 
-                    property var hasSelected: updaterReleases.some(release => release.isSelected)
+                    property var selectedRelease: updaterReleases.find(release => release.isSelected)
+                    property bool hasSelected: !!selectedRelease
 
                     Image {
                         source: model.icon
@@ -283,8 +284,9 @@ Item {
                             }
 
                             Label {
-                                text: version
+                                text: appItemListItem.selectedRelease?.version ?? version
                                 font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
+                                font.bold: appItemListItem.hasSelected
                                 opacity: 0.6
                                 horizontalAlignment: Text.AlignRight
                             }
@@ -293,7 +295,7 @@ Item {
                         Label {
                             text: comment
                             font.pixelSize: SettingsManager.appListCompactView ? 11 : 13
-                            visible: comment && !AppImageManager.updating
+                            visible: comment && (!AppImageManager.updating || !hasNewRelease)
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignLeft
