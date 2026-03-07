@@ -2,7 +2,7 @@
 #include "utils/terminalutil.h"
 #include "utils/texteditorutil.h"
 
-#include <QSettings>
+#include <QDir>
 #include <QStandardPaths>
 #include <QUrl>
 #include <QJsonArray>
@@ -17,50 +17,49 @@ SettingsManager* SettingsManager::instance() {
 }
 
 QUrl SettingsManager::appImageDefaultLocation() const {
-    QSettings settings;
-    QVariant v = settings.value("General/appImageDefaultLocation", m_appImageDefaultLocation.toString());
+    QVariant v = m_settings.value(SettingsKeys::General::AppImageDefaultLocation, m_appImageDefaultLocation.toString());
     return QUrl(v.toString());
 }
 
 void SettingsManager::setAppImageDefaultLocation(QUrl value) {
     if (appImageDefaultLocation() == value)
         return;
-    QSettings settings;
-    settings.setValue("General/appImageDefaultLocation", value.toString());
+
+    m_settings.setValue(SettingsKeys::General::AppImageDefaultLocation, value.toString());
     emit appImageDefaultLocationChanged(value);
 }
 
 bool SettingsManager::appListCompactView() const {
-    QSettings settings;
-    QVariant v = settings.value("General/appListCompactView", false);
-    return v.toBool();
+    return m_settings.value(SettingsKeys::General::AppListCompactView, false).toBool();
 }
 
 void SettingsManager::setAppListCompactView(bool value) {
     if (appListCompactView() == value)
         return;
 
-    QSettings settings;
-    settings.setValue("General/appListCompactView", value);
+    m_settings.setValue(SettingsKeys::General::AppListCompactView, value);
     emit appListCompactViewChanged(value);
 }
 
 SettingsManager::AppImageFileOperation SettingsManager::appImageFileOperation() const {
-    QSettings settings;
-    return static_cast<AppImageFileOperation>(settings.value("General/appImageFileOperation", static_cast<int>(AppImageFileOperation::Move)).value<int>());
+    return static_cast<AppImageFileOperation>(
+        m_settings.value(
+            SettingsKeys::General::AppImageFileOperation,
+            static_cast<int>(AppImageFileOperation::Move)
+        ).value<int>()
+    );
 }
 
 void SettingsManager::setAppImageFileOperation(AppImageFileOperation value) {
     if (appImageFileOperation() == value)
         return;
-    QSettings settings;
-    settings.setValue("General/appImageFileOperation", static_cast<int>(value));
+
+    m_settings.setValue(SettingsKeys::General::AppImageFileOperation, static_cast<int>(value));
     emit appImageFileOperationChanged(value);
 }
 
 QString SettingsManager::terminal() const {
-    QSettings settings;
-    QVariant v = settings.value("General/terminal", m_terminalDefault);
+    QVariant v = m_settings.value(SettingsKeys::General::Terminal, m_terminalDefault);
     return v.toString().isEmpty() ? m_terminalDefault : v.toString();
 }
 
@@ -71,14 +70,12 @@ void SettingsManager::setTerminal(QString value) {
     if(value.isEmpty())
         value = m_terminalDefault;
 
-    QSettings settings;
-    settings.setValue("General/terminal", value);
+    m_settings.setValue(SettingsKeys::General::Terminal, value);
     emit terminalChanged(value);
 }
 
 QString SettingsManager::textEditor() const {
-    QSettings settings;
-    QVariant v = settings.value("General/textEditor", m_textEditorDefault);
+    QVariant v = m_settings.value(SettingsKeys::General::TextEditor, m_textEditorDefault);
     return v.toString().isEmpty() ? m_textEditorDefault : v.toString();
 }
 
@@ -89,14 +86,12 @@ void SettingsManager::setTextEditor(QString value) {
     if(value.isEmpty())
         value = m_textEditorDefault;
 
-    QSettings settings;
-    settings.setValue("General/textEditor", value);
+    m_settings.setValue(SettingsKeys::General::TextEditor, value);
     emit textEditorChanged(value);
 }
 
 bool SettingsManager::keepBackup() const {
-    QSettings settings;
-    QVariant v = settings.value("General/keepBackup", false);
+    QVariant v = m_settings.value(SettingsKeys::General::KeepBackup, false);
     return v.toBool();
 }
 
@@ -104,23 +99,19 @@ void SettingsManager::setKeepBackup(bool value) {
     if (keepBackup() == value)
         return;
 
-    QSettings settings;
-    settings.setValue("General/keepBackup", value);
+    m_settings.setValue(SettingsKeys::General::KeepBackup, value);
     emit keepBackupChanged(value);
 }
 
 int SettingsManager::updateConcurrency() const {
-    QSettings settings;
-    QVariant v = settings.value("General/updateConcurrency", 3);
-    return v.toInt();
+    return m_settings.value(SettingsKeys::Update::UpdateConcurrency, 3).toInt();
 }
 
 void SettingsManager::setUpdateConcurrency(int value) {
     if (updateConcurrency() == value)
         return;
 
-    QSettings settings;
-    settings.setValue("General/updateConcurrency", value);
+    m_settings.setValue(SettingsKeys::Update::UpdateConcurrency, value);
     emit updateConcurrencyChanged(value);
 }
 
@@ -136,7 +127,7 @@ bool SettingsManager::textEditorExists(const QString& path)
 
 void SettingsManager::saveUpdateHeadersJson(const QJsonArray &headers) {
     QJsonDocument doc(headers);
-    QSettings().setValue("Update/headers", QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+    m_settings.setValue(SettingsKeys::Update::Headers, QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
 }
 
 void SettingsManager::saveUpdateHeaders(const QList<UpdateHeader> &headers) {
@@ -152,14 +143,16 @@ void SettingsManager::saveUpdateHeaders(const QList<UpdateHeader> &headers) {
 }
 
 QJsonArray SettingsManager::getUpdateHeadersJson() const {
-    QString json = QSettings().value("Update/headers", "[]").toString();
+    QString json = m_settings.value(SettingsKeys::Update::Headers, "[]").toString();
     QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8());
     return doc.isArray() ? doc.array() : QJsonArray();
 }
 
 QList<UpdateHeader> SettingsManager::getUpdateHeaders() const {
+    const QJsonArray headers = getUpdateHeadersJson();
     QList<UpdateHeader> list;
-    for (const auto &v : getUpdateHeadersJson()) {
+    list.reserve(headers.size());
+    for (const auto &v : headers) {
         QJsonObject obj = v.toObject();
         list.append(UpdateHeader{
             obj["website"].toString(),
@@ -178,5 +171,23 @@ const QString SettingsManager::m_textEditorDefault = TextEditorUtil::detectTextE
 
 
 SettingsManager::SettingsManager(QObject *parent)
-    : QObject{parent}
-{}
+    : QObject{parent},
+    m_settings(
+        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
+            + "/BarryAppLauncher.conf",
+        QSettings::IniFormat)
+{
+    const QString newFile = m_settings.fileName();
+
+    const QString oldFile =
+        QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+        + "/tm-barry/BarryAppLauncher.conf";
+
+    QDir().mkpath(QFileInfo(newFile).absolutePath());
+
+    if (QFile::exists(oldFile) && !QFile::exists(newFile)) {
+        if (QFile::rename(oldFile, newFile)) {
+            m_settings.sync();
+        }
+    }
+}
