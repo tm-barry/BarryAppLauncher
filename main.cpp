@@ -4,6 +4,7 @@
 #include "managers/settingsmanager.h"
 #include "managers/updatepresetmanager.h"
 #include "providers/memoryimageprovider.h"
+#include "clihandler.h"
 
 #include <QGuiApplication>
 #include <QIcon>
@@ -24,10 +25,16 @@ int main(int argc, char *argv[])
     app.setApplicationVersion(APP_VERSION);
     app.setWindowIcon(QIcon(":/assets/icons/barryapplauncher.svg"));
 
-    QString fileArg;
-    QStringList args = QCoreApplication::arguments();
-    if (args.size() > 1) {
-        fileArg = args.at(1);
+    // Create the singleton BEFORE any threads are used
+    AppImageManager::instance();
+    ClipboardManager::instance();
+    ErrorManager::instance();
+    SettingsManager::instance();
+
+    // Process CLI arguments
+    CliResult cliResult = CliHandler::processCLI(argc, argv);
+    if (cliResult.shouldExit) {
+        return 0;
     }
 
     qmlRegisterType<AppImageMetadata>("BarryAppLauncher", 1, 0, "AppImageMetadata");
@@ -38,16 +45,10 @@ int main(int argc, char *argv[])
     qmlRegisterUncreatableType<AppImageMetadata>("BarryAppLauncher", 1, 0, "AppImageMetadata",
                                                  "Enum only - AppImageMetadata is not instantiable");
 
-    // Create the singleton BEFORE any threads are used     
-    AppImageManager::instance();
-    ClipboardManager::instance();
-    ErrorManager::instance();
-    SettingsManager::instance();
-
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("AppName", app.applicationName());
     engine.rootContext()->setContextProperty("AppVersion", app.applicationVersion());
-    engine.rootContext()->setContextProperty("FileArg", fileArg);
+    engine.rootContext()->setContextProperty("FileArg", cliResult.appImageFile);
 
     QObject::connect(
         &engine,

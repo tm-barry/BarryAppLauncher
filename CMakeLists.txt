@@ -110,6 +110,8 @@ qt_add_qml_module(barryapplauncher
         utils/texteditorutil.h
         utils/texteditorutil.cpp
         utils/versionutil.h
+        clihandler.h
+        clihandler.cpp
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
