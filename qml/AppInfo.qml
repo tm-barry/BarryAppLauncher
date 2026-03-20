@@ -115,7 +115,7 @@ Item {
             }
 
             Label {
-                text: AppImageManager.appImageMetadata?.version
+                text: AppImageManager.appImageMetadata?.updateCurrentVersion ?? AppImageManager.appImageMetadata?.version
                 opacity: 0.6
                 Layout.alignment: Qt.AlignHCenter
                 visible: AppImageManager.appImageMetadata?.executable

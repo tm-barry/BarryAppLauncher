@@ -15,6 +15,8 @@ public:
     enum Roles {
         NameRole = Qt::UserRole + 1,
         VersionRole,
+        UpdateCurrentVersionRole,
+        UpdateCurrentDateRole,
         CommentRole,
         TypeRole,
         IconRole,

@@ -284,7 +284,7 @@ Item {
                             }
 
                             Label {
-                                text: appItemListItem.selectedRelease?.version ?? version
+                                text: appItemListItem.selectedRelease?.version ?? updateCurrentVersion ?? version
                                 font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
                                 font.bold: appItemListItem.hasSelected
                                 opacity: 0.6

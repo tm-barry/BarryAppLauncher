@@ -36,6 +36,8 @@ QVariant AppImageMetadataListModel::data(const QModelIndex &index, int role) con
     switch (role) {
     case NameRole: return item->name();
     case VersionRole: return item->version();
+    case UpdateCurrentVersionRole: return item->updateCurrentVersion();
+    case UpdateCurrentDateRole: return item->updateCurrentDate();
     case CommentRole: return item->comment();
     case TypeRole: return item->type();
     case IconRole: return item->icon();
@@ -60,6 +62,8 @@ QHash<int, QByteArray> AppImageMetadataListModel::roleNames() const
     QHash<int, QByteArray> roles;
     roles[NameRole] = "name";
     roles[VersionRole] = "version";
+    roles[UpdateCurrentVersionRole] = "updateCurrentVersion";
+    roles[UpdateCurrentDateRole] = "updateCurrentDate";
     roles[CommentRole] = "comment";
     roles[TypeRole] = "type";
     roles[IconRole] = "icon";
