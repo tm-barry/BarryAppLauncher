@@ -307,34 +307,31 @@ void AppImageUtil::unmountAppImage()
     m_tempExtractDir.clear();
 }
 
+QMutex dirMutex;
+
 const QString AppImageUtil::integratedDesktopPath(const QString& path)
 {
-    const QStringList searchPaths = getSearchPaths();
+    QMutexLocker locker(&dirMutex);
 
+    const QStringList searchPaths = getSearchPaths();
     for (const QString& dirPath : searchPaths) {
         QDir dir(dirPath);
         const QStringList desktopFiles = dir.entryList(QStringList() << "*.desktop", QDir::Files);
 
         for (const QString& fileName : desktopFiles) {
-            QString filePath = dir.absoluteFilePath(fileName);
-            QFile file(filePath);
-
+            QFile file(dir.absoluteFilePath(fileName));
             if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
                 continue;
 
             QTextStream in(&file);
             while (!in.atEnd()) {
                 QString line = in.readLine().trimmed();
-
                 if (line.startsWith("Exec=")) {
                     QString execLine = line.mid(QString("Exec=").length());
                     const QStringList execCommandParts = QProcess::splitCommand(execLine);
-
-                    for (const QString& execCommand : execCommandParts)
-                    {
-                        if (execCommand == path) {
-                            return filePath;
-                        }
+                    for (const QString& execCommand : execCommandParts) {
+                        if (execCommand == path)
+                            return file.fileName();
                     }
                     break;
                 }
@@ -343,6 +340,7 @@ const QString AppImageUtil::integratedDesktopPath(const QString& path)
     }
     return QString();
 }
+
 
 AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
 {

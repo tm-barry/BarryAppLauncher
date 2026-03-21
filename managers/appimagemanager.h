@@ -80,6 +80,8 @@ public:
 private:
     explicit AppImageManager(QObject *parent = nullptr);
 
+    QFuture<void> m_loadFuture;
+
     static const QRegularExpression invalidChars;
     AppImageMetadataListModel* m_appImageList = nullptr;
     AppImageMetadata* m_appImageMetadata = nullptr;

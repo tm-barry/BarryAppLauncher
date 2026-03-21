@@ -121,6 +121,23 @@ Item {
             }
         }
 
+        SortFilterProxyModel {
+            id: sortedAppImages
+            model: AppImageManager.appImageList
+
+            sorters: [
+                RoleSorter{
+                    roleName: "hasNewRelease"
+                    priority: 0
+                    sortOrder: "DescendingOrder"
+                },
+                RoleSorter {
+                    roleName: "name"
+                    priority: 1
+                }
+            ]
+        }
+
         ListView {
             Layout.fillHeight: true
             Layout.alignment: Qt.AlignHCenter
@@ -128,7 +145,7 @@ Item {
             Layout.maximumWidth: 460
             spacing: 5
             clip: true
-            model: AppImageManager.appImageList
+            model: sortedAppImages
 
             section.property: "hasNewRelease"
             section.criteria: ViewSection.FullString

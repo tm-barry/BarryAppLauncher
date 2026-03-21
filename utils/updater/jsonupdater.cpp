@@ -12,7 +12,11 @@
 #include <QRegularExpression>
 
 JsonUpdater::JsonUpdater(QObject *parent) : IUpdater(parent) {}
-JsonUpdater::JsonUpdater(const UpdaterSettings &settings, QObject *parent) : IUpdater(settings, parent) {}
+JsonUpdater::JsonUpdater(const UpdaterSettings &settings,
+                         const QString currentVersion,
+                         const QString currentDate,
+                         QObject *parent)
+    : IUpdater(settings, currentVersion, currentDate, parent) {}
 
 void JsonUpdater::parseData(const QByteArray &data)
 {

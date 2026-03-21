@@ -42,6 +42,15 @@ inline QDateTime parseDateTime(const QString &input) {
     return QDateTime();
 }
 
+inline QString formatDateTime(const QString &rawDate)
+{
+    QDateTime dt = parseDateTime(rawDate);
+    if (!dt.isValid()) {
+        return rawDate;
+    }
+    return dt.toString("yyyy-MM-dd HH:mm");
+}
+
 }
 
 #endif // STRINGUTIL_H

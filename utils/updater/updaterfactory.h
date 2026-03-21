@@ -6,6 +6,8 @@
 #include "managers/errormanager.h"
 #include "managers/settingsmanager.h"
 #include "utils/networkutil.h"
+#include "utils/stringutil.h"
+#include "utils/versionutil.h"
 
 #include <QObject>
 #include <QNetworkReply>
@@ -20,6 +22,16 @@ public:
     QString download = QString();
     QString version = QString();
     QString date = QString();
+    bool isNew = false;
+    bool isLatest = false;
+
+    bool operator==(const UpdaterRelease &other) const {
+        return download == other.download
+               && version == other.version
+               && date == other.date
+               && isNew == other.isNew
+               && isLatest == other.isLatest;
+    }
 };
 
 struct UpdaterFilter {
@@ -53,10 +65,15 @@ public:
     explicit IUpdater(QObject *parent = nullptr)
         : QObject(parent) {}
 
-    explicit IUpdater(const UpdaterSettings &settings, QObject *parent = nullptr)
+    explicit IUpdater(const UpdaterSettings &settings,
+                      const QString currentVersion = QString(),
+                      const QString currentDate = QString(),
+                      QObject *parent = nullptr)
         : IUpdater(parent)
     {
         m_settings = settings;
+        m_currentVersion = currentVersion;
+        m_currentDate = currentDate;
     }
 
     virtual ~IUpdater() = default;
@@ -65,7 +82,10 @@ public:
 
     virtual void parseData(const QByteArray &data) = 0;
 
-    void updateSettings(const UpdaterSettings &settings)
+    void updateSettings(
+        const UpdaterSettings &settings,
+        const QString currentVersion = QString(),
+        const QString currentDate = QString())
     {
         m_settings = settings;
     }
@@ -140,9 +160,43 @@ public:
                 ErrorManager::instance()->reportError("API Error (" + QString::number(status) + "): " + errorMsg);
             }
 
+            // Mark releases
+            markReleases(m_releases, m_currentVersion, m_currentDate);
+
             // Always emit updatesReady, even on failure
             emit updatesReady();
         });
+    }
+
+    void markReleases(QList<UpdaterRelease> &releases, const QString &currentVersion, const QString &currentDate)
+    {
+        if (releases.isEmpty())
+            return;
+        // Find latest release
+        auto latestIt = std::max_element(releases.begin(), releases.end(),
+                                         [](const UpdaterRelease &a, const UpdaterRelease &b) {
+                                             // Compare by version first, then by date if versions are equal
+                                             int cmp = VersionUtil::compareVersions(a.version, b.version);
+                                             if (cmp != 0) return cmp < 0;
+                                             return StringUtil::parseDateTime(a.date) < StringUtil::parseDateTime(b.date);
+                                         });
+
+        // Mark latest release
+        if (latestIt != releases.end())
+            latestIt->isLatest = true;
+
+        // Mark new releases
+        for (auto &r : releases) {
+            r.isNew = isNewRelease(r, currentVersion, currentDate);
+        }
+    }
+
+    static bool isNewRelease(const UpdaterRelease &release,
+                             const QString currentVersion = QString(),
+                             const QString currentDate = QString())
+    {
+        return (currentVersion.isEmpty() || VersionUtil::compareVersions(release.version, currentVersion) == 1)
+        && (currentDate.isEmpty() || StringUtil::parseDateTime(release.date) > StringUtil::parseDateTime(currentDate));
     }
 
 signals:
@@ -150,6 +204,8 @@ signals:
 
 protected:
     UpdaterSettings m_settings;
+    QString m_currentVersion;
+    QString m_currentDate;
     bool m_headersOnly = false;
     QList<UpdaterRelease> m_releases;
 };
@@ -159,7 +215,10 @@ class UpdaterFactory
 public:
     UpdaterFactory();
 
-    static IUpdater* create(const QString &type, const UpdaterSettings &settings);
+    static IUpdater* create(const QString &type,
+                            const UpdaterSettings &settings,
+                            const QString currentVersion = QString(),
+                            const QString currentDate = QString());
     static const QList<UpdaterSettingsPreset> getDefaultPresets();
 };
 

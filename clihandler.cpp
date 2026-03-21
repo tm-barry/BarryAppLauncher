@@ -5,10 +5,15 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QCoreApplication>
+#include <QTimer>
 
 #include <algorithm>
 #include <iostream>
 #include <iomanip>
+
+namespace {
+    constexpr QChar kSpinnerChars[] = {'|', '/', '-', '\\'};
+}
 
 const QList<ColumnSpec> CliHandler::COLUMN_CONFIG = {
     {"name", "Name", 20},
@@ -51,6 +56,17 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
                                   "info");
     parser.addOption(infoOption);
 
+    // Add update option
+    QCommandLineOption updateOption({"u", "update"},
+                                  "Updates appimage",
+                                  "update");
+    parser.addOption(updateOption);
+
+    // Add force option
+    QCommandLineOption forceOption({"f", "force"},
+                                   "Force update: show and allow selection of all releases");
+    parser.addOption(forceOption);
+
     // Positional argument for appimage file
     parser.addPositionalArgument("appimage",
                                  "AppImage file to open (optional)", "[appimage]");
@@ -87,6 +103,13 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
     else if (parser.isSet(infoOption)) {
         QString appImage = parser.value(infoOption);
         getAppImageInfo(appImage);
+        result.shouldExit = true;
+        return result;
+    }
+    else if (parser.isSet(updateOption)) {
+        bool force = parser.isSet(forceOption);
+        QString appimage = parser.value(updateOption);
+        updateAppImage(appimage, force);
         result.shouldExit = true;
         return result;
     }
@@ -275,6 +298,157 @@ void CliHandler::getAppImageInfo(QString path)
     std::cout << std::endl;
 }
 
+void CliHandler::updateAppImage(QString path, bool force)
+{
+    if (path.isEmpty()) {
+        std::cerr << "Error: No AppImage path provided. Use: --update <appimage_path>" << std::endl;
+        return;
+    }
+
+    AppImageUtil util(path);
+    AppImageUtilMetadata appimage = util.metadata();
+
+    std::cout << "\033[1m" << appimage.name.toStdString() << " (";
+    std::cout << StringUtil::coalesce(appimage.updateCurrentVersion, appimage.version).toStdString();
+    std::cout << ") \033[0m\n\n";
+
+    if (appimage.updateType.isEmpty()) {
+        std::cerr << "Error: No update type set in "
+                  << appimage.desktopFilePath.toStdString() << std::endl;
+        return;
+    }
+
+    UpdaterSettings settings = getUpdaterSettings(appimage);
+    auto* updater = UpdaterFactory::create(
+        appimage.updateType, settings,
+        appimage.updateCurrentVersion, appimage.updateCurrentDate);
+
+    // Fetch updates asynchronously
+    QList<UpdaterRelease> fetchedReleases;
+    QEventLoop loop;
+    QObject::connect(updater, &IUpdater::updatesReady, &loop, [&]() {
+        fetchedReleases = updater->releases();
+        updater->deleteLater();
+        loop.quit();
+    });
+
+    updater->fetchUpdatesAsync();
+    execEventLoopLoadingIndicator("Checking for updates ", loop);
+
+    if (fetchedReleases.isEmpty()) {
+        std::cout << "No updates found." << std::endl;
+        return;
+    }
+
+    // Filter releases according to force / isNew
+    QVector<const UpdaterRelease*> selectableReleases;
+    int defaultIndex = -1;
+
+    for (int i = 0; i < fetchedReleases.size(); ++i) {
+        const auto &r = fetchedReleases[i];
+        if (!r.isNew && !force)
+            continue;
+
+        selectableReleases.push_back(&r);
+
+        // Default to latest new release
+        if (r.isLatest && r.isNew && defaultIndex == -1)
+            defaultIndex = selectableReleases.size() - 1;
+    }
+
+    if (selectableReleases.isEmpty()) {
+        std::cout << "Your AppImage is already up to date. No updates available." << std::endl;
+        return;
+    }
+
+    // Print releases
+    std::cout << "Available updates:\n";
+    for (int i = 0; i < selectableReleases.size(); ++i) {
+        const auto &r = selectableReleases[i];
+
+        std::cout << "[" << (i + 1) << "] ";
+
+        // Bold latest new release
+        bool bold = r->isNew && r->isLatest;
+        if (bold) std::cout << "\033[1m";
+
+        // Version / date
+        if (!r->version.isEmpty())
+            std::cout << r->version.toStdString();
+        if (!r->date.isEmpty()) {
+            if (!r->version.isEmpty()) std::cout << " | ";
+            std::cout << StringUtil::formatDateTime(r->date).toStdString();
+        }
+
+        // Flags
+        if (r->isNew) std::cout << "  <-- new" << (r->isLatest ? " (latest)" : "");
+        else if (r->isLatest) std::cout << "  <-- latest";
+
+        if (bold) std::cout << "\033[0m"; // reset bold
+        std::cout << std::endl;
+    }
+
+    // Prompt user for selection
+    QTextStream qin(stdin);
+    int selection = -1;
+
+    while (true) {
+        std::cout << "\nSelect a release to update to";
+        if (defaultIndex >= 0)
+            std::cout << " [default: "
+                      << selectableReleases[defaultIndex]->version.toStdString() << "]";
+        std::cout << " (1-" << selectableReleases.size() << ", or 'c' to cancel): " << std::flush;
+
+        QString line = qin.readLine().trimmed();
+
+        // Cancel
+        if (line.compare("c", Qt::CaseInsensitive) == 0 ||
+            line.compare("cancel", Qt::CaseInsensitive) == 0) {
+            std::cout << "Update cancelled by user." << std::endl;
+            return;
+        }
+
+        // Default
+        if (line.isEmpty() && defaultIndex >= 0) {
+            selection = defaultIndex;
+            break;
+        }
+
+        // Numeric selection
+        bool ok = false;
+        int num = line.toInt(&ok);
+        if (ok && num >= 1 && num <= selectableReleases.size()) {
+            selection = num - 1;
+            break;
+        }
+
+        std::cout << "Invalid selection. Try again." << std::endl;
+    }
+
+    const auto* chosenRelease = selectableReleases[selection];
+    std::cout << "\nUpdating to version: "
+              << chosenRelease->version.toStdString() << std::endl;
+
+    // TODO: implement actual download/apply logic
+}
+
+UpdaterSettings CliHandler::getUpdaterSettings(AppImageUtilMetadata metadata)
+{
+    UpdaterSettings settings;
+    settings.url = metadata.updateUrl;
+    settings.versionField = metadata.updateVersionField;
+    settings.versionPattern = metadata.updateVersionPattern;
+    settings.downloadField = metadata.updateDownloadField;
+    settings.downloadPattern = metadata.updateDownloadPattern;
+    settings.dateField = metadata.updateDateField;
+
+    for (const auto& filter : metadata.updateFilters) {
+        settings.filters.append({filter.field, filter.pattern});
+    }
+
+    return settings;
+}
+
 QStringList CliHandler::getWrappedText(const QString& text, int width, QChar splitChar)
 {
     QStringList lines;
@@ -316,3 +490,48 @@ QStringList CliHandler::getWrappedText(const QString& text, int width, QChar spl
 
     return lines.isEmpty() ? QStringList{""} : lines;
 }
+
+void CliHandler::execEventLoopLoadingIndicator(const QString &message,
+                                               QEventLoop &loop,
+                                               LoadingIndicator indicator)
+{
+    std::cout << message.toStdString() << " " << std::flush;
+
+    int spinnerIndex = 0;
+    int dotCount = 0;
+    const int maxDots = 3;
+
+    QTimer timer;
+    QObject::connect(&timer, &QTimer::timeout, [&]() {
+        if (indicator == LoadingIndicator::Spinner) {
+            // Erase previous spinner char and print next
+            std::cout << "\b" << kSpinnerChars[spinnerIndex].toLatin1() << std::flush;
+            spinnerIndex = (spinnerIndex + 1) % 4;
+        }
+        else if (indicator == LoadingIndicator::Dots) {
+            // Move cursor back to end of message (overwrite previous dots)
+            std::cout << "\r" << message.toStdString() << " ";
+            for (int i = 0; i < dotCount; ++i)
+                std::cout << ".";
+
+            // Pad remaining space so old dots are erased
+            for (int i = dotCount; i < maxDots; ++i)
+                std::cout << " ";
+
+            std::cout << std::flush;
+
+            dotCount = (dotCount + 1) % (maxDots + 1); // 0..3 dots
+        }
+    });
+
+    int interval = (indicator == LoadingIndicator::Spinner) ? 100 : 300;
+    timer.start(interval);
+
+    loop.exec();  // Run event loop while async task is working
+    timer.stop();
+
+    // Fully clear the line and reset cursor
+    std::cout << "\r" << std::string(message.length() + maxDots + 2, ' ') << "\r" << std::flush;
+}
+
+
