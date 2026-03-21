@@ -6,6 +6,10 @@
 
 namespace StringUtil {
 
+inline QString coalesce(const QString& a, const QString& b) {
+    return a.isEmpty() ? b : a;
+}
+
 inline QDateTime parseDateTime(const QString &input) {
     static const QList<QString> customFormats = {
         "yyyy-MM-dd HH:mm:ss",

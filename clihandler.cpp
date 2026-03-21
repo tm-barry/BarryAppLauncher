@@ -1,5 +1,6 @@
 #include "clihandler.h"
 #include "utils/appimageutil.h"
+#include "utils/stringutil.h"
 
 #include <QCommandLineParser>
 #include <QCommandLineOption>
@@ -148,7 +149,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
             for (const auto &spec : selectedColumns) {
                 QString text;
                 if (spec.key == "name") text = appImage.name;
-                else if (spec.key == "version") text = appImage.version;
+                else if (spec.key == "version") text = StringUtil::coalesce(appImage.updateCurrentVersion, appImage.version);
                 else if (spec.key == "description") text = appImage.comment;
                 else if (spec.key == "path") text = appImage.path; // if you want path too
 
@@ -185,7 +186,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
                 QString text;
 
                 if (spec.key == "name") text = appImage.name;
-                else if (spec.key == "version") text = appImage.version;
+                else if (spec.key == "version") text = StringUtil::coalesce(appImage.updateCurrentVersion, appImage.version);
                 else if (spec.key == "description") text = appImage.comment;
                 else if (spec.key == "path") text = appImage.path;
 
@@ -237,7 +238,7 @@ void CliHandler::getAppImageInfo(QString path)
     std::cout << "General Information:" << std::endl;
     std::cout << std::string(INFO_WIDTH, '-') << std::endl;
     printField("Name", appImage.name.toStdString());
-    printField("Version", appImage.version.toStdString());
+    printField("Version", StringUtil::coalesce(appImage.updateCurrentVersion, appImage.version).toStdString());
     printField("Description", appImage.comment.toStdString());
     printField("Path", appImage.path.toStdString());
     printField("Desktop Path", appImage.desktopFilePath.toStdString());
