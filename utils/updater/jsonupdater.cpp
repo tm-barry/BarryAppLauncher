@@ -61,7 +61,7 @@ void JsonUpdater::parseData(const QByteArray &data)
 
         // Apply filters
         bool include = true;
-        for (const UpdaterFilter &f : m_settings.filters) {
+        for (const UpdaterFilter &f : std::as_const(m_settings.filters)) {
             QList<QJsonValue> vals = JsonUtil::getValuesByPath(obj, f.field);
             QString fieldVal;
             if (!vals.isEmpty())

@@ -130,7 +130,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
     QStringList columnsList = columnsStr.split(',', Qt::SkipEmptyParts);
 
     // Validate columns
-    for (const auto& col : columnsList) {
+    for (const auto& col : std::as_const(columnsList)) {
         if (!VALID_COLUMNS.contains(col)) {
             std::cerr << "Error: Invalid column '" << col.toStdString() << "'. Valid columns are: "
                       << VALID_COLUMNS.join(",").toStdString() << std::endl;
@@ -139,7 +139,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
     }
 
     QList<ColumnSpec> selectedColumns;
-    for (const auto& colName : columnsList) {
+    for (const auto& colName : std::as_const(columnsList)) {
         auto it = std::find_if(COLUMN_CONFIG.begin(), COLUMN_CONFIG.end(),
                                [&](const ColumnSpec& spec){ return spec.key == colName; });
         if (it != COLUMN_CONFIG.end()) {
@@ -205,7 +205,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
     else {
         std::cout << std::endl;
         for (const auto &appImage : registeredAppImages) {
-            for (const auto &spec : selectedColumns) {
+            for (const auto &spec : std::as_const(selectedColumns)) {
                 QString text;
 
                 if (spec.key == "name") text = appImage.name;
@@ -285,7 +285,7 @@ void CliHandler::getAppImageInfo(QString path)
             std::cout << "Update Filters:" << std::endl;
             std::cout << std::string(INFO_WIDTH, '-') << std::endl;
 
-            for (const auto &filter : appImage.updateFilters) {
+            for (const auto &filter : std::as_const(appImage.updateFilters)) {
                 printField(filter.field.toStdString(), filter.pattern.toStdString());
             }
         }
@@ -442,7 +442,7 @@ UpdaterSettings CliHandler::getUpdaterSettings(AppImageUtilMetadata metadata)
     settings.downloadPattern = metadata.updateDownloadPattern;
     settings.dateField = metadata.updateDateField;
 
-    for (const auto& filter : metadata.updateFilters) {
+    for (const auto& filter : std::as_const(metadata.updateFilters)) {
         settings.filters.append({filter.field, filter.pattern});
     }
 

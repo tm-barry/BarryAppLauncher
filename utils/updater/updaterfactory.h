@@ -98,7 +98,7 @@ public:
 
         // Apply custom user update headers
         auto updateHeaders = SettingsManager::instance()->getUpdateHeaders();
-        for (const auto &header : updateHeaders) {
+        for (const auto &header : std::as_const(updateHeaders)) {
             if (header.header.isEmpty() || header.value.isEmpty())
                 continue;
 

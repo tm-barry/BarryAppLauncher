@@ -18,7 +18,7 @@ public:
             return { root };
 
         QStringList segments = path.split('.', Qt::SkipEmptyParts);
-        QRegularExpression indexRe(R"(^(.*)\[(\d+)\]$)");
+        static const QRegularExpression indexRe(R"(^(.*)\[(\d+)\]$)");
 
         for (QString &seg : segments) {
             seg = seg.trimmed();
@@ -53,7 +53,8 @@ public:
 
                 // Wildcard [*]
                 if (isArrayWildcard && child.isArray()) {
-                    for (const QJsonValue &arrVal : child.toArray())
+                    QJsonArray arr = child.toArray();
+                    for (const QJsonValue &arrVal : std::as_const(arr))
                         next.append(arrVal);
                 }
                 // Numeric index [n]

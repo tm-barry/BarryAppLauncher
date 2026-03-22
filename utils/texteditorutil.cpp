@@ -39,7 +39,7 @@ const bool TextEditorUtil::textEditorExists(const QString& path)
 
     if (path.endsWith(".desktop")) {
         QStringList searchPaths = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
-        for (const QString &dir : searchPaths) {
+        for (const QString &dir : std::as_const(searchPaths)) {
             if (QFile::exists(dir + "/" + path))
                 return true;
         }
@@ -64,7 +64,8 @@ const bool TextEditorUtil::launchInTextEditor(const QString &path)
     if(editorCmd.isEmpty())
         return false;
 
-    QStringList parts = editorCmd.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+    static const QRegularExpression whitespaceRe("\\s+");
+    QStringList parts = editorCmd.split(whitespaceRe, Qt::SkipEmptyParts);
     if (parts.isEmpty())
         return false;
 
@@ -127,7 +128,7 @@ const QString TextEditorUtil::getExecFromDesktopFile(const QString& filePath)
 {
     QStringList searchPaths = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
     QString desktopPath;
-    for (const QString &searchPath : searchPaths) {
+    for (const QString &searchPath : std::as_const(searchPaths)) {
         QString candidate = searchPath + "/" + filePath;
         if (QFile::exists(candidate)) {
             desktopPath = candidate;
