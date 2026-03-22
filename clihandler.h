@@ -3,6 +3,7 @@
 
 #include "utils/appimageutil.h"
 
+#include <QFuture>
 #include <QString>
 #include <QStringList>
 
@@ -34,6 +35,9 @@ public:
     static CliResult processCLI(int argc, char *argv[]);
 
 private:
+    static QVector<QString> m_warnings;
+    static QVector<QString> m_errors;
+    static QMutex m_errorMutex;
     static const QList<ColumnSpec> COLUMN_CONFIG;
     static const QStringList VALID_COLUMNS;
     static constexpr int INFO_WIDTH = 80;
@@ -42,26 +46,41 @@ private:
     /**
      * @brief List all registered AppImages
      */
-    static void listRegisteredAppImages(QString columnsStr, bool tableOutput = false);
+    static void list(QString columnsStr, bool tableOutput = false);
 
     /**
      * @brief Gets metadata info of an appimage
      */
-    static void getAppImageInfo(QString path);
+    static void info(QString path);
 
     /**
      * @brief Updates appimage at path
      * @param path of appimage to update
      */
-    static void updateAppImage(QString path, bool force = false);
+    static void update(QString path, bool force = false);
+
+    /**
+     * @brief Updates appimage asynchronously
+     * @param name of appimage
+     * @param path of appimage
+     * @param downloadUrl to get updated appimage
+     * @param version of new appimage
+     * @param date of new appimage
+     * @param lineIndex in terminal to update progress
+     * @return
+     */
+    static QFuture<bool> updateAppImageAsync(const QString &name,
+                                             const QString &path,
+                                             const QString &downloadUrl,
+                                             const QString &version,
+                                             const QString &date,
+                                             const int lineIndex = 0);
 
     /**
      * @brief Parses updater settings from appimage metadata
      * @param appimage metadata to parse
      * @return updater settings parsed from metadata
      */
-    static void extracted(AppImageUtilMetadata &metadata,
-                          UpdaterSettings &settings);
     static UpdaterSettings getUpdaterSettings(AppImageUtilMetadata metadata);
 
     /**
@@ -78,6 +97,16 @@ private:
      * @param loop to exec
      */
     static void execEventLoopLoadingIndicator(const QString &message, QEventLoop &loop, LoadingIndicator indicator = LoadingIndicator::Spinner);
+
+    /**
+     * @brief Prints out any errors/warnings
+     */
+    static void printErrors();
+
+    /**
+     * @brief Sets up the error manager handler for cli
+     */
+    static void handleErrorManager();
 };
 
 #endif // CLIHANDLER_H

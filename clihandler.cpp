@@ -1,4 +1,5 @@
 #include "clihandler.h"
+#include "managers/errormanager.h"
 #include "utils/appimageutil.h"
 #include "utils/stringutil.h"
 
@@ -6,12 +7,17 @@
 #include <QCommandLineOption>
 #include <QCoreApplication>
 #include <QTimer>
+#include <QFutureWatcher>
 
 #include <algorithm>
 
 namespace {
     constexpr QChar kSpinnerChars[] = {'|', '/', '-', '\\'};
 }
+
+QVector<QString> CliHandler::m_errors;
+QVector<QString> CliHandler::m_warnings;
+QMutex CliHandler::m_errorMutex;
 
 inline QTextStream &out()
 {
@@ -24,6 +30,21 @@ inline QTextStream &err()
     static QTextStream stream(stderr);
     return stream;
 }
+
+inline void moveCursorUp(int lines) {
+    if (lines > 0)
+        out() << "\033[" << lines << "A";
+}
+
+inline void moveCursorDown(int lines) {
+    if (lines > 0)
+        out() << "\033[" << lines << "B";
+}
+
+inline void clearLine() {
+    out() << "\r\033[2K";
+}
+
 
 const QList<ColumnSpec> CliHandler::COLUMN_CONFIG = {
     {"name", "Name", 20},
@@ -103,31 +124,39 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
         }
     }
 
-    // Handle list option
+    // If cli option, then setup error manager for cli
+    if (parser.isSet(listOption) || parser.isSet(infoOption) || parser.isSet(updateOption)) {
+        handleErrorManager();
+    }
+
+    // Handle/check for cli options
     if (parser.isSet(listOption)) {
         bool tableOutput = parser.isSet(tableOption);
-        listRegisteredAppImages(columnsStr, tableOutput);
+        list(columnsStr, tableOutput);
+        printErrors();
         result.shouldExit = true;
         return result;
     }
     else if (parser.isSet(infoOption)) {
         QString appImage = parser.value(infoOption);
-        getAppImageInfo(appImage);
+        info(appImage);
         result.shouldExit = true;
+        printErrors();
         return result;
     }
     else if (parser.isSet(updateOption)) {
         bool force = parser.isSet(forceOption);
         QString appimage = parser.value(updateOption);
-        updateAppImage(appimage, force);
+        update(appimage, force);
         result.shouldExit = true;
+        printErrors();
         return result;
     }
 
     return result;
 }
 
-void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
+void CliHandler::list(QString columnsStr, bool tableOutput)
 {
     auto registeredAppImages = AppImageUtil::getRegisteredList();
 
@@ -234,7 +263,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
     out() << "Total: " << registeredAppImages.size() << " AppImage(s)" << Qt::endl << Qt::endl;
 }
 
-void CliHandler::getAppImageInfo(QString path)
+void CliHandler::info(QString path)
 {
     if (path.isEmpty()) {
         err() << "Error: No AppImage path provided. Use: --info <appimage_path>" << Qt::endl;
@@ -305,7 +334,7 @@ void CliHandler::getAppImageInfo(QString path)
     out() << Qt::endl;
 }
 
-void CliHandler::updateAppImage(QString path, bool force)
+void CliHandler::update(QString path, bool force)
 {
     if (path.isEmpty()) {
         err() << "Error: No AppImage path provided. Use: --update <appimage_path>" << Qt::endl;
@@ -403,8 +432,7 @@ void CliHandler::updateAppImage(QString path, bool force)
         if (defaultIndex >= 0)
             out() << " [default: "
                       << selectableReleases[defaultIndex]->version << "]";
-        out() << " (1-" << selectableReleases.size() << ", or 'c' to cancel): ";
-        out().flush();
+        out() << " (1-" << selectableReleases.size() << ", or 'c' to cancel): " << Qt::flush;
 
         QString line = qin.readLine().trimmed();
 
@@ -433,9 +461,90 @@ void CliHandler::updateAppImage(QString path, bool force)
     }
 
     const auto* chosenRelease = selectableReleases[selection];
-    out() << "\nUpdating to version: " << chosenRelease->version << Qt::endl;
+    out() << "\nUpdating to version: " << chosenRelease->version << Qt::endl << Qt::endl;
 
-    // TODO: implement actual download/apply logic
+    QEventLoop updateLoop;
+    bool success = false;
+
+    auto future = updateAppImageAsync(
+        appimage.name,
+        appimage.path,
+        chosenRelease->download,
+        chosenRelease->version,
+        chosenRelease->date,
+        0
+        );
+    QFutureWatcher<bool> watcher;
+    watcher.setFuture(future);
+    QObject::connect(&watcher, &QFutureWatcher<bool>::finished, &loop,[&]() {
+        success = watcher.result();
+        updateLoop.quit();
+    });
+    updateLoop.exec();
+
+    if (success) {
+        out() << "\n\nUpdate completed successfully!" << Qt::endl;
+    } else {
+        err() << "\n\nUpdate failed!" << Qt::endl;
+    }
+}
+
+QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
+                                              const QString &path,
+                                              const QString &downloadUrl,
+                                              const QString &version,
+                                              const QString &date,
+                                              const int lineIndex)
+{
+    auto promise = std::make_shared<QPromise<bool>>();
+    QFuture<bool> future = promise->future();
+
+    AppImageUtil::updateAppImage(
+        path,
+        downloadUrl,
+        version,
+        date,
+
+        [promise](bool success) {
+            promise->addResult(success);
+            promise->finish();
+        },
+
+        [name, lineIndex, version](UpdateState state, qint64 received, qint64 total) {
+            QString status;
+            switch(state) {
+            case UpdateState::Downloading:
+                status = QString("%1: %2 (%3%)")
+                             .arg(name,
+                                  StringUtil::getUpdateDownloadText(received, total),
+                                  total > 0 ? QString::number(received * 100.0 / total, 'f', 1) : "0.0");
+                break;
+            case UpdateState::Extracting:
+                status = QString("%1: Extracting...").arg(name);
+                break;
+            case UpdateState::Installing:
+                status = QString("%1: Installing...").arg(name);
+                break;
+            case UpdateState::Success:
+                status = QString("%1: Updated to %2").arg(name, version);
+                break;
+            case UpdateState::Failed:
+                status = QString("%1: Failed").arg(name);
+                break;
+            default:
+                status = QString("%1: Waiting...").arg(name);
+                break;
+            }
+
+            out() << "\r";
+            moveCursorUp(lineIndex);
+            clearLine();
+            out() << status << Qt::flush;
+            moveCursorDown(lineIndex);
+        }
+        );
+
+    return future;
 }
 
 UpdaterSettings CliHandler::getUpdaterSettings(AppImageUtilMetadata metadata)
@@ -501,8 +610,7 @@ void CliHandler::execEventLoopLoadingIndicator(const QString &message,
                                                QEventLoop &loop,
                                                LoadingIndicator indicator)
 {
-    out() << message << " ";
-    out().flush();
+    out() << message << " " << Qt::flush;
 
     int spinnerIndex = 0;
     int dotCount = 0;
@@ -512,8 +620,7 @@ void CliHandler::execEventLoopLoadingIndicator(const QString &message,
     QObject::connect(&timer, &QTimer::timeout, [&]() {
         if (indicator == LoadingIndicator::Spinner) {
             // Erase previous spinner char and print next
-            out() << "\b" << kSpinnerChars[spinnerIndex].toLatin1();
-            out().flush();
+            out() << "\b" << kSpinnerChars[spinnerIndex].toLatin1() << Qt::flush;
             spinnerIndex = (spinnerIndex + 1) % 4;
         }
         else if (indicator == LoadingIndicator::Dots) {
@@ -539,8 +646,42 @@ void CliHandler::execEventLoopLoadingIndicator(const QString &message,
     timer.stop();
 
     // Fully clear the line and reset cursor
-    out() << "\r" << QString(message.length() + maxDots + 2, QChar(' ')) << "\r";
-    out().flush();
+    out() << "\r" << QString(message.length() + maxDots + 2, QChar(' ')) << "\r" << Qt::flush;
 }
 
+void CliHandler::printErrors()
+{
+    // Print all collected warnings first
+    if (!CliHandler::m_warnings.isEmpty()) {
+        err() << Qt::endl << "Warnings:" << Qt::endl;
+        for (const QString &warning : std::as_const(CliHandler::m_warnings)) {
+            err() << "  - " << warning << Qt::endl;
+        }
+    }
 
+    // Then print all errors
+    if (!CliHandler::m_errors.isEmpty()) {
+        err() << Qt::endl << "Errors:" << Qt::endl;
+        for (const QString &error : std::as_const(CliHandler::m_errors)) {
+            err() << "  - " << error << Qt::endl;
+        }
+    }
+}
+
+void CliHandler::handleErrorManager()
+{
+    QMutexLocker lock(&m_errorMutex);
+    m_errors.clear();
+    m_warnings.clear();
+
+    QObject::connect(ErrorManager::instance(), &ErrorManager::messageOccurred,
+                     [](const QString &msg, ErrorManager::MessageType type) {
+                         QMutexLocker lock(&CliHandler::m_errorMutex);
+
+                         if (type == ErrorManager::Error) {
+                             CliHandler::m_errors.append(msg);
+                         } else if (type == ErrorManager::Warning) {
+                             CliHandler::m_warnings.append(msg);
+                         }
+                     });
+}

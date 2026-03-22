@@ -21,8 +21,17 @@ public:
     Q_INVOKABLE void reportError(const QString& error);
     Q_INVOKABLE void reportWarning(const QString& warning);
 
+    enum class Mode {
+        Gui,
+        Cli
+    };
+
+    void setMode(Mode mode) { m_mode = mode; }
+
 private:
     explicit ErrorManager(QObject *parent = nullptr);
+
+    Mode m_mode = Mode::Gui;
 
     Q_DISABLE_COPY(ErrorManager)
 

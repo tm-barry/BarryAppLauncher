@@ -32,10 +32,12 @@ int main(int argc, char *argv[])
     SettingsManager::instance();
 
     // Process CLI arguments
+    ErrorManager::instance()->setMode(ErrorManager::Mode::Cli);
     CliResult cliResult = CliHandler::processCLI(argc, argv);
     if (cliResult.shouldExit) {
         return 0;
     }
+    ErrorManager::instance()->setMode(ErrorManager::Mode::Gui);
 
     qmlRegisterType<AppImageMetadata>("BarryAppLauncher", 1, 0, "AppImageMetadata");
     qRegisterMetaType<AppImageManager::AppState>("AppImageManager::AppState");

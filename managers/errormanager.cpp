@@ -10,12 +10,16 @@ ErrorManager* ErrorManager::instance() {
 }
 
 void ErrorManager::reportError(const QString& error) {
-    qCritical() << error;
+    if (m_mode == Mode::Gui) {
+        qCritical() << error;
+    }
     emit messageOccurred(error, Error);
 }
 
 void ErrorManager::reportWarning(const QString& warning) {
-    qWarning() << warning;
+    if (m_mode == Mode::Gui) {
+        qWarning() << warning;
+    }
     emit messageOccurred(warning, Warning);
 }
 
