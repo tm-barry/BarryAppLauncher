@@ -8,11 +8,21 @@
 #include <QTimer>
 
 #include <algorithm>
-#include <iostream>
-#include <iomanip>
 
 namespace {
     constexpr QChar kSpinnerChars[] = {'|', '/', '-', '\\'};
+}
+
+inline QTextStream &out()
+{
+    static QTextStream stream(stdout);
+    return stream;
+}
+
+inline QTextStream &err()
+{
+    static QTextStream stream(stderr);
+    return stream;
 }
 
 const QList<ColumnSpec> CliHandler::COLUMN_CONFIG = {
@@ -122,7 +132,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
     auto registeredAppImages = AppImageUtil::getRegisteredList();
 
     if (registeredAppImages.isEmpty()) {
-        std::cout << "No registered AppImages found." << std::endl;
+        out() << "No registered AppImages found." << Qt::endl;
         return;
     }
 
@@ -132,8 +142,8 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
     // Validate columns
     for (const auto& col : std::as_const(columnsList)) {
         if (!VALID_COLUMNS.contains(col)) {
-            std::cerr << "Error: Invalid column '" << col.toStdString() << "'. Valid columns are: "
-                      << VALID_COLUMNS.join(",").toStdString() << std::endl;
+            err() << "Error: Invalid column '" << col << "'. Valid columns are: "
+                      << VALID_COLUMNS.join(",") << Qt::endl;
             return;
         }
     }
@@ -148,7 +158,7 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
     }
 
     // Print table header
-    std::cout << "\nRegistered AppImages:" << std::endl;
+    out() << "\nRegistered AppImages:" << Qt::endl;
 
     // Table Output
     if(tableOutput) {
@@ -156,14 +166,14 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
         for (const auto &spec : selectedColumns) {
             tableWidth += spec.width;
         }
-        std::cout << std::string(tableWidth, '-') << std::endl;
+        out() << QString(tableWidth, QChar('-')) << Qt::endl;
 
         // Print column titles dynamically
         for (const auto &spec : selectedColumns) {
-            std::cout << std::left << std::setw(spec.width) << spec.name.toStdString();
+            out() << spec.name.leftJustified(spec.width, ' ');
         }
-        std::cout << std::endl;
-        std::cout << std::string(tableWidth, '-') << std::endl;
+        out() << Qt::endl;
+        out() << QString(tableWidth, QChar('-')) << Qt::endl;
 
         // Print each AppImage
         for (const auto &appImage : registeredAppImages) {
@@ -188,22 +198,22 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
             for (size_t i = 0; i < maxLines; ++i) {
                 for (size_t colIdx = 0; colIdx < selectedColumns.size(); ++colIdx) {
                     const auto &col = wrappedColumns[colIdx];
-                    std::cout << std::left << std::setw(selectedColumns[colIdx].width)
-                              << (i < col.size() ? col[i].toStdString() : "");
+                    QString value = (i < col.size()) ? col[i] : QString();
+                    out() << value.leftJustified(selectedColumns[colIdx].width, ' ');
                 }
-                std::cout << std::endl;
+                out() << Qt::endl;
             }
 
             // Blank line between entries
             if (&appImage != &registeredAppImages.back()) {
-                std::cout << std::endl;
+                out() << Qt::endl;
             }
         }
-        std::cout << std::string(tableWidth, '-') << std::endl;
+        out() << QString(tableWidth, QChar('-')) << Qt::endl;
     }
     // Stacked Output
     else {
-        std::cout << std::endl;
+        out() << Qt::endl;
         for (const auto &appImage : registeredAppImages) {
             for (const auto &spec : std::as_const(selectedColumns)) {
                 QString text;
@@ -213,108 +223,104 @@ void CliHandler::listRegisteredAppImages(QString columnsStr, bool tableOutput)
                 else if (spec.key == "description") text = appImage.comment;
                 else if (spec.key == "path") text = appImage.path;
 
-                std::cout << std::left
-                          << std::setw(12) << spec.name.toStdString()
-                          << ": "
-                          << text.toStdString()
-                          << std::endl;
+                QString namePadded = spec.name.leftJustified(12, ' ');
+                out() << namePadded << ": " << text << Qt::endl;
             }
-            std::cout << std::endl;
+            out() << Qt::endl;
         }
     }
 
     // Footer
-    std::cout << "Total: " << registeredAppImages.size() << " AppImage(s)" << std::endl << std::endl;
+    out() << "Total: " << registeredAppImages.size() << " AppImage(s)" << Qt::endl << Qt::endl;
 }
 
 void CliHandler::getAppImageInfo(QString path)
 {
     if (path.isEmpty()) {
-        std::cerr << "Error: No AppImage path provided. Use: --info <appimage_path>" << std::endl;
+        err() << "Error: No AppImage path provided. Use: --info <appimage_path>" << Qt::endl;
         return;
     }
 
     AppImageUtil util(path);
     AppImageUtilMetadata appImage = util.metadata();
 
-    auto printField = [](const std::string& key, const std::string& value) {
-        if(!value.empty()) {
-            std::cout << std::left << std::setw(INFO_LABEL_WIDTH) << key << ": " << value << std::endl;
+    auto printField = [](const QString &key, const QString &value) {
+        if (!value.isEmpty()) {
+            out() << key.leftJustified(INFO_LABEL_WIDTH, ' ') << ": " << value << Qt::endl;
         }
     };
 
-    std::cout << std::endl;
-    std::cout << (QString("╔") + QString(INFO_WIDTH - 2, QChar(0x2550)) + QString("╗")).toUtf8().constData() << std::endl;
+    out() << Qt::endl;
+    out() << (QString("╔") + QString(INFO_WIDTH - 2, QChar(0x2550)) + QString("╗")).toUtf8().constData() << Qt::endl;
     QString title = "AppImage Information";
     int innerWidth = INFO_WIDTH - 2;
     int leftPadding = (innerWidth - title.size()) / 2;
     int rightPadding = innerWidth - title.size() - leftPadding;
-    std::cout << (QString("║")
+    out() << (QString("║")
                   + QString(leftPadding, ' ')
                   + title
                   + QString(rightPadding, ' ')
-                  + QString("║")).toUtf8().constData() << std::endl;
-    std::cout << (QString("╚") + QString(INFO_WIDTH - 2, QChar(0x2550)) + QString("╝")).toUtf8().constData() << std::endl;
-    std::cout << std::endl;
+                  + QString("║")).toUtf8().constData() << Qt::endl;
+    out() << (QString("╚") + QString(INFO_WIDTH - 2, QChar(0x2550)) + QString("╝")).toUtf8().constData() << Qt::endl;
+    out() << Qt::endl;
 
     // General Information
-    std::cout << "General Information:" << std::endl;
-    std::cout << std::string(INFO_WIDTH, '-') << std::endl;
-    printField("Name", appImage.name.toStdString());
-    printField("Version", StringUtil::coalesce(appImage.updateCurrentVersion, appImage.version).toStdString());
-    printField("Description", appImage.comment.toStdString());
-    printField("Path", appImage.path.toStdString());
-    printField("Desktop Path", appImage.desktopFilePath.toStdString());
-    printField("Categories", appImage.categories.toStdString());
+    out() << "General Information:" << Qt::endl;
+    out() << QString(INFO_WIDTH, QChar('-')) << Qt::endl;
+    printField("Name", appImage.name);
+    printField("Version", StringUtil::coalesce(appImage.updateCurrentVersion, appImage.version));
+    printField("Description", appImage.comment);
+    printField("Path", appImage.path);
+    printField("Desktop Path", appImage.desktopFilePath);
+    printField("Categories", appImage.categories);
 
     // Update Information
     if(!appImage.updateType.isEmpty()) {
-        std::cout << std::endl;
-        std::cout << "Update Information:" << std::endl;
-        std::cout << std::string(INFO_WIDTH, '-') << std::endl;
-        printField("Update Type", appImage.updateType.toStdString());
-        printField("Url", appImage.updateUrl.toStdString());
-        printField("Download Field", appImage.updateDownloadField.toStdString());
-        printField("Download Pattern", appImage.updateDownloadPattern.toStdString());
-        printField("Version Field", appImage.updateVersionField.toStdString());
-        printField("Version Pattern", appImage.updateVersionPattern.toStdString());
-        printField("Date Field", appImage.updateDateField.toStdString());
+        out() << Qt::endl;
+        out() << "Update Information:" << Qt::endl;
+        out() << QString(INFO_WIDTH, QChar('-')) << Qt::endl;
+        printField("Update Type", appImage.updateType);
+        printField("Url", appImage.updateUrl);
+        printField("Download Field", appImage.updateDownloadField);
+        printField("Download Pattern", appImage.updateDownloadPattern);
+        printField("Version Field", appImage.updateVersionField);
+        printField("Version Pattern", appImage.updateVersionPattern);
+        printField("Date Field", appImage.updateDateField);
 
         if(!appImage.updateFilters.isEmpty()) {
-            std::cout << std::endl;
-            std::cout << "Update Filters:" << std::endl;
-            std::cout << std::string(INFO_WIDTH, '-') << std::endl;
+            out() << Qt::endl;
+            out() << "Update Filters:" << Qt::endl;
+            out() << QString(INFO_WIDTH, QChar('-')) << Qt::endl;
 
             for (const auto &filter : std::as_const(appImage.updateFilters)) {
-                printField(filter.field.toStdString(), filter.pattern.toStdString());
+                printField(filter.field, filter.pattern);
             }
         }
     }
 
     if (!appImage.internalIntegration) {
-        std::cout << std::endl;
+        out() << Qt::endl;
         printField("Note", "This AppImage appears to have been integrated by another application.");
     }
-    std::cout << std::endl;
+    out() << Qt::endl;
 }
 
 void CliHandler::updateAppImage(QString path, bool force)
 {
     if (path.isEmpty()) {
-        std::cerr << "Error: No AppImage path provided. Use: --update <appimage_path>" << std::endl;
+        err() << "Error: No AppImage path provided. Use: --update <appimage_path>" << Qt::endl;
         return;
     }
 
     AppImageUtil util(path);
     AppImageUtilMetadata appimage = util.metadata();
 
-    std::cout << "\033[1m" << appimage.name.toStdString() << " (";
-    std::cout << StringUtil::coalesce(appimage.updateCurrentVersion, appimage.version).toStdString();
-    std::cout << ") \033[0m\n\n";
+    out() << "\033[1m" << appimage.name << " (";
+    out() << StringUtil::coalesce(appimage.updateCurrentVersion, appimage.version);
+    out() << ") \033[0m\n\n";
 
     if (appimage.updateType.isEmpty()) {
-        std::cerr << "Error: No update type set in "
-                  << appimage.desktopFilePath.toStdString() << std::endl;
+        err() << "Error: No update type set in " << appimage.desktopFilePath << Qt::endl;
         return;
     }
 
@@ -336,7 +342,7 @@ void CliHandler::updateAppImage(QString path, bool force)
     execEventLoopLoadingIndicator("Checking for updates ", loop);
 
     if (fetchedReleases.isEmpty()) {
-        std::cout << "No updates found." << std::endl;
+        out() << "No updates found." << Qt::endl;
         return;
     }
 
@@ -352,40 +358,40 @@ void CliHandler::updateAppImage(QString path, bool force)
         selectableReleases.push_back(&r);
 
         // Default to latest new release
-        if (r.isLatest && r.isNew && defaultIndex == -1)
+        if (r.isLatest && (force || r.isNew) && defaultIndex == -1)
             defaultIndex = selectableReleases.size() - 1;
     }
 
     if (selectableReleases.isEmpty()) {
-        std::cout << "Your AppImage is already up to date. No updates available." << std::endl;
+        out() << "Your AppImage is already up to date. No updates available." << Qt::endl;
         return;
     }
 
     // Print releases
-    std::cout << "Available updates:\n";
+    out() << "Available updates:\n";
     for (int i = 0; i < selectableReleases.size(); ++i) {
         const auto &r = selectableReleases[i];
 
-        std::cout << "[" << (i + 1) << "] ";
+        out() << "[" << (i + 1) << "] ";
 
         // Bold latest new release
         bool bold = r->isNew && r->isLatest;
-        if (bold) std::cout << "\033[1m";
+        if (bold) out() << "\033[1m";
 
         // Version / date
         if (!r->version.isEmpty())
-            std::cout << r->version.toStdString();
+            out() << r->version;
         if (!r->date.isEmpty()) {
-            if (!r->version.isEmpty()) std::cout << " | ";
-            std::cout << StringUtil::formatDateTime(r->date).toStdString();
+            if (!r->version.isEmpty()) out() << " | ";
+            out() << StringUtil::formatDateTime(r->date);
         }
 
         // Flags
-        if (r->isNew) std::cout << "  <-- new" << (r->isLatest ? " (latest)" : "");
-        else if (r->isLatest) std::cout << "  <-- latest";
+        if (r->isNew) out() << "  <-- new" << (r->isLatest ? " (latest)" : "");
+        else if (r->isLatest) out() << "  <-- latest";
 
-        if (bold) std::cout << "\033[0m"; // reset bold
-        std::cout << std::endl;
+        if (bold) out() << "\033[0m"; // reset bold
+        out() << Qt::endl;
     }
 
     // Prompt user for selection
@@ -393,18 +399,19 @@ void CliHandler::updateAppImage(QString path, bool force)
     int selection = -1;
 
     while (true) {
-        std::cout << "\nSelect a release to update to";
+        out() << "\nSelect a release to update to";
         if (defaultIndex >= 0)
-            std::cout << " [default: "
-                      << selectableReleases[defaultIndex]->version.toStdString() << "]";
-        std::cout << " (1-" << selectableReleases.size() << ", or 'c' to cancel): " << std::flush;
+            out() << " [default: "
+                      << selectableReleases[defaultIndex]->version << "]";
+        out() << " (1-" << selectableReleases.size() << ", or 'c' to cancel): ";
+        out().flush();
 
         QString line = qin.readLine().trimmed();
 
         // Cancel
         if (line.compare("c", Qt::CaseInsensitive) == 0 ||
             line.compare("cancel", Qt::CaseInsensitive) == 0) {
-            std::cout << "Update cancelled by user." << std::endl;
+            out() << "Update cancelled by user." << Qt::endl;
             return;
         }
 
@@ -422,12 +429,11 @@ void CliHandler::updateAppImage(QString path, bool force)
             break;
         }
 
-        std::cout << "Invalid selection. Try again." << std::endl;
+        out() << "Invalid selection. Try again." << Qt::endl;
     }
 
     const auto* chosenRelease = selectableReleases[selection];
-    std::cout << "\nUpdating to version: "
-              << chosenRelease->version.toStdString() << std::endl;
+    out() << "\nUpdating to version: " << chosenRelease->version << Qt::endl;
 
     // TODO: implement actual download/apply logic
 }
@@ -495,7 +501,8 @@ void CliHandler::execEventLoopLoadingIndicator(const QString &message,
                                                QEventLoop &loop,
                                                LoadingIndicator indicator)
 {
-    std::cout << message.toStdString() << " " << std::flush;
+    out() << message << " ";
+    out().flush();
 
     int spinnerIndex = 0;
     int dotCount = 0;
@@ -505,20 +512,21 @@ void CliHandler::execEventLoopLoadingIndicator(const QString &message,
     QObject::connect(&timer, &QTimer::timeout, [&]() {
         if (indicator == LoadingIndicator::Spinner) {
             // Erase previous spinner char and print next
-            std::cout << "\b" << kSpinnerChars[spinnerIndex].toLatin1() << std::flush;
+            out() << "\b" << kSpinnerChars[spinnerIndex].toLatin1();
+            out().flush();
             spinnerIndex = (spinnerIndex + 1) % 4;
         }
         else if (indicator == LoadingIndicator::Dots) {
             // Move cursor back to end of message (overwrite previous dots)
-            std::cout << "\r" << message.toStdString() << " ";
+            out() << "\r" << message << " ";
             for (int i = 0; i < dotCount; ++i)
-                std::cout << ".";
+                out() << ".";
 
             // Pad remaining space so old dots are erased
             for (int i = dotCount; i < maxDots; ++i)
-                std::cout << " ";
+                out() << " ";
 
-            std::cout << std::flush;
+            out().flush();
 
             dotCount = (dotCount + 1) % (maxDots + 1); // 0..3 dots
         }
@@ -531,7 +539,8 @@ void CliHandler::execEventLoopLoadingIndicator(const QString &message,
     timer.stop();
 
     // Fully clear the line and reset cursor
-    std::cout << "\r" << std::string(message.length() + maxDots + 2, ' ') << "\r" << std::flush;
+    out() << "\r" << QString(message.length() + maxDots + 2, QChar(' ')) << "\r";
+    out().flush();
 }
 
 
