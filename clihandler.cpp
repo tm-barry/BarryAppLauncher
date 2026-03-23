@@ -10,6 +10,7 @@
 #include <QFutureWatcher>
 
 #include <algorithm>
+#include <deque>
 
 namespace {
     constexpr QChar kSpinnerChars[] = {'|', '/', '-', '\\'};
@@ -18,6 +19,7 @@ namespace {
 QVector<QString> CliHandler::m_errors;
 QVector<QString> CliHandler::m_warnings;
 QMutex CliHandler::m_errorMutex;
+QMutex CliHandler::m_outputMutex;
 
 inline QTextStream &out()
 {
@@ -44,7 +46,6 @@ inline void moveCursorDown(int lines) {
 inline void clearLine() {
     out() << "\r\033[2K";
 }
-
 
 const QList<ColumnSpec> CliHandler::COLUMN_CONFIG = {
     {"name", "Name", 20},
@@ -93,6 +94,11 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
                                   "update");
     parser.addOption(updateOption);
 
+    // Add update all option
+    QCommandLineOption updateAllOption({"U", "update-all"},
+                                    "Updates all appimages");
+    parser.addOption(updateAllOption);
+
     // Add force option
     QCommandLineOption forceOption({"f", "force"},
                                    "Force update: show and allow selection of all releases");
@@ -125,7 +131,7 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
     }
 
     // If cli option, then setup error manager for cli
-    if (parser.isSet(listOption) || parser.isSet(infoOption) || parser.isSet(updateOption)) {
+    if (parser.isSet(listOption) || parser.isSet(infoOption) || parser.isSet(updateOption) || parser.isSet(updateAllOption)) {
         handleErrorManager();
     }
 
@@ -150,6 +156,13 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
         update(appimage, force);
         result.shouldExit = true;
         printErrors();
+        return result;
+    }
+    else if (parser.isSet(updateAllOption)) {
+        bool force = parser.isSet(forceOption);
+        updateAll(force);
+        printErrors();
+        result.shouldExit = true;
         return result;
     }
 
@@ -353,22 +366,18 @@ void CliHandler::update(QString path, bool force)
         return;
     }
 
-    UpdaterSettings settings = getUpdaterSettings(appimage);
-    auto* updater = UpdaterFactory::create(
-        appimage.updateType, settings,
-        appimage.updateCurrentVersion, appimage.updateCurrentDate);
-
-    // Fetch updates asynchronously
+    QEventLoop releaseLoop;
     QList<UpdaterRelease> fetchedReleases;
-    QEventLoop loop;
-    QObject::connect(updater, &IUpdater::updatesReady, &loop, [&]() {
-        fetchedReleases = updater->releases();
-        updater->deleteLater();
-        loop.quit();
+
+    fetchReleasesAsync(appimage, [&](QList<UpdaterRelease> releases) {
+        fetchedReleases = releases;
+        releaseLoop.quit();
     });
 
-    updater->fetchUpdatesAsync();
-    execEventLoopLoadingIndicator("Checking for updates ", loop);
+    // Safety timeout (30s)
+    QTimer::singleShot(30000, &releaseLoop, &QEventLoop::quit);
+
+    execEventLoopLoadingIndicator("Checking for updates ", releaseLoop);
 
     if (fetchedReleases.isEmpty()) {
         out() << "No updates found." << Qt::endl;
@@ -476,7 +485,7 @@ void CliHandler::update(QString path, bool force)
         );
     QFutureWatcher<bool> watcher;
     watcher.setFuture(future);
-    QObject::connect(&watcher, &QFutureWatcher<bool>::finished, &loop,[&]() {
+    QObject::connect(&watcher, &QFutureWatcher<bool>::finished, &updateLoop,[&]() {
         success = watcher.result();
         updateLoop.quit();
     });
@@ -487,6 +496,106 @@ void CliHandler::update(QString path, bool force)
     } else {
         err() << "\n\nUpdate failed!" << Qt::endl;
     }
+}
+
+void CliHandler::updateAll(bool force)
+{
+    auto registeredAppImages = AppImageUtil::getRegisteredList();
+
+    if (registeredAppImages.isEmpty()) {
+        out() << "No registered AppImages found." << Qt::endl;
+        return;
+    }
+
+    QEventLoop checkLoop;
+    QVector<PendingUpdate> pendingUpdates;
+    collectReleasesAsync(registeredAppImages, [&](QVector<PendingUpdate> updates) {
+        pendingUpdates = updates;
+        checkLoop.quit();
+    }, force);
+    execEventLoopLoadingIndicator("Checking for updates ", checkLoop);
+
+    if (pendingUpdates.isEmpty()) {
+        out() << "No updates found." << Qt::endl;
+        return;
+    }
+
+    // Display available updates
+    out() << "The following updates are available:" << Qt::endl;
+    for (const auto &pu : std::as_const(pendingUpdates)) {
+        out() << "  - " << pu.metadata.name << ": " << pu.release.version << Qt::endl;
+    }
+
+    // User confirmation
+    out() << Qt::endl << "Update all? [Y/n] ";
+    out().flush();
+    QString response;
+    QTextStream(stdin) >> response;
+    if (!response.isEmpty() && response.toLower() != "y") {
+        out() << "Aborting updates." << Qt::endl;
+        return;
+    }
+
+    out() << Qt::endl;
+
+    // Print out waiting updates
+    for (int i = 0; i < pendingUpdates.size(); ++i) {
+        pendingUpdates[i].lineIndex = pendingUpdates.size() - i;
+        out() << pendingUpdates[i].metadata.name << ": Waiting..." << Qt::endl;
+    }
+
+    // Update all with max concurrent
+    const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
+    auto queue = std::make_shared<std::deque<PendingUpdate>>(pendingUpdates.begin(), pendingUpdates.end());
+    auto running = std::make_shared<int>(0);
+    auto next = std::make_shared<std::function<void()>>();
+
+    QEventLoop loop; // Wait for all updates to finish
+
+    *next = [queue, running, maxConcurrent, next, &loop, pendingUpdates]() mutable {
+        while (!queue->empty() && *running < maxConcurrent) {
+            PendingUpdate pu = queue->front();
+            queue->pop_front();
+
+            (*running)++;
+
+            // Start update
+            auto future = updateAppImageAsync(
+                pu.metadata.name,
+                pu.metadata.path,
+                pu.release.download,
+                pu.release.version,
+                pu.release.date,
+                pu.lineIndex
+                );
+
+            // Watch the future
+            auto watcher = new QFutureWatcher<bool>();
+            watcher->setFuture(future);
+
+            QObject::connect(watcher, &QFutureWatcher<bool>::finished, watcher, [running, next, watcher, queue, loopPtr = &loop]() mutable {
+                (*running)--;
+
+                // Launch next update if possible
+                (*next)();
+
+                // If everything is done, quit the loop
+                if (queue->empty() && *running == 0)
+                    loopPtr->quit();
+
+                watcher->deleteLater();
+            });
+        }
+    };
+
+    // Kick off first batch
+    for (int i = 0; i < maxConcurrent; ++i)
+        (*next)();
+
+    // Wait for all updates to finish
+    loop.exec();
+
+    out() << Qt::endl << "All updates finished." << Qt::endl;
 }
 
 QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
@@ -536,10 +645,12 @@ QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
                 break;
             }
 
+            QMutexLocker lock(&CliHandler::m_outputMutex);
+
             out() << "\r";
             moveCursorUp(lineIndex);
             clearLine();
-            out() << status << Qt::flush;
+            out() << status.leftJustified(UPDATE_STATUS_WIDTH, ' ') << Qt::flush;
             moveCursorDown(lineIndex);
         }
         );
@@ -562,6 +673,107 @@ UpdaterSettings CliHandler::getUpdaterSettings(AppImageUtilMetadata metadata)
     }
 
     return settings;
+}
+
+void CliHandler::fetchReleasesAsync(
+    const AppImageUtilMetadata &appimage,
+    std::function<void(QList<UpdaterRelease>)> callback)
+{
+    if (appimage.updateType.isEmpty()) {
+        callback({});
+        return;
+    }
+
+    UpdaterSettings settings = getUpdaterSettings(appimage);
+
+    auto* updater = UpdaterFactory::create(
+        appimage.updateType,
+        settings,
+        appimage.updateCurrentVersion,
+        appimage.updateCurrentDate
+        );
+
+    if (!updater) {
+        callback({});
+        return;
+    }
+
+    QObject::connect(updater, &IUpdater::updatesReady,
+                     [updater, callback]() {
+                         auto releases = updater->releases();
+                         updater->deleteLater();
+                         callback(releases);
+                     });
+
+    updater->fetchUpdatesAsync();
+}
+
+void CliHandler::collectReleasesAsync(const QList<AppImageUtilMetadata> &appimages,
+                                      std::function<void(QVector<PendingUpdate>)> finishedCallback,
+                                      bool force,
+                                      int timeoutMs)
+{
+    if (appimages.isEmpty()) {
+        finishedCallback({});
+        return;
+    }
+
+    const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
+    auto queue = std::make_shared<std::deque<AppImageUtilMetadata>>(appimages.begin(), appimages.end());
+    auto running = std::make_shared<int>(0);
+    auto updates = std::make_shared<QVector<PendingUpdate>>();
+
+    auto next = std::make_shared<std::function<void()>>();
+
+    *next = [queue, running, updates, maxConcurrent, force, next, finishedCallback, timeoutMs]() mutable {
+        while (!queue->empty() && *running < maxConcurrent) {
+            AppImageUtilMetadata app = queue->front();
+            queue->pop_front();
+
+            (*running)++;
+
+            // Setup a safety timeout for this fetch
+            auto timeoutTimer = new QTimer;
+            timeoutTimer->setSingleShot(true);
+
+            fetchReleasesAsync(app, [app, updates, running, queue, next, force, finishedCallback, timeoutTimer](QList<UpdaterRelease> releases) mutable {
+                timeoutTimer->stop();
+                timeoutTimer->deleteLater();
+
+                (*running)--;
+
+                for (const auto &r : releases) {
+                    if (r.isLatest && (force || r.isNew)) {
+                        updates->push_back({app, r});
+                        break;
+                    }
+                }
+
+                if (queue->empty() && *running == 0) {
+                    finishedCallback(*updates);
+                    return;
+                }
+
+                (*next)();
+            });
+
+            QObject::connect(timeoutTimer, &QTimer::timeout, [running, queue, next, finishedCallback, updates]() {
+                (*running)--;
+
+                if (queue->empty() && *running == 0) {
+                    finishedCallback(*updates);
+                    return;
+                }
+
+                (*next)();
+            });
+
+            timeoutTimer->start(timeoutMs);
+        }
+    };
+
+    for (int i = 0; i < maxConcurrent; ++i)
+        (*next)();
 }
 
 QStringList CliHandler::getWrappedText(const QString& text, int width, QChar splitChar)

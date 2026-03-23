@@ -12,6 +12,12 @@ struct CliResult {
     QString appImageFile;
 };
 
+struct PendingUpdate {
+    AppImageUtilMetadata metadata;
+    UpdaterRelease release;
+    int lineIndex = -1;
+};
+
 struct ColumnSpec {
     QString key = "";
     QString name = "";
@@ -38,10 +44,12 @@ private:
     static QVector<QString> m_warnings;
     static QVector<QString> m_errors;
     static QMutex m_errorMutex;
+    static QMutex m_outputMutex;
     static const QList<ColumnSpec> COLUMN_CONFIG;
     static const QStringList VALID_COLUMNS;
     static constexpr int INFO_WIDTH = 80;
     static constexpr int INFO_LABEL_WIDTH = 20;
+    static constexpr int UPDATE_STATUS_WIDTH = 120;
 
     /**
      * @brief List all registered AppImages
@@ -58,6 +66,12 @@ private:
      * @param path of appimage to update
      */
     static void update(QString path, bool force = false);
+
+    /**
+     * @brief Updates all appimages with updates
+     * @param forces updates even if no new version is found
+     */
+    static void updateAll(bool force = false);
 
     /**
      * @brief Updates appimage asynchronously
@@ -82,6 +96,26 @@ private:
      * @return updater settings parsed from metadata
      */
     static UpdaterSettings getUpdaterSettings(AppImageUtilMetadata metadata);
+
+    /**
+     * @brief Fetches releases async for a given appimage
+     * @param appimage to get releases for
+     * @param callback that returns the releases for given appimage
+     */
+    static void fetchReleasesAsync(
+        const AppImageUtilMetadata &appimage,
+        std::function<void(QList<UpdaterRelease>)> callback);
+
+    /**
+     * @brief Collects available new releases for appimages
+     * @param appimages to get pending updates for
+     * @param finishedCallback - returns with pending updates when finished
+     * @param force - if true it will use latest release even if not new
+     */
+    static void collectReleasesAsync(const QList<AppImageUtilMetadata> &appimages,
+                              std::function<void(QVector<PendingUpdate>)> finishedCallback,
+                              bool force = false,
+                              int timeoutMs = 30000);
 
     /**
      * @brief Splits text into lines by the given width
