@@ -63,8 +63,9 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
     CliResult result;
     QCommandLineParser parser;
     parser.setApplicationDescription("Integrate and manage AppImages on your desktop");
-    parser.addHelpOption();
-    parser.addVersionOption();
+    auto helpOption = parser.addHelpOption();
+    auto versionOption = parser.addVersionOption();
+    parser.setSingleDashWordOptionMode(QCommandLineParser::ParseAsLongOptions);
 
     // Add list option
     QCommandLineOption listOption({"l", "list"},
@@ -108,7 +109,10 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
     parser.addPositionalArgument("appimage",
                                  "AppImage file to open (optional)", "[appimage]");
 
-    parser.process(*QCoreApplication::instance());
+    QStringList arguments;
+    for (int i = 0; i < argc; ++i)
+        arguments << QString::fromLocal8Bit(argv[i]);
+    parser.parse(arguments);
 
     // Get positional argument
     const QStringList positionalArgs = parser.positionalArguments();
@@ -136,7 +140,17 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
     }
 
     // Handle/check for cli options
-    if (parser.isSet(listOption)) {
+    if (parser.isSet(helpOption)) {
+        out() << parser.helpText();
+        result.shouldExit = true;
+        return result;
+    }
+    else if (parser.isSet(versionOption)) {
+        out() << QCoreApplication::applicationVersion() << Qt::endl;
+        result.shouldExit = true;
+        return result;
+    }
+    else if (parser.isSet(listOption)) {
         bool tableOutput = parser.isSet(tableOption);
         list(columnsStr, tableOutput);
         printErrors();
