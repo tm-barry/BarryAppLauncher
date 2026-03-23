@@ -6,14 +6,17 @@
 
 UpdaterFactory::UpdaterFactory() {}
 
-IUpdater* UpdaterFactory::create(const QString &type, const UpdaterSettings &settings)
+IUpdater* UpdaterFactory::create(const QString &type,
+                                 const UpdaterSettings &settings,
+                                 const QString currentVersion,
+                                 const QString currentDate)
 {
     if (type == "json") {
-        return new JsonUpdater(settings);
+        return new JsonUpdater(settings, currentVersion, currentDate);
     }
     else if (type == "static")
     {
-        return new StaticUpdater(settings);
+        return new StaticUpdater(settings, currentVersion, currentDate);
     }
 
     return nullptr;

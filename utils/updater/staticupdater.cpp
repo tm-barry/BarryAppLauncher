@@ -2,7 +2,11 @@
 #include "utils/jsonutil.h"
 
 StaticUpdater::StaticUpdater(QObject *parent) : IUpdater(parent) { m_headersOnly = true; }
-StaticUpdater::StaticUpdater(const UpdaterSettings &settings, QObject *parent) : IUpdater(settings, parent) { m_headersOnly = true; }
+StaticUpdater::StaticUpdater(const UpdaterSettings &settings,
+                             const QString currentVersion,
+                             const QString currentDate,
+                             QObject *parent)
+    : IUpdater(settings, currentVersion, currentDate, parent) { m_headersOnly = true; }
 
 void StaticUpdater::parseData(const QByteArray &data)
 {

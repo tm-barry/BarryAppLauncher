@@ -11,7 +11,10 @@ class StaticUpdater : public IUpdater
     Q_OBJECT
 public:
     explicit StaticUpdater(QObject *parent = nullptr);
-    explicit StaticUpdater(const UpdaterSettings &settings, QObject *parent = nullptr);
+    explicit StaticUpdater(const UpdaterSettings &settings,
+                           const QString currentVersion = QString(),
+                           const QString currentDate = QString(),
+                           QObject *parent = nullptr);
 
     void parseData(const QByteArray &data) override;
 };

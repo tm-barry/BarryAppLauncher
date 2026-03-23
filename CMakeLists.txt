@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(BarryAppLauncher VERSION 0.9.1 LANGUAGES CXX)
+project(BarryAppLauncher VERSION 0.9.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,13 +33,17 @@ set(ENABLE_TEST OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   libarchive
   GIT_REPOSITORY https://github.com/libarchive/libarchive.git
-  GIT_TAG v3.8.5
+  GIT_TAG v3.8.6
 )
 FetchContent_MakeAvailable(libarchive)
 
 # Fix build with strict compiler: only for libarchive
 if(TARGET archive_static)
-    target_compile_options(archive_static PRIVATE -Wno-error=discarded-qualifiers)
+    # Apply only to C source files
+    target_compile_options(archive_static
+        PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Wno-discarded-qualifiers>
+    )
 endif()
 
 qt_add_resources(RESOURCES
@@ -110,6 +114,8 @@ qt_add_qml_module(barryapplauncher
         utils/texteditorutil.h
         utils/texteditorutil.cpp
         utils/versionutil.h
+        clihandler.h
+        clihandler.cpp
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

@@ -3,10 +3,8 @@
 #include "settingsmanager.h"
 #include "providers/memoryimageprovider.h"
 #include "utils/updater/updaterfactory.h"
-#include "utils/stringutil.h"
 #include "utils/terminalutil.h"
 #include "utils/texteditorutil.h"
-#include "utils/versionutil.h"
 
 #include <deque>
 #include <QGuiApplication>
@@ -38,8 +36,6 @@ void AppImageManager::setAppImageList(const QList<AppImageMetadata*>& list)
     for (auto* metadata : list) {
         m_appImageList->addMetadata(metadata);
     }
-
-    m_appImageList->sort();
 
     emit appImageListChanged();
 }
@@ -141,11 +137,24 @@ void AppImageManager::requestModal(ModalTypes modal, QVariant data)
 
 QFuture<void> AppImageManager::loadAppImageList()
 {
-    auto promise = QSharedPointer<QPromise<void>>::create();
+    // If a load is already in progress, return the existing future
+    if (!m_loadFuture.isCanceled() && m_loadFuture.isRunning()) {
+        return m_loadFuture;
+    }
 
-    QThreadPool::globalInstance()->start([this, promise]() {
+    auto promise = QSharedPointer<QPromise<void>>::create();
+    m_loadFuture = promise->future(); // store the future for re-use
+
+    setLoadingAppImageList(true);
+
+    QPointer<AppImageManager> self(this); // use QPointer for safe capture
+
+    QThreadPool::globalInstance()->start([self, promise]() {
+        if (!self) return; // check if object was deleted
+
         try {
             auto utilList = AppImageUtil::getRegisteredList();
+
             // load icons
             MemoryImageProvider::instance()->clearImages();
             for (const auto& app : utilList) {
@@ -153,31 +162,36 @@ QFuture<void> AppImageManager::loadAppImageList()
                 MemoryImageProvider::instance()->setImage(app.path, image);
             }
 
-            // update appList on gui thread
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [this, utilList, promise]() {
+            // update appList on GUI thread
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [self, utilList, promise]() {
+                if (!self) return; // safe null check
+
                 QList<AppImageMetadata*> appList;
                 for (const auto& app : utilList) {
-                    auto* meta = AppImageMetadata::createFromUtil(app, this);
+                    auto* meta = AppImageMetadata::createFromUtil(app, self);
                     meta->setIcon(MemoryImageProvider::instance()->getUrl(app.path));
                     appList.append(meta);
                 }
-                setAppImageList(appList);
-                setLoadingAppImageList(false);
+
+                self->setAppImageList(appList);
+                self->setLoadingAppImageList(false);
                 promise->finish();
             }, Qt::QueuedConnection);
 
         } catch (const std::exception &e) {
             ErrorManager::instance()->reportError(e.what());
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [this, promise]() {
-                setLoadingAppImageList(false);
+            QMetaObject::invokeMethod(QGuiApplication::instance(), [self, promise]() {
+                if (self) {
+                    self->setLoadingAppImageList(false);
+                }
                 promise->finish();
             }, Qt::QueuedConnection);
         }
     });
 
-    setLoadingAppImageList(true);
-    return promise->future();
+    return m_loadFuture;
 }
+
 
 QFuture<void> AppImageManager::loadAppImageMetadata(const QUrl& url) {
     return loadAppImageMetadata(url.toLocalFile());
@@ -409,7 +423,6 @@ void AppImageManager::checkForAllUpdates()
             if (queue->empty() && *running == 0) {
                 self->setLoadingAppImageList(false);
                 self->m_appImageList->updateAllItems();
-                self->m_appImageList->sort();
             }
         };
 
@@ -557,7 +570,10 @@ void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMeta
     }
 
     UpdaterSettings settings = getUpdaterSettings(metadata);
-    auto* updater = UpdaterFactory::create(metadata->updateType(), settings);
+    auto* updater = UpdaterFactory::create(metadata->updateType(),
+                                           settings,
+                                           metadata->updateCurrentVersion(),
+                                           metadata->updateCurrentDate());
 
     connect(updater, &IUpdater::updatesReady, this, [this, updater, metadata, callback]() {
         if (!metadata) {
@@ -573,18 +589,8 @@ void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMeta
             releaseModel->setVersion(r.version);
             releaseModel->setDate(r.date);
             releaseModel->setDownload(r.download);
-
-            bool isNew = (metadata->updateCurrentVersion().isEmpty()
-                          || (VersionUtil::compareVersions(r.version, metadata->updateCurrentVersion()) == 1))
-                         && (metadata->updateCurrentDate().isEmpty()
-                             || (StringUtil::parseDateTime(r.date) > StringUtil::parseDateTime(metadata->updateCurrentDate())));
-            releaseModel->setIsNew(isNew);
-
-            if(isNew && !markedLatest) {
-                releaseModel->setIsSelected(true);
-                markedLatest = true;
-            }
-
+            releaseModel->setIsNew(r.isNew);
+            releaseModel->setIsSelected(r.isNew && r.isLatest);
             metadata->addUpdaterRelease(releaseModel);
         }
         updater->deleteLater();
@@ -638,7 +644,6 @@ QFuture<void> AppImageManager::updateAppImageAsync(AppImageMetadata* metadata, U
                                              metadata->setVersion(selectedRelease->version());
                                          }
                                          metadata->clearUpdaterReleases();
-                                         m_appImageList->sort();
                                      }
                                      promise->finish();
                                  },

@@ -115,36 +115,40 @@ void AppImageUtil::mountAppImageAsync()
 
 bool AppImageUtil::mountAppImage(int mountTimeoutMs)
 {
-    QEventLoop loop;
-    bool result = false;
+    struct MountState {
+        QEventLoop loop;
+        bool result = false;
+        QTimer timer;
+    };
+    auto state = QSharedPointer<MountState>::create();
 
-    QMetaObject::Connection conn = connect(this, &AppImageUtil::mountFinished, [&](bool success) {
-        result = success;
-        loop.quit();
-    });
+    QMetaObject::Connection conn = connect(
+        this, &AppImageUtil::mountFinished, this,
+        [state](bool success) {
+            state->result = success;
+            state->loop.quit();
+        }
+        );
 
     mountAppImageAsync();
 
-    QTimer mountTimer;
-    mountTimer.setSingleShot(true);
-    QObject::connect(&mountTimer, &QTimer::timeout, [&]() {
-        // Only apply timeout if we are still mounting
-        if (m_process && !m_tempExtractDir.isEmpty()) {
+    state->timer.setSingleShot(true);
+    QObject::connect(&state->timer, &QTimer::timeout, this, [state, this]() {
+        if (m_process && !m_tempExtractDir.isEmpty())
             return;
-        }
 
         if (m_process) {
             ErrorManager::instance()->reportError("AppImage mount timed out.");
             unmountAppImage();
         }
-        loop.quit();
+        state->loop.quit();
     });
-    mountTimer.start(mountTimeoutMs);
 
-    loop.exec();
+    state->timer.start(mountTimeoutMs);
+    state->loop.exec();
     disconnect(conn);
 
-    return result;
+    return state->result;
 }
 
 void AppImageUtil::onMountStdoutReady()
@@ -307,34 +311,31 @@ void AppImageUtil::unmountAppImage()
     m_tempExtractDir.clear();
 }
 
+QMutex dirMutex;
+
 const QString AppImageUtil::integratedDesktopPath(const QString& path)
 {
-    const QStringList searchPaths = getSearchPaths();
+    QMutexLocker locker(&dirMutex);
 
+    const QStringList searchPaths = getSearchPaths();
     for (const QString& dirPath : searchPaths) {
         QDir dir(dirPath);
         const QStringList desktopFiles = dir.entryList(QStringList() << "*.desktop", QDir::Files);
 
         for (const QString& fileName : desktopFiles) {
-            QString filePath = dir.absoluteFilePath(fileName);
-            QFile file(filePath);
-
+            QFile file(dir.absoluteFilePath(fileName));
             if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
                 continue;
 
             QTextStream in(&file);
             while (!in.atEnd()) {
                 QString line = in.readLine().trimmed();
-
                 if (line.startsWith("Exec=")) {
                     QString execLine = line.mid(QString("Exec=").length());
                     const QStringList execCommandParts = QProcess::splitCommand(execLine);
-
-                    for (const QString& execCommand : execCommandParts)
-                    {
-                        if (execCommand == path) {
-                            return filePath;
-                        }
+                    for (const QString& execCommand : execCommandParts) {
+                        if (execCommand == path)
+                            return file.fileName();
                     }
                     break;
                 }
@@ -343,6 +344,7 @@ const QString AppImageUtil::integratedDesktopPath(const QString& path)
     }
     return QString();
 }
+
 
 AppImageUtilMetadata AppImageUtil::metadata(MetadataAction action)
 {
@@ -871,7 +873,7 @@ void AppImageUtil::updateAppImage(const QString& appImagePath, const QString& do
         });
     }
 
-    QObject::connect(reply, &QNetworkReply::finished, [=]() {
+    QObject::connect(reply, &QNetworkReply::finished, reply, [=]() {
         if (reply->error() != QNetworkReply::NoError) {
             ErrorManager::instance()->reportError(
                 "Download failed: " + reply->errorString());
@@ -998,7 +1000,8 @@ const QList<UpdaterFilter> AppImageUtil::parseFilters(const QString &filterStr)
         return filters;
     }
 
-    for (const QJsonValue &val : doc.array()) {
+    QJsonArray arr = doc.array();
+    for (const QJsonValue &val : std::as_const(arr)) {
         if (!val.isObject())
             continue;
 
@@ -1127,14 +1130,14 @@ void AppImageUtil::updateDesktopKey(QString& targetContents,
         targetContents.replace(rx, lineToUse);
     } else {
         // Insert into [Desktop Entry] section or append
-        QRegularExpression entryRx(R"(^\[Desktop Entry\])",
+        static const QRegularExpression entryRx(R"(^\[Desktop Entry\])",
                                    QRegularExpression::MultilineOption);
         QRegularExpressionMatch entryMatch = entryRx.match(targetContents);
         if (entryMatch.hasMatch()) {
             int sectionStart = entryMatch.capturedEnd();
 
             // Find the start of the next section
-            QRegularExpression nextSectionRx(R"(^\s*\[[^\]]+\].*$)",
+            static const QRegularExpression nextSectionRx(R"(^\s*\[[^\]]+\].*$)",
                                              QRegularExpression::MultilineOption);
             QRegularExpressionMatch nextMatch = nextSectionRx.match(targetContents, sectionStart);
 

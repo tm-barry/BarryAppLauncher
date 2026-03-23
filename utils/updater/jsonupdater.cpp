@@ -12,7 +12,11 @@
 #include <QRegularExpression>
 
 JsonUpdater::JsonUpdater(QObject *parent) : IUpdater(parent) {}
-JsonUpdater::JsonUpdater(const UpdaterSettings &settings, QObject *parent) : IUpdater(settings, parent) {}
+JsonUpdater::JsonUpdater(const UpdaterSettings &settings,
+                         const QString currentVersion,
+                         const QString currentDate,
+                         QObject *parent)
+    : IUpdater(settings, currentVersion, currentDate, parent) {}
 
 void JsonUpdater::parseData(const QByteArray &data)
 {
@@ -57,7 +61,7 @@ void JsonUpdater::parseData(const QByteArray &data)
 
         // Apply filters
         bool include = true;
-        for (const UpdaterFilter &f : m_settings.filters) {
+        for (const UpdaterFilter &f : std::as_const(m_settings.filters)) {
             QList<QJsonValue> vals = JsonUtil::getValuesByPath(obj, f.field);
             QString fieldVal;
             if (!vals.isEmpty())

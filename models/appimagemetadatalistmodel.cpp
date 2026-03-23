@@ -36,6 +36,8 @@ QVariant AppImageMetadataListModel::data(const QModelIndex &index, int role) con
     switch (role) {
     case NameRole: return item->name();
     case VersionRole: return item->version();
+    case UpdateCurrentVersionRole: return item->updateCurrentVersion();
+    case UpdateCurrentDateRole: return item->updateCurrentDate();
     case CommentRole: return item->comment();
     case TypeRole: return item->type();
     case IconRole: return item->icon();
@@ -60,6 +62,8 @@ QHash<int, QByteArray> AppImageMetadataListModel::roleNames() const
     QHash<int, QByteArray> roles;
     roles[NameRole] = "name";
     roles[VersionRole] = "version";
+    roles[UpdateCurrentVersionRole] = "updateCurrentVersion";
+    roles[UpdateCurrentDateRole] = "updateCurrentDate";
     roles[CommentRole] = "comment";
     roles[TypeRole] = "type";
     roles[IconRole] = "icon";
@@ -124,20 +128,4 @@ void AppImageMetadataListModel::updateAllItems() {
     QModelIndex topLeft = index(0);
     QModelIndex bottomRight = index(m_items.count() - 1);
     emit dataChanged(topLeft, bottomRight);
-}
-
-void AppImageMetadataListModel::sort()
-{
-    beginResetModel();
-
-    std::sort(m_items.begin(), m_items.end(),
-              [](AppImageMetadata* a, AppImageMetadata* b) {
-
-                  if (a->hasNewRelease() != b->hasNewRelease())
-                      return a->hasNewRelease() > b->hasNewRelease();
-
-                  return QString::localeAwareCompare(a->name(), b->name()) < 0;
-              });
-
-    endResetModel();
 }

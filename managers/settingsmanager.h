@@ -7,6 +7,24 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QSettings>
+
+namespace SettingsKeys {
+
+    namespace General {
+        constexpr auto AppImageDefaultLocation = "General/appImageDefaultLocation";
+        constexpr auto AppListCompactView = "General/appListCompactView";
+        constexpr auto AppImageFileOperation = "General/appImageFileOperation";
+        constexpr auto Terminal = "General/terminal";
+        constexpr auto TextEditor = "General/textEditor";
+        constexpr auto KeepBackup = "General/keepBackup";
+    }
+
+    namespace Update {
+        constexpr auto UpdateConcurrency = "Update/updateConcurrency";
+        constexpr auto Headers = "Update/headers";
+    }
+}
 
 struct UpdateHeader {
 public:
@@ -68,6 +86,7 @@ public:
 private:
     explicit SettingsManager(QObject *parent = nullptr);
 
+    QSettings m_settings;
     static const QUrl m_appImageDefaultLocation;
     static const QString m_terminalDefault;
     static const QString m_textEditorDefault;

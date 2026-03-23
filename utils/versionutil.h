@@ -48,7 +48,7 @@ public:
         }
 
         // try date
-        QRegularExpression dateRe(R"((\d{4})-(\d{2})-(\d{2}))");
+        static const QRegularExpression dateRe(R"((\d{4})-(\d{2})-(\d{2}))");
         QRegularExpressionMatch dm = dateRe.match(cleaned);
 
         if (dm.hasMatch()) {
@@ -63,7 +63,7 @@ public:
         }
 
         // try commit hash
-        QRegularExpression hashRe(R"(\b[0-9a-fA-F]{7,}\b)");
+        static const QRegularExpression hashRe(R"(\b[0-9a-fA-F]{7,}\b)");
         if (hashRe.match(cleaned).hasMatch()) {
             v.commitHash = cleaned;
         }
@@ -114,10 +114,11 @@ private:
         QString cleaned = input.trimmed();
 
         // Strip leading non-digits (e.g., "v1.2.3")
-        cleaned.remove(QRegularExpression("^[^0-9]+"));
+        static const QRegularExpression nonDigitRe("^[^0-9]+");
+        cleaned.remove(nonDigitRe);
 
         // Regex: numeric version + optional prerelease + optional build metadata
-        QRegularExpression re(R"(^(\d+(?:\.\d+)*)(?:-([0-9A-Za-z\.-]+))?(?:\+([0-9A-Za-z\.-]+))?$)");
+        static const QRegularExpression re(R"(^(\d+(?:\.\d+)*)(?:-([0-9A-Za-z\.-]+))?(?:\+([0-9A-Za-z\.-]+))?$)");
         QRegularExpressionMatch m = re.match(cleaned);
 
         if (m.hasMatch()) {
