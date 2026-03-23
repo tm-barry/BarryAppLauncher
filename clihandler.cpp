@@ -86,13 +86,13 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
     // Add info option
     QCommandLineOption infoOption({"i", "info"},
                                   "Display info of appimage",
-                                  "info");
+                                  "appimage_path");
     parser.addOption(infoOption);
 
     // Add update option
     QCommandLineOption updateOption({"u", "update"},
                                   "Updates appimage",
-                                  "update");
+                                  "appimage_path");
     parser.addOption(updateOption);
 
     // Add update all option

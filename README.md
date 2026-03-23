@@ -39,6 +39,29 @@ Supports updating AppImages that have releases exposed through a JSON API or sta
 |:-----------------:|:-----------------:|
 | ![General Preferences](assets/images/barryapplauncher-preferences-general.png) | ![Updater Preferences](assets/images/barryapplauncher-preferences-updater.png) |
 
+### CLI
+```
+Usage: /media/primary/source/qt/BarryAppLauncher/build/Desktop-Debug/barryapplauncher [options] [appimage]
+Integrate and manage AppImages on your desktop
+
+Options:
+  -h, --help                    Displays help on commandline options.
+  --help-all                    Displays help, including generic Qt options.
+  -v, --version                 Displays version information.
+  -l, --list                    List all registered AppImages
+  -t, --table                   Show table output
+  -c, --columns <columns>       Columns to display (comma-separated):
+                                name,version,path,description
+  -i, --info <appimage_path>    Display info of appimage
+  -u, --update <appimage_path>  Updates appimage
+  -U, --update-all              Updates all appimages
+  -f, --force                   Force update: show and allow selection of all
+                                releases
+
+Arguments:
+  appimage                      AppImage file to open (optional)
+```
+
 ## Build
 
 ```bash
