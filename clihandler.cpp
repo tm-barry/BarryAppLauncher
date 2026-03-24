@@ -19,7 +19,8 @@ namespace {
 QVector<QString> CliHandler::m_errors;
 QVector<QString> CliHandler::m_warnings;
 QMutex CliHandler::m_errorMutex;
-QMutex CliHandler::m_outputMutex;
+QVector<UpdateStatus> CliHandler::m_status;
+QMutex CliHandler::m_statusMutex;
 
 inline QTextStream &out()
 {
@@ -543,8 +544,8 @@ void CliHandler::updateAll(bool force)
     // User confirmation
     out() << Qt::endl << "Update all? [Y/n] ";
     out().flush();
-    QString response;
-    QTextStream(stdin) >> response;
+    QTextStream in(stdin);
+    QString response = in.readLine().trimmed();
     if (!response.isEmpty() && response.toLower() != "y") {
         out() << "Aborting updates." << Qt::endl;
         return;
@@ -552,11 +553,34 @@ void CliHandler::updateAll(bool force)
 
     out() << Qt::endl;
 
+    // Initialize status buffer
+    m_status.clear();
+    m_status.resize(pendingUpdates.size());
+
     // Print out waiting updates
     for (int i = 0; i < pendingUpdates.size(); ++i) {
-        pendingUpdates[i].lineIndex = pendingUpdates.size() - i;
-        out() << pendingUpdates[i].metadata.name << ": Waiting..." << Qt::endl;
+        pendingUpdates[i].lineIndex = i;
+        m_status[i].text = pendingUpdates[i].metadata.name + ": Waiting...";
+        out() << m_status[i].text << Qt::endl;
     }
+
+    // Update Status Output
+    QTimer renderTimer;
+    QObject::connect(&renderTimer, &QTimer::timeout, [&]() {
+        QMutexLocker lock(&m_statusMutex);
+
+        // Move cursor to top of block
+        out() << "\033[" << m_status.size() << "A";
+
+        for (const auto &s : std::as_const(m_status)) {
+            out() << "\r\033[2K"
+                  << s.text.leftJustified(UPDATE_STATUS_WIDTH, ' ')
+                  << "\n";
+        }
+
+        out().flush();
+    });
+    renderTimer.start(50);
 
     // Update all with max concurrent
     const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
@@ -608,6 +632,7 @@ void CliHandler::updateAll(bool force)
 
     // Wait for all updates to finish
     loop.exec();
+    renderTimer.stop();
 
     out() << Qt::endl << "All updates finished." << Qt::endl;
 }
@@ -659,13 +684,8 @@ QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
                 break;
             }
 
-            QMutexLocker lock(&CliHandler::m_outputMutex);
-
-            out() << "\r";
-            moveCursorUp(lineIndex);
-            clearLine();
-            out() << status.leftJustified(UPDATE_STATUS_WIDTH, ' ') << Qt::flush;
-            moveCursorDown(lineIndex);
+            QMutexLocker lock(&CliHandler::m_statusMutex);
+            m_status[lineIndex].text = status;
         }
         );
 

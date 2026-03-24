@@ -18,6 +18,10 @@ struct PendingUpdate {
     int lineIndex = -1;
 };
 
+struct UpdateStatus {
+    QString text;
+};
+
 struct ColumnSpec {
     QString key = "";
     QString name = "";
@@ -44,7 +48,8 @@ private:
     static QVector<QString> m_warnings;
     static QVector<QString> m_errors;
     static QMutex m_errorMutex;
-    static QMutex m_outputMutex;
+    static QVector<UpdateStatus> m_status;
+    static QMutex m_statusMutex;
     static const QList<ColumnSpec> COLUMN_CONFIG;
     static const QStringList VALID_COLUMNS;
     static constexpr int INFO_WIDTH = 80;
