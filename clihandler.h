@@ -45,6 +45,7 @@ public:
     static CliResult processCLI(int argc, char *argv[]);
 
 private:
+    static int m_maxNameWidth;
     static QVector<QString> m_warnings;
     static QVector<QString> m_errors;
     static QMutex m_errorMutex;
@@ -54,7 +55,6 @@ private:
     static const QStringList VALID_COLUMNS;
     static constexpr int INFO_WIDTH = 80;
     static constexpr int INFO_LABEL_WIDTH = 20;
-    static constexpr int UPDATE_STATUS_WIDTH = 120;
 
     /**
      * @brief List all registered AppImages
@@ -77,6 +77,11 @@ private:
      * @param forces updates even if no new version is found
      */
     static void updateAll(bool force = false);
+
+    /**
+     * @brief Outputs the update all status
+     */
+    static void outputUpdateAllStatus();
 
     /**
      * @brief Updates appimage asynchronously

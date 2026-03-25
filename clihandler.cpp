@@ -16,6 +16,7 @@ namespace {
     constexpr QChar kSpinnerChars[] = {'|', '/', '-', '\\'};
 }
 
+int CliHandler::m_maxNameWidth;
 QVector<QString> CliHandler::m_errors;
 QVector<QString> CliHandler::m_warnings;
 QMutex CliHandler::m_errorMutex;
@@ -558,29 +559,23 @@ void CliHandler::updateAll(bool force)
     m_status.resize(pendingUpdates.size());
 
     // Print out waiting updates
+    m_maxNameWidth = 0;
     for (int i = 0; i < pendingUpdates.size(); ++i) {
+        m_maxNameWidth = qMax(m_maxNameWidth, pendingUpdates[i].metadata.name.length());
         pendingUpdates[i].lineIndex = i;
         m_status[i].text = pendingUpdates[i].metadata.name + ": Waiting...";
         out() << m_status[i].text << Qt::endl;
     }
 
+    out().flush();
+
     // Update Status Output
     QTimer renderTimer;
     QObject::connect(&renderTimer, &QTimer::timeout, [&]() {
-        QMutexLocker lock(&m_statusMutex);
-
-        // Move cursor to top of block
-        out() << "\033[" << m_status.size() << "A";
-
-        for (const auto &s : std::as_const(m_status)) {
-            out() << "\r\033[2K"
-                  << s.text.leftJustified(UPDATE_STATUS_WIDTH, ' ')
-                  << "\n";
-        }
-
-        out().flush();
+        outputUpdateAllStatus();
     });
-    renderTimer.start(50);
+
+    renderTimer.start(100);
 
     // Update all with max concurrent
     const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
@@ -633,8 +628,28 @@ void CliHandler::updateAll(bool force)
     // Wait for all updates to finish
     loop.exec();
     renderTimer.stop();
+    outputUpdateAllStatus();
 
     out() << Qt::endl << "All updates finished." << Qt::endl;
+}
+
+void CliHandler::outputUpdateAllStatus()
+{
+    QMutexLocker lock(&m_statusMutex);
+
+    // Always go to bottom, then up
+    out() << "\r\033[" << m_status.size() << "A";
+
+    for (int i = 0; i < m_status.size(); ++i) {
+        out() << "\033[2K\r" << m_status[i].text;
+        if (i < m_status.size() - 1)
+            out() << "\n";
+    }
+
+    // Ensure cursor ends BELOW block
+    out() << "\n";
+
+    out().flush();
 }
 
 QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
@@ -660,34 +675,34 @@ QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
 
         [name, lineIndex, version](UpdateState state, qint64 received, qint64 total) {
             QString status;
+            QString paddedName = name.leftJustified(m_maxNameWidth, ' ');
             switch(state) {
             case UpdateState::Downloading:
                 status = QString("%1: %2 (%3%)")
-                             .arg(name,
+                             .arg(paddedName,
                                   StringUtil::getUpdateDownloadText(received, total),
                                   total > 0 ? QString::number(received * 100.0 / total, 'f', 1) : "0.0");
                 break;
             case UpdateState::Extracting:
-                status = QString("%1: Extracting...").arg(name);
+                status = QString("%1: Extracting...").arg(paddedName);
                 break;
             case UpdateState::Installing:
-                status = QString("%1: Installing...").arg(name);
+                status = QString("%1: Installing...").arg(paddedName);
                 break;
             case UpdateState::Success:
-                status = QString("%1: Updated to %2").arg(name, version);
+                status = QString("%1: Updated to %2").arg(paddedName, version);
                 break;
             case UpdateState::Failed:
-                status = QString("%1: Failed").arg(name);
+                status = QString("%1: Failed!").arg(paddedName);
                 break;
             default:
-                status = QString("%1: Waiting...").arg(name);
+                status = QString("%1: Waiting...").arg(paddedName);
                 break;
             }
 
             QMutexLocker lock(&CliHandler::m_statusMutex);
             m_status[lineIndex].text = status;
-        }
-        );
+        });
 
     return future;
 }
