@@ -41,7 +41,7 @@ Supports updating AppImages that have releases exposed through a JSON API or sta
 
 ### CLI
 ```
-Usage: /media/primary/source/qt/BarryAppLauncher/build/Desktop-Debug/barryapplauncher [options] [appimage]
+Usage: ./barryapplauncher.appimage [options] [appimage]
 Integrate and manage AppImages on your desktop
 
 Options:
