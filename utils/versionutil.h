@@ -94,7 +94,7 @@ public:
             {
                 if(a.hasCommit() && b.hasCommit())
                 {
-                    result = QString::compare(a.commitHash, b.commitHash, Qt::CaseInsensitive);
+                    result = QString::compare(a.commitHash, b.commitHash, Qt::CaseInsensitive) != 0 ? 1 : 0;
                 }
 
                 if(result == 0)
