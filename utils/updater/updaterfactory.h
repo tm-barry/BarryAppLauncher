@@ -192,11 +192,31 @@ public:
     }
 
     static bool isNewRelease(const UpdaterRelease &release,
-                             const QString currentVersion = QString(),
-                             const QString currentDate = QString())
+                             const QString &currentVersion = QString(),
+                             const QString &currentDate = QString())
     {
-        return (currentVersion.isEmpty() || VersionUtil::compareVersions(release.version, currentVersion) == 1)
-        && (currentDate.isEmpty() || StringUtil::parseDateTime(release.date) > StringUtil::parseDateTime(currentDate));
+        if (!currentVersion.isEmpty()) {
+            int cmp = VersionUtil::compareVersions(release.version, currentVersion);
+            if (cmp < 0)
+                return false; // reject older version
+            else if(cmp > 0)
+                return true;      // newer version = valid update
+        }
+
+        // Fallback to date if no version available
+        auto releaseDt = StringUtil::parseDateTime(release.date);
+        auto currentDt = StringUtil::parseDateTime(currentDate);
+
+        if (releaseDt.isValid() && currentDt.isValid())
+        {
+            return releaseDt > currentDt;
+        }
+        else if(releaseDt.isValid())
+        {
+            return true;
+        }
+
+        return false;
     }
 
 signals:

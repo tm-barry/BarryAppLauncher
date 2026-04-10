@@ -72,7 +72,7 @@ public:
     }
 
     // Compare version strings
-    // Returns -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+    // Returns < 0 if v1 < v2, 0 if equal, > 0 if v1 > v2
     static int compareVersions(const QString &v1, const QString &v2) {
         Version a = parseVersion(v1);
         Version b = parseVersion(v2);
@@ -131,7 +131,7 @@ private:
     }
 
     // Compare two SemVer structs
-    // Returns -1 if a < b, 0 if equal, 1 if a > b
+    // Returns < 0 if a < b, 0 if equal, > 0 if a > b
     static int compareSemVer(const SemVer &a, const SemVer &b) {
         int cmp = QVersionNumber::compare(a.version, b.version);
         if (cmp != 0) return cmp;
