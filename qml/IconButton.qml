@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 
 Button {
-    font.family: fontAwesome.name
+    font: Qt.font({ family: fontAwesome.name })
 
     FontLoader {
         id: fontAwesome
