@@ -20,6 +20,7 @@ ApplicationWindow {
     property int pendingState: AppImageManager.AppList
     property var pendingAppImage: null
     property bool waitingForSave: false
+    property bool allowClose: false
 
     function pageHasUnsavedChanges() {
         return pageContent.item
@@ -43,13 +44,15 @@ ApplicationWindow {
         } else if (action === "load") {
             AppImageManager.loadAppImageMetadata(appImage)
         } else if (action === "quit") {
-            Qt.quit()
+            allowClose = true
+            mainWindow.close()
         }
     }
 
     function requestQuit() {
         if (!pageHasUnsavedChanges()) {
-            Qt.quit()
+            allowClose = true
+            mainWindow.close()
             return
         }
 
@@ -127,6 +130,9 @@ ApplicationWindow {
     }
 
     onClosing: function(close) {
+        if (allowClose)
+            return
+
         if (pageHasUnsavedChanges()) {
             close.accepted = false
             pendingAction = "quit"
