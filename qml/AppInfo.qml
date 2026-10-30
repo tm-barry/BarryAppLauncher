@@ -6,9 +6,35 @@ import QtQuick.Layouts
 import "utils"
 
 Item {
-    property int maximumWidth: 460
+    id: root
+
+    // Keep the detail content readable on wide windows while fitting narrow ones.
+    property int maximumWidth: Math.min(650, Math.max(0, width - 20))
+
+    readonly property bool hasUnsavedChanges:
+        !!AppImageManager.appImageMetadata?.updateDirty
+
+    function saveUpdateSettings() {
+        if (!AppImageManager.appImageMetadata)
+            return false
+
+        AppImageManager.saveUpdateSettings()
+
+        // The backend's dirty flag is the success signal used by the UI.
+        return !hasUnsavedChanges
+    }
 
     FormatterUtil { id: formatter }
+
+    FontLoader {
+        id: fontAwesome
+        source: "/assets/fonts/fa-6-solid-900.otf"
+    }
+
+    TextMetrics {
+        id: releaseTextMetrics
+        font: updateOptionsBtn.font
+    }
 
     QtObject {
         id: utils
@@ -86,31 +112,30 @@ Item {
             spacing: 5
 
             Image {
+                id: appImageIcon
                 source: AppImageManager.appImageMetadata?.icon
-                width: 96
-                height: 96
-                sourceSize.width: width
-                sourceSize.height: height
+                Layout.preferredWidth: 96
+                Layout.preferredHeight: 96
+                sourceSize.width: 96
+                sourceSize.height: 96
                 fillMode: Image.PreserveAspectFit
                 Layout.alignment: Qt.AlignHCenter
                 visible: AppImageManager.appImageMetadata?.executable
+                         && !!source && status !== Image.Error
             }
 
             Label {
-                text: "\uf023"
-                font.pixelSize: 96
+                text: AppImageManager.appImageMetadata?.executable ? "\uf1b2" : "\uf023"
+                font: Qt.font({ family: fontAwesome.name, pixelSize: 96 })
                 Layout.alignment: Qt.AlignHCenter
                 visible: !AppImageManager.appImageMetadata?.executable
-                FontLoader {
-                    id: fontAwesome
-                    source: "/assets/fonts/fa-6-solid-900.otf"
-                }
+                         || !AppImageManager.appImageMetadata?.icon
+                         || appImageIcon.status === Image.Error
             }
 
             Label {
                 text: AppImageManager.appImageMetadata?.name
-                font.pixelSize: 18
-                font.bold: true
+                font: Qt.font({ pixelSize: 18, bold: true })
                 Layout.alignment: Qt.AlignHCenter
             }
 
@@ -149,7 +174,7 @@ Item {
                                 AppImageManager.appImageMetadata?.updateBytesReceived,
                                 AppImageManager.appImageMetadata?.updateBytesTotal)
                           : formatter.getUpdateProgressText(AppImageManager.appImageMetadata?.updateProgressState)
-                    color: "white"
+                    color: updateProgress.palette.buttonText
                     font.pixelSize: 12
                 }
             }
@@ -221,26 +246,26 @@ Item {
 
                 RowLayout {
                     spacing: 0
-                    visible: AppImageManager.appImageMetadata.updateType
+                    visible: !!AppImageManager.appImageMetadata?.updateType
 
                     ColorButton {
                         text: qsTr("Check for Update")
                         Layout.preferredWidth: 130
                         enabled: !AppImageManager.loadingAppImage
                                  && !AppImageManager.updating
-                        visible: !AppImageManager.appImageMetadata.hasNewRelease
+                        visible: !AppImageManager.appImageMetadata?.hasNewRelease
                         onClicked: AppImageManager.checkForUpdate()
                     }
 
                     ColorButton {
-                        property var firstNewRelease: AppImageManager.appImageMetadata.updaterReleases.find(
+                        property var firstNewRelease: AppImageManager.appImageMetadata?.updaterReleases?.find(
                                                           r => r.isNew)
 
                         text: qsTr("Update")
                         Layout.preferredWidth: 100
                         enabled: !AppImageManager.loadingAppImage
                                  && !AppImageManager.updating
-                        visible: AppImageManager.appImageMetadata.hasNewRelease
+                        visible: !!AppImageManager.appImageMetadata?.hasNewRelease
                         onClicked: {
                             if (firstNewRelease) {
                                 AppImageManager.updateAppImage(
@@ -257,8 +282,17 @@ Item {
                         Layout.preferredWidth: 30
                         enabled: !AppImageManager.loadingAppImage
                                  && !AppImageManager.updating
-                        visible: AppImageManager.appImageMetadata.updaterReleases.length > 0
+                        visible: (AppImageManager.appImageMetadata?.updaterReleases?.length ?? 0) > 0
                         onClicked: {
+                            let widestRelease = 0
+                            const releases = AppImageManager.appImageMetadata?.updaterReleases ?? []
+                            for (let i = 0; i < releases.length; ++i) {
+                                releaseTextMetrics.text = releases[i].version
+                                        + (releases[i].isNew ? " *" : "")
+                                widestRelease = Math.max(widestRelease,
+                                                         releaseTextMetrics.width)
+                            }
+                            updateOptionsMenu.maxItemWidth = widestRelease
                             updateOptionsMenu.y = updateOptionsBtn.y + 30
                             updateOptionsMenu.open()
                         }
@@ -274,25 +308,13 @@ Item {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             clip: true
-                            model: AppImageManager.appImageMetadata.updaterReleases
+                            model: AppImageManager.appImageMetadata?.updaterReleases ?? []
                             spacing: 0
                             height: Math.min(contentHeight, 210)
 
                             delegate: MenuItem {
                                 text: isNew ? version + " *" : version
-                                font.bold: isNew
-
-                                // Hidden Text for width measurement
-                                Text {
-                                    id: measureText
-                                    text: parent.text
-                                    font: parent.font
-                                    visible: false
-                                    onWidthChanged: {
-                                        if (width > updateOptionsMenu.maxItemWidth)
-                                            updateOptionsMenu.maxItemWidth = width
-                                    }
-                                }
+                                font: Qt.font({ bold: true })
 
                                 onTriggered: {
                                     AppImageManager.updateAppImage(download,
@@ -365,13 +387,12 @@ Item {
 
             Label {
                 text: qsTr("General")
-                font.bold: true
-                font.pixelSize: 14
+                font: Qt.font({ bold: true, pixelSize: 14})
                 Layout.alignment: Qt.AlignHCenter
             }
             RoundedGroupBox {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.minimumWidth: maximumWidth
+                Layout.fillWidth: true
                 Layout.maximumWidth: maximumWidth
 
                 ColumnLayout {
@@ -380,7 +401,7 @@ Item {
 
                     Label {
                         text: qsTr("Package type")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     TransparentTextArea {
@@ -394,7 +415,7 @@ Item {
 
                     Label {
                         text: qsTr("Path")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     RowLayout {
@@ -428,7 +449,7 @@ Item {
 
                     Label {
                         text: qsTr("Checksum (sha256)")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: !AppImageManager.appImageMetadata?.executable
                     }
 
@@ -459,14 +480,13 @@ Item {
 
             Label {
                 text: qsTr("Desktop Integration")
-                font.bold: true
-                font.pixelSize: 14
+                font: Qt.font({ bold: true, pixelSize: 14 })
                 Layout.alignment: Qt.AlignHCenter
                 visible: AppImageManager.appImageMetadata?.executable
             }
             RoundedGroupBox {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.minimumWidth: maximumWidth
+                Layout.fillWidth: true
                 Layout.maximumWidth: maximumWidth
                 visible: AppImageManager.appImageMetadata?.executable
 
@@ -476,7 +496,7 @@ Item {
 
                     Label {
                         text: qsTr("Desktop Path")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     RowLayout {
@@ -521,7 +541,7 @@ Item {
 
                     Label {
                         text: qsTr("Categories")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     TransparentTextArea {
@@ -538,15 +558,14 @@ Item {
 
             Label {
                 text: qsTr("Update")
-                font.bold: true
-                font.pixelSize: 14
+                font: Qt.font({ bold: true, pixelSize: 14 })
                 Layout.alignment: Qt.AlignHCenter
                 visible: AppImageManager.appImageMetadata?.desktopFilePath
             }
             RoundedGroupBox {
                 id: updateGroupBox
                 Layout.alignment: Qt.AlignHCenter
-                Layout.minimumWidth: maximumWidth
+                Layout.fillWidth: true
                 Layout.maximumWidth: maximumWidth
                 visible: AppImageManager.appImageMetadata?.desktopFilePath
 
@@ -556,7 +575,7 @@ Item {
 
                     Label {
                         text: qsTr("Refresh Metadata")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     Label {
@@ -590,7 +609,7 @@ Item {
 
                     Label {
                         text: qsTr("Update Type")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     RowLayout {
@@ -617,6 +636,7 @@ Item {
                             }
                             textRole: "text"
                             valueRole: "value"
+                            Accessible.name: qsTr("Update type")
                             currentIndex: {
                                 if (!AppImageManager.appImageMetadata)
                                     return 0
@@ -627,11 +647,10 @@ Item {
                                 }
                                 return 0
                             }
-                            onCurrentIndexChanged: {
+                            onActivated: function(index) {
                                 if (AppImageManager.appImageMetadata) {
-                                    AppImageManager.appImageMetadata.updateType = model.get(
-                                                currentIndex).value
-
+                                    AppImageManager.appImageMetadata.updateType =
+                                            model.get(index).value
                                     scrollView.contentItem.contentY = updateGroupBox.y
                                 }
                             }
@@ -642,7 +661,8 @@ Item {
                             width: 55
                             Layout.preferredWidth: 55
                             ToolTip.visible: hovered
-                            ToolTip.text: qsTr("Presets")
+                            ToolTip.text: qsTr("Apply an update configuration preset")
+                            Accessible.name: qsTr("Update presets")
                             enabled: !AppImageManager.loadingAppImage
                                      && !AppImageManager.updating
                             onClicked: {
@@ -662,7 +682,7 @@ Item {
                                     text: qsTr("System Presets")
                                     width: presetsMenu.width
                                     enabled: false
-                                    font.bold: true
+                                    font: Qt.font({ bold: true })
                                 }
                                 MenuSeparator {  width: presetsMenu.width }
                             }
@@ -707,28 +727,58 @@ Item {
                                 ScrollBar.vertical: ScrollBar {}
                             }
                         }
-                        IconButton {
-                            text: "\uf0c7"
-                            width: 55
-                            Layout.preferredWidth: 55
-                            enabled: AppImageManager.appImageMetadata?.desktopFilePath
-                                     && AppImageManager.appImageMetadata?.updateDirty
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        opacity: 0.75
+                        text: {
+                            switch (AppImageManager.appImageMetadata?.updateType ?? "") {
+                            case "static":
+                                return qsTr("Static updates use the configured URL and HTTP response headers to identify the available version.")
+                            case "json":
+                                return qsTr("JSON updates read release information from the configured endpoint using the fields and patterns below.")
+                            default:
+                                return qsTr("Automatic update checking is disabled for this AppImage.")
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: AppImageManager.appImageMetadata?.updateDirty
+                                  ? qsTr("Unsaved changes. Save to keep these settings.")
+                                  : qsTr("Update settings are saved.")
+                            color: AppImageManager.appImageMetadata?.updateDirty
+                                   ? palette.highlight : palette.text
+                        }
+
+                        ColorButton {
+                            text: qsTr("Save Update Settings")
+                            Layout.preferredWidth: 160
+                            backgroundColor: "#4E7A6A"
+                            enabled: !!AppImageManager.appImageMetadata?.desktopFilePath
+                                     && !!AppImageManager.appImageMetadata?.updateDirty
                                      && !AppImageManager.loadingAppImage
                                      && !AppImageManager.updating
-                            onClicked: {
-                                AppImageManager.saveUpdateSettings()
-                            }
+                            onClicked: root.saveUpdateSettings()
                         }
                     }
 
                     Item {
                         Layout.preferredHeight: 5
-                        visible: AppImageManager.appImageMetadata?.updateType
+                        visible: !!AppImageManager.appImageMetadata?.updateType
                     }
 
                     Label {
                         text: qsTr("Url")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: utils.isType("static", "json")
                     }
 
@@ -753,7 +803,7 @@ Item {
 
                     Label {
                         text: qsTr("Download Field")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: utils.isType("json")
                     }
 
@@ -779,7 +829,7 @@ Item {
 
                     Label {
                         text: qsTr("Download Pattern")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: utils.isType("json")
                     }
 
@@ -805,7 +855,7 @@ Item {
 
                     Label {
                         text: getText()
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: utils.isType("static", "json")
 
                         function getText() {
@@ -845,7 +895,7 @@ Item {
 
                     Label {
                         text: qsTr("Version Pattern")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: utils.isType("static", "json")
                     }
 
@@ -873,7 +923,7 @@ Item {
 
                     Label {
                         text: getText()
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: utils.isType("static", "json")
 
                         function getText() {
@@ -913,7 +963,7 @@ Item {
 
                     Label {
                         text: qsTr("Filters")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                         visible: utils.isType("json")
                     }
 
@@ -944,10 +994,10 @@ Item {
                                     Layout.fillWidth: true
                                 }
                                 ColorButton {
-                                    text: "x"
+                                    text: qsTr("Remove")
                                     enabled: !AppImageManager.loadingAppImage
                                              && !AppImageManager.updating
-                                    Layout.preferredWidth: 35
+                                    Layout.preferredWidth: 65
                                     backgroundColor: "#C43D3D"
                                     onClicked: AppImageManager.appImageMetadata?.removeUpdateFilter(
                                                    index)
@@ -956,7 +1006,7 @@ Item {
                         }
 
                         ColorButton {
-                            text: "Add Filter"
+                            text: qsTr("Add Filter")
                             enabled: !AppImageManager.loadingAppImage
                                      && !AppImageManager.updating
                             backgroundColor: "#4E7A6A"

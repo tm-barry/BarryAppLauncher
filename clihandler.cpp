@@ -6,17 +6,34 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QCoreApplication>
-#include <QTimer>
+#include <QEventLoop>
 #include <QFutureWatcher>
+#include <QMutex>
+#include <QPromise>
+#include <QTextStream>
+#include <QTimer>
 
 #include <algorithm>
 #include <deque>
+#include <functional>
+#include <memory>
+#include <utility>
+
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace {
     constexpr QChar kSpinnerChars[] = {'|', '/', '-', '\\'};
+
+    bool stdoutIsTTY()
+    {
+        static const bool tty = ::isatty(fileno(stdout)) == 1;
+        return tty;
+    }
 }
 
 int CliHandler::m_maxNameWidth;
+bool CliHandler::m_inPlace = false;
 QVector<QString> CliHandler::m_errors;
 QVector<QString> CliHandler::m_warnings;
 QMutex CliHandler::m_errorMutex;
@@ -40,14 +57,175 @@ inline void moveCursorUp(int lines) {
         out() << "\033[" << lines << "A";
 }
 
-inline void moveCursorDown(int lines) {
-    if (lines > 0)
-        out() << "\033[" << lines << "B";
-}
+// ---------------------------------------------------------------------------
+// Output helpers (colors, unicode, terminal size, row formatting)
+// ---------------------------------------------------------------------------
+namespace {
 
-inline void clearLine() {
-    out() << "\r\033[2K";
-}
+    // Color only on a TTY, and honor https://no-color.org
+    bool useColor()
+    {
+        static const bool c = stdoutIsTTY() && qEnvironmentVariableIsEmpty("NO_COLOR");
+        return c;
+    }
+
+    QString style(const QString &text, const char *code)
+    {
+        if (!useColor())
+            return text;
+        return QString("\033[%1m%2\033[0m").arg(QString::fromLatin1(code), text);
+    }
+
+    // Unicode icons only on a TTY with a UTF-8 locale; ASCII fallbacks otherwise
+    bool useUnicode()
+    {
+        static const bool u = []() {
+            if (!stdoutIsTTY())
+                return false;
+            for (const char *var : {"LC_ALL", "LC_CTYPE", "LANG"}) {
+                const QByteArray v = qgetenv(var);
+                if (!v.isEmpty())
+                    return v.toLower().contains("utf");
+            }
+            return false;
+        }();
+        return u;
+    }
+
+    winsize terminalSize()
+    {
+        winsize ws{};
+        if (::ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) != 0 || ws.ws_col == 0) {
+            ws.ws_col = 80;
+            ws.ws_row = 24;
+        }
+        if (ws.ws_row == 0)
+            ws.ws_row = 24;
+        return ws;
+    }
+
+    int terminalWidth() { return terminalSize().ws_col; }
+    int terminalRows()  { return terminalSize().ws_row; }
+
+    /**
+     * Formats one row of the progress block, e.g.
+     *   ↓ Krita      ████████░░░░  62%  Downloading 14.2 MB / 22.9 MB
+     *   ✓ Obsidian   updated to 1.6.0
+     * @param showBar draw the progress bar (in-place mode only)
+     * @param termWidth if > 0, the detail text is truncated to fit
+     */
+    QString formatRow(const UpdateStatus &row, int nameWidth, bool showBar, int termWidth)
+    {
+        const bool uni = useUnicode();
+        auto pick = [uni](const char *u, const char *a) {
+            return QString::fromUtf8(uni ? u : a);
+        };
+
+        QString icon;
+        QString detail;
+        const char *color = "0";
+
+        switch (row.state) {
+        case RowState::Waiting:
+            icon = pick("·", ".");
+            color = "2";
+            detail = QStringLiteral("waiting");
+            break;
+
+        case RowState::Downloading: {
+            icon = pick("↓", ">");
+            color = "36";
+            if (showBar && row.total > 0) {
+                const QString text = StringUtil::getUpdateDownloadText(row.received, row.total);
+                const double frac = qBound(0.0, double(row.received) / double(row.total), 1.0);
+                constexpr int barWidth = 12;
+                const int filled = int(frac * barWidth + 0.5);
+                const QChar fullChar(uni ? 0x2588 : '#');
+                const QChar emptyChar(uni ? 0x2591 : '-');
+                const QString bar = QString(filled, fullChar) + QString(barWidth - filled, emptyChar);
+                const QString pct = QString::number(frac * 100.0, 'f', 0).rightJustified(3);
+                detail = QString("%1 %2%  %3").arg(bar, pct, text);
+            } else if (showBar) {
+                // Size unknown: no bar/percent, just show what we have
+                detail = StringUtil::getUpdateDownloadText(row.received, row.total);
+            } else {
+                detail = QStringLiteral("downloading...");
+            }
+            break;
+        }
+
+        case RowState::Extracting:
+            icon = pick("»", "*");
+            color = "36";
+            detail = QStringLiteral("extracting...");
+            break;
+
+        case RowState::Installing:
+            icon = pick("»", "*");
+            color = "36";
+            detail = QStringLiteral("installing...");
+            break;
+
+        case RowState::Done:
+            icon = pick("✓", "+");
+            color = "32";
+            detail = row.version.isEmpty() ? QStringLiteral("updated")
+                                           : QString("updated to %1").arg(row.version);
+            break;
+
+        case RowState::Failed:
+            icon = pick("✗", "x");
+            color = "31";
+            detail = QStringLiteral("failed");
+            break;
+        }
+
+        // Keep each row on one terminal line, otherwise the in-place redraw
+        // (cursor-up by row count) drifts.
+        if (termWidth > 0) {
+            const int avail = termWidth - 1 - (nameWidth + 4);   // icon + space + name + 2 spaces
+            detail.truncate(qMax(0, avail));
+        }
+
+        const bool colorDetail = (row.state == RowState::Done || row.state == RowState::Failed);
+
+        return style(icon, color)
+               + QChar(' ')
+               + row.name.leftJustified(nameWidth, QChar(' '))
+               + QStringLiteral("  ")
+               + (colorDetail ? style(detail, color) : detail);
+    }
+
+    /**
+     * One-line breakdown of an update check plus any apps that couldn't be checked
+     */
+    void printCheckSummary(const CollectResult &r)
+    {
+        QStringList parts;
+        auto add = [&](CheckOutcome outcome, const QString &label) {
+            const int n = r.count(outcome);
+            if (n > 0)
+                parts << QString("%1 %2").arg(n).arg(label);
+        };
+        add(CheckOutcome::UpdateAvailable, QStringLiteral("with updates"));
+        add(CheckOutcome::UpToDate,        QStringLiteral("up to date"));
+        add(CheckOutcome::TimedOut,        QStringLiteral("timed out"));
+        add(CheckOutcome::NoReleaseInfo,   QStringLiteral("returned no release info"));
+        add(CheckOutcome::Skipped,         QStringLiteral("skipped (no valid update source)"));
+
+        out() << "Checked " << r.entries.size() << " AppImage(s): " << parts.join(QStringLiteral(", ")) << Qt::endl;
+
+        const QString mark = QString::fromUtf8(useUnicode() ? "!" : "!");
+        for (const auto &e : r.entries) {
+            if (e.outcome == CheckOutcome::TimedOut)
+                out() << style(QString("  %1 %2: timed out").arg(mark, e.name), "33") << Qt::endl;
+            else if (e.outcome == CheckOutcome::NoReleaseInfo)
+                out() << style(QString("  %1 %2: no release info returned").arg(mark, e.name), "33") << Qt::endl;
+        }
+        out() << Qt::endl;
+    }
+
+} // namespace
 
 const QList<ColumnSpec> CliHandler::COLUMN_CONFIG = {
     {"name", "Name", 20},
@@ -153,31 +331,27 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
         return result;
     }
     else if (parser.isSet(listOption)) {
-        bool tableOutput = parser.isSet(tableOption);
-        list(columnsStr, tableOutput);
-        printErrors();
+        const bool tableOutput = parser.isSet(tableOption);
+        result.exitCode = finishCommand(list(columnsStr, tableOutput));
         result.shouldExit = true;
         return result;
     }
     else if (parser.isSet(infoOption)) {
-        QString appImage = parser.value(infoOption);
-        info(appImage);
+        const QString appImage = parser.value(infoOption);
+        result.exitCode = finishCommand(info(appImage));
         result.shouldExit = true;
-        printErrors();
         return result;
     }
     else if (parser.isSet(updateOption)) {
-        bool force = parser.isSet(forceOption);
-        QString appimage = parser.value(updateOption);
-        update(appimage, force);
+        const bool force = parser.isSet(forceOption);
+        const QString appimage = parser.value(updateOption);
+        result.exitCode = finishCommand(update(appimage, force));
         result.shouldExit = true;
-        printErrors();
         return result;
     }
     else if (parser.isSet(updateAllOption)) {
-        bool force = parser.isSet(forceOption);
-        updateAll(force);
-        printErrors();
+        const bool force = parser.isSet(forceOption);
+        result.exitCode = finishCommand(updateAll(force));
         result.shouldExit = true;
         return result;
     }
@@ -185,24 +359,29 @@ CliResult CliHandler::processCLI(int argc, char *argv[])
     return result;
 }
 
-void CliHandler::list(QString columnsStr, bool tableOutput)
+int CliHandler::list(QString columnsStr, bool tableOutput)
 {
     auto registeredAppImages = AppImageUtil::getRegisteredList();
 
     if (registeredAppImages.isEmpty()) {
         out() << "No registered AppImages found." << Qt::endl;
-        return;
+        return 0;
     }
 
     // Parse columns from string
     QStringList columnsList = columnsStr.split(',', Qt::SkipEmptyParts);
+
+    // Tolerate spaces around names ("name, version") and drop blank entries
+    for (auto &col : columnsList)
+        col = col.trimmed();
+    columnsList.removeAll(QString());
 
     // Validate columns
     for (const auto& col : std::as_const(columnsList)) {
         if (!VALID_COLUMNS.contains(col)) {
             err() << "Error: Invalid column '" << col << "'. Valid columns are: "
                       << VALID_COLUMNS.join(",") << Qt::endl;
-            return;
+            return 1;
         }
     }
 
@@ -253,8 +432,8 @@ void CliHandler::list(QString columnsStr, bool tableOutput)
                 maxLines = std::max(maxLines, col.size());
 
             // Print all lines for this row
-            for (size_t i = 0; i < maxLines; ++i) {
-                for (size_t colIdx = 0; colIdx < selectedColumns.size(); ++colIdx) {
+            for (qsizetype i = 0; i < maxLines; ++i) {
+                for (qsizetype colIdx = 0; colIdx < selectedColumns.size(); ++colIdx) {
                     const auto &col = wrappedColumns[colIdx];
                     QString value = (i < col.size()) ? col[i] : QString();
                     out() << value.leftJustified(selectedColumns[colIdx].width, ' ');
@@ -290,13 +469,14 @@ void CliHandler::list(QString columnsStr, bool tableOutput)
 
     // Footer
     out() << "Total: " << registeredAppImages.size() << " AppImage(s)" << Qt::endl << Qt::endl;
+    return 0;
 }
 
-void CliHandler::info(QString path)
+int CliHandler::info(QString path)
 {
     if (path.isEmpty()) {
         err() << "Error: No AppImage path provided. Use: --info <appimage_path>" << Qt::endl;
-        return;
+        return 1;
     }
 
     AppImageUtil util(path);
@@ -361,43 +541,77 @@ void CliHandler::info(QString path)
         printField("Note", "This AppImage appears to have been integrated by another application.");
     }
     out() << Qt::endl;
+    return 0;
 }
 
-void CliHandler::update(QString path, bool force)
+int CliHandler::update(QString path, bool force)
 {
     if (path.isEmpty()) {
         err() << "Error: No AppImage path provided. Use: --update <appimage_path>" << Qt::endl;
-        return;
+        return 1;
     }
 
     AppImageUtil util(path);
     AppImageUtilMetadata appimage = util.metadata();
 
-    out() << "\033[1m" << appimage.name << " (";
-    out() << StringUtil::coalesce(appimage.updateCurrentVersion, appimage.version);
-    out() << ") \033[0m\n\n";
+    const QString currentVersion = StringUtil::coalesce(appimage.updateCurrentVersion, appimage.version);
+    out() << style(QString("%1 (%2)").arg(appimage.name, currentVersion), "1") << Qt::endl << Qt::endl;
 
     if (appimage.updateType.isEmpty()) {
         err() << "Error: No update type set in " << appimage.desktopFilePath << Qt::endl;
-        return;
+        return 1;
     }
 
     QEventLoop releaseLoop;
     QList<UpdaterRelease> fetchedReleases;
+    bool timedOut = false;
+    bool skipped = false;
 
-    fetchReleasesAsync(appimage, [&](QList<UpdaterRelease> releases) {
+    // Only the fetch or the timeout may complete this phase. If the timeout
+    // wins, the in-flight fetch is aborted so its callback can never run
+    // against this function's locals after we've returned.
+    auto completed = std::make_shared<bool>(false);
+
+    auto* updater = fetchReleasesAsync(appimage, [&, completed](QList<UpdaterRelease> releases, bool wasSkipped) {
+        if (*completed)
+            return;
+        *completed = true;
+
         fetchedReleases = releases;
+        skipped = wasSkipped;
         releaseLoop.quit();
     });
 
-    // Safety timeout (30s)
-    QTimer::singleShot(30000, &releaseLoop, &QEventLoop::quit);
+    if (updater) {
+        // Safety timeout (30s)
+        QTimer::singleShot(kFetchTimeoutMs, &releaseLoop, [completed, updater, &releaseLoop, &timedOut]() {
+            if (*completed)
+                return;
+            *completed = true;
+            timedOut = true;
 
-    execEventLoopLoadingIndicator("Checking for updates ", releaseLoop);
+            // Abort the in-flight fetch
+            delete updater;
 
+            releaseLoop.quit();
+        });
+
+        execEventLoopLoadingIndicator("Checking for updates", releaseLoop);
+    }
+    // If no updater was created (no/unknown update type) the callback above
+    // already ran synchronously - nothing left to wait for.
+
+    if (timedOut) {
+        err() << "Error: Timed out while checking for updates." << Qt::endl;
+        return 1;
+    }
+    if (skipped) {
+        err() << "Error: Unable to check for updates (no valid update source; see warnings below)." << Qt::endl;
+        return 1;
+    }
     if (fetchedReleases.isEmpty()) {
-        out() << "No updates found." << Qt::endl;
-        return;
+        err() << "Error: No release information was returned for this AppImage." << Qt::endl;
+        return 1;
     }
 
     // Filter releases according to force / isNew
@@ -417,8 +631,8 @@ void CliHandler::update(QString path, bool force)
     }
 
     if (selectableReleases.isEmpty()) {
-        out() << "Your AppImage is already up to date. No updates available." << Qt::endl;
-        return;
+        out() << style("Your AppImage is already up to date. No updates available.", "32") << Qt::endl;
+        return 0;
     }
 
     // Print releases
@@ -426,26 +640,26 @@ void CliHandler::update(QString path, bool force)
     for (int i = 0; i < selectableReleases.size(); ++i) {
         const auto &r = selectableReleases[i];
 
-        out() << "[" << (i + 1) << "] ";
-
-        // Bold latest new release
-        bool bold = r->isNew && r->isLatest;
-        if (bold) out() << "\033[1m";
+        QString line;
 
         // Version / date
         if (!r->version.isEmpty())
-            out() << r->version;
+            line += r->version;
         if (!r->date.isEmpty()) {
-            if (!r->version.isEmpty()) out() << " | ";
-            out() << StringUtil::formatDateTime(r->date);
+            if (!r->version.isEmpty())
+                line += QStringLiteral(" | ");
+            line += StringUtil::formatDateTime(r->date);
         }
 
         // Flags
-        if (r->isNew) out() << "  <-- new" << (r->isLatest ? " (latest)" : "");
-        else if (r->isLatest) out() << "  <-- latest";
+        if (r->isNew)
+            line += r->isLatest ? QStringLiteral("  <-- new (latest)") : QStringLiteral("  <-- new");
+        else if (r->isLatest)
+            line += QStringLiteral("  <-- latest");
 
-        if (bold) out() << "\033[0m"; // reset bold
-        out() << Qt::endl;
+        // Bold latest new release
+        const bool bold = r->isNew && r->isLatest;
+        out() << "[" << (i + 1) << "] " << (bold ? style(line, "1") : line) << Qt::endl;
     }
 
     // Prompt user for selection
@@ -459,13 +673,21 @@ void CliHandler::update(QString path, bool force)
                       << selectableReleases[defaultIndex]->version << "]";
         out() << " (1-" << selectableReleases.size() << ", or 'c' to cancel): " << Qt::flush;
 
-        QString line = qin.readLine().trimmed();
+        QString line = qin.readLine();
+
+        // Treat EOF on stdin (e.g. </dev/null or a truncated pipe) as a
+        // cancellation, not as the default selection.
+        if (qin.atEnd() && line.isEmpty()) {
+            out() << "Update cancelled (no input from stdin)." << Qt::endl;
+            return 1;
+        }
+        line = line.trimmed();
 
         // Cancel
         if (line.compare("c", Qt::CaseInsensitive) == 0 ||
             line.compare("cancel", Qt::CaseInsensitive) == 0) {
             out() << "Update cancelled by user." << Qt::endl;
-            return;
+            return 0;
         }
 
         // Default
@@ -486,135 +708,230 @@ void CliHandler::update(QString path, bool force)
     }
 
     const auto* chosenRelease = selectableReleases[selection];
-    out() << "\nUpdating to version: " << chosenRelease->version << Qt::endl << Qt::endl;
+    out() << Qt::endl;
 
-    QEventLoop updateLoop;
-    bool success = false;
+    // Single update goes through the same progress display as update-all
+    PendingUpdate pu{appimage, *chosenRelease};
+    const QVector<bool> results = runUpdates({pu});
 
-    auto future = updateAppImageAsync(
-        appimage.name,
-        appimage.path,
-        chosenRelease->download,
-        chosenRelease->version,
-        chosenRelease->date,
-        0
-        );
-    QFutureWatcher<bool> watcher;
-    watcher.setFuture(future);
-    QObject::connect(&watcher, &QFutureWatcher<bool>::finished, &updateLoop,[&]() {
-        success = watcher.result();
-        updateLoop.quit();
-    });
-    updateLoop.exec();
-
-    if (success) {
-        out() << "\n\nUpdate completed successfully!" << Qt::endl;
-    } else {
-        err() << "\n\nUpdate failed!" << Qt::endl;
+    out() << Qt::endl;
+    if (results.value(0, false)) {
+        out() << style("Update completed successfully.", "32") << Qt::endl;
+        return 0;
     }
+
+    err() << "Update failed." << Qt::endl;
+    return 1;
 }
 
-void CliHandler::updateAll(bool force)
+int CliHandler::updateAll(bool force)
 {
     auto registeredAppImages = AppImageUtil::getRegisteredList();
 
     if (registeredAppImages.isEmpty()) {
         out() << "No registered AppImages found." << Qt::endl;
-        return;
+        return 0;
     }
 
+    // These locals outlive the collect callbacks: updateAll blocks in the
+    // event loop below until the finished callback fires, and every callback
+    // runs before that point.
     QEventLoop checkLoop;
-    QVector<PendingUpdate> pendingUpdates;
-    collectReleasesAsync(registeredAppImages, [&](QVector<PendingUpdate> updates) {
-        pendingUpdates = updates;
-        checkLoop.quit();
-    }, force);
-    execEventLoopLoadingIndicator("Checking for updates ", checkLoop);
+    CollectResult checkResult;
+    bool checkFinished = false;
+    int checkedDone = 0;
+    int checkedTotal = registeredAppImages.size();
+
+    collectReleasesAsync(registeredAppImages,
+        [&](CollectResult r) {
+            checkResult = std::move(r);
+            checkFinished = true;
+            checkLoop.quit();
+        },
+        force,
+        kFetchTimeoutMs,
+        [&](int done, int total) {
+            checkedDone = done;
+            checkedTotal = total;
+        });
+
+    if (!checkFinished) {
+        execEventLoopLoadingIndicator("Checking for updates", checkLoop,
+                                      LoadingIndicator::Spinner,
+                                      [&]() { return QString("(%1/%2)").arg(checkedDone).arg(checkedTotal); });
+    }
+    // If no fetches were started (all update types empty/unknown) the finished
+    // callback already ran synchronously - nothing left to wait for.
+
+    printCheckSummary(checkResult);
+
+    // Apps we couldn't verify count against the exit code (skipped ones are a
+    // configuration matter and are reported as warnings instead).
+    const bool checkProblems = checkResult.count(CheckOutcome::TimedOut) > 0
+                               || checkResult.count(CheckOutcome::NoReleaseInfo) > 0;
+
+    QVector<PendingUpdate> pendingUpdates = checkResult.updates;
 
     if (pendingUpdates.isEmpty()) {
         out() << "No updates found." << Qt::endl;
-        return;
+        return checkProblems ? 1 : 0;
     }
 
-    // Display available updates
-    out() << "The following updates are available:" << Qt::endl;
+    // Display available updates: name, current -> new
+    int nameWidth = 0;
+    int currentWidth = 0;
     for (const auto &pu : std::as_const(pendingUpdates)) {
-        out() << "  - " << pu.metadata.name << ": " << pu.release.version << Qt::endl;
+        nameWidth = qMax(nameWidth, int(pu.metadata.name.length()));
+        const QString cur = StringUtil::coalesce(pu.metadata.updateCurrentVersion, pu.metadata.version);
+        currentWidth = qMax(currentWidth, int(cur.length()));
+    }
+
+    const QString arrow = QString::fromUtf8(useUnicode() ? "→" : "->");
+    out() << style("Updates available:", "1") << Qt::endl;
+    for (const auto &pu : std::as_const(pendingUpdates)) {
+        const QString cur = StringUtil::coalesce(pu.metadata.updateCurrentVersion, pu.metadata.version);
+        out() << "  " << pu.metadata.name.leftJustified(nameWidth, ' ')
+              << "  " << cur.leftJustified(currentWidth, ' ')
+              << "  " << arrow << "  "
+              << style(pu.release.version, "32") << Qt::endl;
     }
 
     // User confirmation
     out() << Qt::endl << "Update all? [Y/n] ";
     out().flush();
     QTextStream in(stdin);
-    QString response = in.readLine().trimmed();
+    QString response = in.readLine();
+
+    // Treat EOF on stdin (e.g. </dev/null or a truncated pipe) as a
+    // cancellation, not as a "yes".
+    if (in.atEnd() && response.isEmpty()) {
+        out() << "Aborting updates (no input from stdin)." << Qt::endl;
+        return 1;
+    }
+    response = response.trimmed();
     if (!response.isEmpty() && response.toLower() != "y") {
         out() << "Aborting updates." << Qt::endl;
-        return;
+        return 0;
     }
 
     out() << Qt::endl;
 
-    // Initialize status buffer
-    m_status.clear();
-    m_status.resize(pendingUpdates.size());
+    const QVector<bool> results = runUpdates(pendingUpdates);
 
-    // Print out waiting updates
-    m_maxNameWidth = 0;
+    // Summary
+    int succeeded = 0;
+    QStringList failedNames;
     for (int i = 0; i < pendingUpdates.size(); ++i) {
-        m_maxNameWidth = qMax(m_maxNameWidth, pendingUpdates[i].metadata.name.length());
-        pendingUpdates[i].lineIndex = i;
-        m_status[i].text = pendingUpdates[i].metadata.name + ": Waiting...";
-        out() << m_status[i].text << Qt::endl;
+        if (results.value(i, false))
+            ++succeeded;
+        else
+            failedNames << pendingUpdates[i].metadata.name;
     }
 
-    out().flush();
+    out() << Qt::endl;
+    if (failedNames.isEmpty()) {
+        out() << style(QString("%1 AppImage(s) updated successfully.").arg(succeeded), "32") << Qt::endl;
+    } else {
+        out() << style(QString("%1 updated, %2 failed: %3")
+                           .arg(succeeded)
+                           .arg(failedNames.size())
+                           .arg(failedNames.join(QStringLiteral(", "))), "31") << Qt::endl;
+    }
+
+    return (failedNames.isEmpty() && !checkProblems) ? 0 : 1;
+}
+
+QVector<bool> CliHandler::runUpdates(QVector<PendingUpdate> pending)
+{
+    QVector<bool> results(pending.size(), false);
+    if (pending.isEmpty())
+        return results;
+
+    // Initialize status rows and print them once so the in-place redraw has
+    // a block to move back over.
+    {
+        QMutexLocker lock(&m_statusMutex);
+
+        m_status.clear();
+        m_status.resize(pending.size());
+        m_maxNameWidth = 0;
+
+        for (int i = 0; i < pending.size(); ++i) {
+            pending[i].lineIndex = i;
+            m_status[i].name = pending[i].metadata.name;
+            m_status[i].version = pending[i].release.version;
+            m_maxNameWidth = qMax(m_maxNameWidth, int(m_status[i].name.length()));
+        }
+
+        // Redraw in place only on a TTY with room for the whole block;
+        // otherwise print one line per state change.
+        m_inPlace = stdoutIsTTY() && (pending.size() + 2 < terminalRows());
+
+        const int width = m_inPlace ? terminalWidth() : 0;
+        for (const auto &row : std::as_const(m_status))
+            out() << formatRow(row, m_maxNameWidth, m_inPlace, width) << Qt::endl;
+        out().flush();
+    }
 
     // Update Status Output
     QTimer renderTimer;
-    QObject::connect(&renderTimer, &QTimer::timeout, [&]() {
-        outputUpdateAllStatus();
+    QObject::connect(&renderTimer, &QTimer::timeout, []() {
+        CliHandler::outputUpdateAllStatus();
     });
-
     renderTimer.start(100);
 
-    // Update all with max concurrent
+    // Run updates with max concurrency
     const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
-    auto queue = std::make_shared<std::deque<PendingUpdate>>(pendingUpdates.begin(), pendingUpdates.end());
-    auto running = std::make_shared<int>(0);
-    auto next = std::make_shared<std::function<void()>>();
+    std::deque<PendingUpdate> queue(pending.begin(), pending.end());
+    int running = 0;
 
     QEventLoop loop; // Wait for all updates to finish
 
-    *next = [queue, running, maxConcurrent, next, &loop, pendingUpdates]() mutable {
-        while (!queue->empty() && *running < maxConcurrent) {
-            PendingUpdate pu = queue->front();
-            queue->pop_front();
+    // Note: `next` captures itself by reference only; all invocations happen
+    // while this function's frame is blocked in `loop.exec()`.
+    std::function<void()> next;
+    next = [&queue, &running, &results, maxConcurrent, &next, &loop]() {
+        while (!queue.empty() && running < maxConcurrent) {
+            PendingUpdate pu = queue.front();
+            queue.pop_front();
 
-            (*running)++;
+            running++;
+            const int idx = pu.lineIndex;
 
             // Start update
             auto future = updateAppImageAsync(
-                pu.metadata.name,
                 pu.metadata.path,
                 pu.release.download,
                 pu.release.version,
                 pu.release.date,
-                pu.lineIndex
+                idx
                 );
 
             // Watch the future
             auto watcher = new QFutureWatcher<bool>();
             watcher->setFuture(future);
 
-            QObject::connect(watcher, &QFutureWatcher<bool>::finished, watcher, [running, next, watcher, queue, loopPtr = &loop]() mutable {
-                (*running)--;
+            QObject::connect(watcher, &QFutureWatcher<bool>::finished, watcher,
+                             [&queue, &running, &results, &next, &loop, watcher, idx]() {
+                const bool ok = watcher->future().resultCount() > 0 && watcher->result();
+                results[idx] = ok;
+
+                // Make sure the row ends in the right final state even if the
+                // progress callback never reported it.
+                {
+                    QMutexLocker lock(&m_statusMutex);
+                    if (idx >= 0 && idx < m_status.size())
+                        m_status[idx].state = ok ? RowState::Done : RowState::Failed;
+                }
+
+                running--;
 
                 // Launch next update if possible
-                (*next)();
+                next();
 
                 // If everything is done, quit the loop
-                if (queue->empty() && *running == 0)
-                    loopPtr->quit();
+                if (queue.empty() && running == 0)
+                    loop.quit();
 
                 watcher->deleteLater();
             });
@@ -623,37 +940,49 @@ void CliHandler::updateAll(bool force)
 
     // Kick off first batch
     for (int i = 0; i < maxConcurrent; ++i)
-        (*next)();
+        next();
 
     // Wait for all updates to finish
     loop.exec();
     renderTimer.stop();
     outputUpdateAllStatus();
 
-    out() << Qt::endl << "All updates finished." << Qt::endl;
+    return results;
 }
 
 void CliHandler::outputUpdateAllStatus()
 {
     QMutexLocker lock(&m_statusMutex);
 
-    // Always go to bottom, then up
-    out() << "\r\033[" << m_status.size() << "A";
+    if (m_status.isEmpty())
+        return;
 
-    for (int i = 0; i < m_status.size(); ++i) {
-        out() << "\033[2K\r" << m_status[i].text;
-        if (i < m_status.size() - 1)
-            out() << "\n";
+    if (!m_inPlace) {
+        // Line mode (piped output, or too many rows for the terminal): print
+        // one line per state change. Download progress ticks are not printed.
+        const int width = 0;
+        for (auto &row : m_status) {
+            if (row.state == row.printedState)
+                continue;
+            row.printedState = row.state;
+            out() << formatRow(row, m_maxNameWidth, false, width) << Qt::endl;
+        }
+        out().flush();
+        return;
     }
 
-    // Ensure cursor ends BELOW block
-    out() << "\n";
+    // In-place: go back over the block and redraw every row
+    const int width = terminalWidth();
+    out() << "\r";
+    moveCursorUp(m_status.size());
+
+    for (const auto &row : std::as_const(m_status))
+        out() << "\033[2K\r" << formatRow(row, m_maxNameWidth, true, width) << "\n";
 
     out().flush();
 }
 
-QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
-                                              const QString &path,
+QFuture<bool> CliHandler::updateAppImageAsync(const QString &path,
                                               const QString &downloadUrl,
                                               const QString &version,
                                               const QString &date,
@@ -673,35 +1002,33 @@ QFuture<bool> CliHandler::updateAppImageAsync(const QString &name,
             promise->finish();
         },
 
-        [name, lineIndex, version](UpdateState state, qint64 received, qint64 total) {
-            QString status;
-            QString paddedName = name.leftJustified(m_maxNameWidth, ' ');
+        [lineIndex](UpdateState state, qint64 received, qint64 total) {
+            QMutexLocker lock(&CliHandler::m_statusMutex);
+            if (lineIndex < 0 || lineIndex >= m_status.size())
+                return;
+
+            UpdateStatus &row = m_status[lineIndex];
             switch(state) {
             case UpdateState::Downloading:
-                status = QString("%1: %2 (%3%)")
-                             .arg(paddedName,
-                                  StringUtil::getUpdateDownloadText(received, total),
-                                  total > 0 ? QString::number(received * 100.0 / total, 'f', 1) : "0.0");
+                row.state = RowState::Downloading;
+                row.received = received;
+                row.total = total;
                 break;
             case UpdateState::Extracting:
-                status = QString("%1: Extracting...").arg(paddedName);
+                row.state = RowState::Extracting;
                 break;
             case UpdateState::Installing:
-                status = QString("%1: Installing...").arg(paddedName);
+                row.state = RowState::Installing;
                 break;
             case UpdateState::Success:
-                status = QString("%1: Updated to %2").arg(paddedName, version);
+                row.state = RowState::Done;
                 break;
             case UpdateState::Failed:
-                status = QString("%1: Failed!").arg(paddedName);
+                row.state = RowState::Failed;
                 break;
             default:
-                status = QString("%1: Waiting...").arg(paddedName);
                 break;
             }
-
-            QMutexLocker lock(&CliHandler::m_statusMutex);
-            m_status[lineIndex].text = status;
         });
 
     return future;
@@ -724,13 +1051,15 @@ UpdaterSettings CliHandler::getUpdaterSettings(AppImageUtilMetadata metadata)
     return settings;
 }
 
-void CliHandler::fetchReleasesAsync(
+IUpdater* CliHandler::fetchReleasesAsync(
     const AppImageUtilMetadata &appimage,
-    std::function<void(QList<UpdaterRelease>)> callback)
+    std::function<void(QList<UpdaterRelease>, bool)> callback)
 {
     if (appimage.updateType.isEmpty()) {
-        callback({});
-        return;
+        ErrorManager::instance()->reportWarning(
+            QString("No update type set for '%1'").arg(appimage.name));
+        callback({}, true);
+        return nullptr;
     }
 
     UpdaterSettings settings = getUpdaterSettings(appimage);
@@ -743,90 +1072,175 @@ void CliHandler::fetchReleasesAsync(
         );
 
     if (!updater) {
-        callback({});
-        return;
+        ErrorManager::instance()->reportWarning(
+            QString("Unknown update type '%1' for '%2'")
+                .arg(appimage.updateType, appimage.name));
+        callback({}, true);
+        return nullptr;
     }
 
     QObject::connect(updater, &IUpdater::updatesReady,
                      [updater, callback]() {
                          auto releases = updater->releases();
                          updater->deleteLater();
-                         callback(releases);
+                         callback(releases, false);
                      });
 
     updater->fetchUpdatesAsync();
+
+    return updater;
 }
 
 void CliHandler::collectReleasesAsync(const QList<AppImageUtilMetadata> &appimages,
-                                      std::function<void(QVector<PendingUpdate>)> finishedCallback,
+                                      std::function<void(CollectResult)> finishedCallback,
                                       bool force,
-                                      int timeoutMs)
+                                      int timeoutMs,
+                                      std::function<void(int, int)> progress)
 {
     if (appimages.isEmpty()) {
         finishedCallback({});
         return;
     }
 
+    // This function returns right after starting the first batch of fetches;
+    // the callbacks fire later from the caller's event loop. All shared state
+    // therefore lives on the heap (shared_ptr), NOT in this function's locals.
+    struct CollectState {
+        std::deque<AppImageUtilMetadata> queue;
+        int running = 0;
+        int done = 0;
+        int total = 0;
+        QVector<PendingUpdate> updates;
+        QVector<CheckEntry> entries;
+        std::function<void()> next;
+        std::function<void(CollectResult)> finished;
+        std::function<void(int, int)> progress;
+    };
+
+    auto state = std::make_shared<CollectState>();
+    state->queue.assign(appimages.begin(), appimages.end());
+    state->total = int(appimages.size());
+    state->finished = std::move(finishedCallback);
+    state->progress = std::move(progress);
+
     const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
-    auto queue = std::make_shared<std::deque<AppImageUtilMetadata>>(appimages.begin(), appimages.end());
-    auto running = std::make_shared<int>(0);
-    auto updates = std::make_shared<QVector<PendingUpdate>>();
 
-    auto next = std::make_shared<std::function<void()>>();
+    // Called whenever one fetch finishes (success, failure or timeout)
+    auto onItemDone = [](const std::shared_ptr<CollectState> &s,
+                         const QString &name,
+                         CheckOutcome outcome) {
+        s->entries.push_back({name, outcome});
+        s->running--;
+        s->done++;
 
-    *next = [queue, running, updates, maxConcurrent, force, next, finishedCallback, timeoutMs]() mutable {
-        while (!queue->empty() && *running < maxConcurrent) {
-            AppImageUtilMetadata app = queue->front();
-            queue->pop_front();
+        if (s->progress)
+            s->progress(s->done, s->total);
 
-            (*running)++;
+        if (s->queue.empty() && s->running == 0) {
+            CollectResult result;
+            result.updates = s->updates;
+            result.entries = s->entries;
+
+            // Fetches complete in arbitrary order; present them sorted
+            auto byName = [](const QString &a, const QString &b) {
+                return a.compare(b, Qt::CaseInsensitive) < 0;
+            };
+            std::stable_sort(result.updates.begin(), result.updates.end(),
+                             [&](const PendingUpdate &a, const PendingUpdate &b) {
+                                 return byName(a.metadata.name, b.metadata.name);
+                             });
+            std::stable_sort(result.entries.begin(), result.entries.end(),
+                             [&](const CheckEntry &a, const CheckEntry &b) {
+                                 return byName(a.name, b.name);
+                             });
+
+            s->finished(std::move(result));
+            return;
+        }
+
+        // Copy so we never run a std::function that could be reassigned
+        auto n = s->next;
+        n();
+    };
+
+    // weak_ptr avoids a state -> next -> state reference cycle (leak)
+    std::weak_ptr<CollectState> weak = state;
+    state->next = [weak, maxConcurrent, force, timeoutMs, onItemDone]() {
+        auto st = weak.lock();
+        if (!st)
+            return;
+
+        while (!st->queue.empty() && st->running < maxConcurrent) {
+            AppImageUtilMetadata app = st->queue.front();
+            st->queue.pop_front();
+
+            st->running++;
+
+            // Only the fetch or the timeout may complete this item
+            auto completed = std::make_shared<bool>(false);
 
             // Setup a safety timeout for this fetch
-            auto timeoutTimer = new QTimer;
-            timeoutTimer->setSingleShot(true);
+            auto *timer = new QTimer;
+            timer->setSingleShot(true);
 
-            fetchReleasesAsync(app, [app, updates, running, queue, next, force, finishedCallback, timeoutTimer](QList<UpdaterRelease> releases) mutable {
-                timeoutTimer->stop();
-                timeoutTimer->deleteLater();
+            auto *updater = fetchReleasesAsync(app,
+                [st, app, force, timer, completed, onItemDone](QList<UpdaterRelease> releases, bool skipped) {
+                    if (*completed)
+                        return;
+                    *completed = true;
 
-                (*running)--;
+                    timer->stop();
+                    timer->deleteLater();
 
-                for (const auto &r : releases) {
-                    if (r.isLatest && (force || r.isNew)) {
-                        updates->push_back({app, r});
-                        break;
+                    CheckOutcome outcome = CheckOutcome::UpToDate;
+                    if (skipped) {
+                        outcome = CheckOutcome::Skipped;
+                    } else if (releases.isEmpty()) {
+                        outcome = CheckOutcome::NoReleaseInfo;
+                    } else {
+                        for (const auto &r : releases) {
+                            if (r.isLatest && (force || r.isNew)) {
+                                st->updates.push_back({app, r});
+                                outcome = CheckOutcome::UpdateAvailable;
+                                break;
+                            }
+                        }
                     }
-                }
 
-                if (queue->empty() && *running == 0) {
-                    finishedCallback(*updates);
-                    return;
-                }
+                    onItemDone(st, app.name, outcome);
+                });
 
-                (*next)();
-            });
+            QObject::connect(timer, &QTimer::timeout, timer,
+                [st, app, completed, updater, timer, onItemDone]() {
+                    if (*completed)
+                        return;
+                    *completed = true;
 
-            QObject::connect(timeoutTimer, &QTimer::timeout, [running, queue, next, finishedCallback, updates]() {
-                (*running)--;
+                    // Abort in-flight fetch (updater is non-null here, since
+                    // a null updater means the callback already completed)
+                    delete updater;
 
-                if (queue->empty() && *running == 0) {
-                    finishedCallback(*updates);
-                    return;
-                }
+                    timer->deleteLater();
 
-                (*next)();
-            });
+                    onItemDone(st, app.name, CheckOutcome::TimedOut);
+                });
 
-            timeoutTimer->start(timeoutMs);
+            // If the callback already ran synchronously (empty/unknown update
+            // type), the item is finished: don't start the timeout.
+            if (!*completed)
+                timer->start(timeoutMs);
         }
     };
 
     for (int i = 0; i < maxConcurrent; ++i)
-        (*next)();
+        state->next();
 }
 
 QStringList CliHandler::getWrappedText(const QString& text, int width, QChar splitChar)
 {
+    // A non-positive width would make the chunking loop below never advance
+    width = std::max(1, width);
+
     QStringList lines;
     QString currentLine;
 
@@ -869,45 +1283,55 @@ QStringList CliHandler::getWrappedText(const QString& text, int width, QChar spl
 
 void CliHandler::execEventLoopLoadingIndicator(const QString &message,
                                                QEventLoop &loop,
-                                               LoadingIndicator indicator)
+                                               LoadingIndicator indicator,
+                                               std::function<QString()> suffix)
 {
-    out() << message << " " << Qt::flush;
+    if (!stdoutIsTTY()) {
+        // Plain-text fallback for piped/redirected stdout: print the message
+        // once instead of animating it in place.
+        out() << message << "..." << Qt::endl;
+        loop.exec();
+        return;
+    }
 
     int spinnerIndex = 0;
     int dotCount = 0;
-    const int maxDots = 3;
+    constexpr int maxDots = 3;
 
-    QTimer timer;
-    QObject::connect(&timer, &QTimer::timeout, [&]() {
+    // Redraws the whole line each tick so a live suffix (e.g. "(4/12)") works
+    auto render = [&]() {
+        QString line = message;
+        line += QChar(' ');
+
         if (indicator == LoadingIndicator::Spinner) {
-            // Erase previous spinner char and print next
-            out() << "\b" << kSpinnerChars[spinnerIndex].toLatin1() << Qt::flush;
+            line += QString(kSpinnerChars[spinnerIndex]);
             spinnerIndex = (spinnerIndex + 1) % 4;
-        }
-        else if (indicator == LoadingIndicator::Dots) {
-            // Move cursor back to end of message (overwrite previous dots)
-            out() << "\r" << message << " ";
-            for (int i = 0; i < dotCount; ++i)
-                out() << ".";
-
-            // Pad remaining space so old dots are erased
-            for (int i = dotCount; i < maxDots; ++i)
-                out() << " ";
-
-            out().flush();
-
+        } else {
+            line += QString(dotCount, QChar('.'));
+            line += QString(maxDots - dotCount, QChar(' '));
             dotCount = (dotCount + 1) % (maxDots + 1); // 0..3 dots
         }
-    });
 
-    int interval = (indicator == LoadingIndicator::Spinner) ? 100 : 300;
+        if (suffix) {
+            line += QStringLiteral("  ");
+            line += suffix();
+        }
+
+        out() << "\r" << line << "\033[K" << Qt::flush;
+    };
+
+    QTimer timer;
+    QObject::connect(&timer, &QTimer::timeout, render);
+
+    const int interval = (indicator == LoadingIndicator::Spinner) ? 100 : 300;
     timer.start(interval);
 
+    render();     // show immediately instead of waiting for the first tick
     loop.exec();  // Run event loop while async task is working
     timer.stop();
 
     // Fully clear the line and reset cursor
-    out() << "\r" << QString(message.length() + maxDots + 2, QChar(' ')) << "\r" << Qt::flush;
+    out() << "\r\033[K" << Qt::flush;
 }
 
 void CliHandler::printErrors()
@@ -929,20 +1353,37 @@ void CliHandler::printErrors()
     }
 }
 
+int CliHandler::finishCommand(int exitCode)
+{
+    printErrors();
+
+    QMutexLocker lock(&m_errorMutex);
+    if (exitCode == 0 && !m_errors.isEmpty())
+        return 1;
+    return exitCode;
+}
+
 void CliHandler::handleErrorManager()
 {
     QMutexLocker lock(&m_errorMutex);
     m_errors.clear();
     m_warnings.clear();
 
-    QObject::connect(ErrorManager::instance(), &ErrorManager::messageOccurred,
-                     [](const QString &msg, ErrorManager::MessageType type) {
-                         QMutexLocker lock(&CliHandler::m_errorMutex);
+    // The ErrorManager singleton outlives individual commands, so connect
+    // only once to avoid stacking duplicate handlers on repeated calls.
+    static bool connected = false;
+    if (!connected) {
+        connected = true;
 
-                         if (type == ErrorManager::Error) {
-                             CliHandler::m_errors.append(msg);
-                         } else if (type == ErrorManager::Warning) {
-                             CliHandler::m_warnings.append(msg);
-                         }
-                     });
+        QObject::connect(ErrorManager::instance(), &ErrorManager::messageOccurred,
+                         [](const QString &msg, ErrorManager::MessageType type) {
+                             QMutexLocker lock(&CliHandler::m_errorMutex);
+
+                             if (type == ErrorManager::Error) {
+                                 CliHandler::m_errors.append(msg);
+                             } else if (type == ErrorManager::Warning) {
+                                 CliHandler::m_warnings.append(msg);
+                             }
+                         });
+    }
 }

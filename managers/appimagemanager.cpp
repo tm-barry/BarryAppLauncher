@@ -6,16 +6,154 @@
 #include "utils/terminalutil.h"
 #include "utils/texteditorutil.h"
 
-#include <deque>
-#include <QGuiApplication>
-#include <QtConcurrent/QtConcurrentRun>
+#include <algorithm>
+#include <functional>
+#include <memory>
+
+#include <QCoreApplication>
 #include <QDir>
+#include <QFile>
+#include <QFuture>
+#include <QGuiApplication>
 #include <QImage>
 #include <QList>
-#include <QObject>
+#include <QPointer>
 #include <QProcess>
+#include <QPromise>
 #include <QRegularExpression>
+#include <QThread>
+#include <QThreadPool>
 #include <QUrl>
+#include <QtConcurrent/QtConcurrentRun>
+
+// ----------------- Local helpers -----------------
+
+namespace {
+
+using GuardedMetadata = QPointer<AppImageMetadata>;
+
+// Runs fn on obj's thread: immediately if we're already there, otherwise queued.
+template <typename Fn>
+void runOnThreadOf(QObject* obj, Fn&& fn)
+{
+    if (QThread::currentThread() == obj->thread())
+        fn();
+    else
+        QMetaObject::invokeMethod(obj, std::forward<Fn>(fn), Qt::QueuedConnection);
+}
+
+// "Busy" is reference counted so overlapping operations (e.g. register -> reload metadata)
+// don't flip loadingAppImage off while another one is still running. The counter is only
+// touched on the manager's thread, so no locking is needed.
+int g_busyCount = 0;
+
+void busyBegin(AppImageManager* manager)
+{
+    runOnThreadOf(manager, [manager]() {
+        if (g_busyCount++ == 0)
+            manager->setLoadingAppImage(true);
+    });
+}
+
+void busyEnd(AppImageManager* manager)
+{
+    runOnThreadOf(manager, [manager]() {
+        if (--g_busyCount == 0)
+            manager->setLoadingAppImage(false);
+    });
+}
+
+// Runs fn on a worker thread while the manager is flagged busy. Exceptions are reported.
+template <typename Fn>
+QFuture<void> runBusy(AppImageManager* manager, Fn fn)
+{
+    busyBegin(manager);
+    return QtConcurrent::run([manager, fn = std::move(fn)]() mutable {
+        try {
+            fn();
+        } catch (const std::exception& e) {
+            ErrorManager::instance()->reportError(e.what());
+        } catch (...) {
+            ErrorManager::instance()->reportError("Unknown error.");
+        }
+        busyEnd(manager);
+    });
+}
+
+// Safe to call from any thread.
+void reloadListLater(AppImageManager* manager)
+{
+    runOnThreadOf(manager, [manager]() { manager->loadAppImageList(); });
+}
+
+template <typename Container>
+QList<GuardedMetadata> toGuarded(const Container& items)
+{
+    QList<GuardedMetadata> out;
+    out.reserve(static_cast<int>(items.size()));
+    for (auto* item : items)
+        out.append(item);
+    return out;
+}
+
+void applyProgress(AppImageMetadata* metadata, UpdateState state, qint64 received, qint64 total)
+{
+    metadata->setUpdateProgressState(state);
+    metadata->setUpdateBytesReceived(received);
+    metadata->setUpdateBytesTotal(total);
+}
+
+// Runs `start(item, done)` for every item with at most `limit` in flight, then `allDone()`.
+// `done` may be called from any thread; bookkeeping always happens on the main thread.
+template <typename Item>
+struct LimitedQueue {
+    QList<Item> pending;
+    int running = 0;
+    int limit = 1;
+    std::function<void(const Item&, std::function<void()>)> start;
+    std::function<void()> allDone;
+};
+
+template <typename Item>
+void pumpQueue(const std::shared_ptr<LimitedQueue<Item>>& q)
+{
+    while (!q->pending.isEmpty() && q->running < q->limit) {
+        const Item item = q->pending.takeFirst();
+        ++q->running;
+
+        auto called = std::make_shared<bool>(false);   // guards against a double "done"
+        q->start(item, [q, called]() {
+            if (*called)
+                return;
+            *called = true;
+            QMetaObject::invokeMethod(QCoreApplication::instance(), [q]() {
+                --q->running;
+                pumpQueue(q);
+            }, Qt::QueuedConnection);
+        });
+    }
+
+    if (q->pending.isEmpty() && q->running == 0 && q->allDone) {
+        auto allDone = std::move(q->allDone);
+        q->allDone = nullptr;
+        allDone();
+    }
+}
+
+template <typename Item>
+void runLimited(QList<Item> items, int limit,
+                std::function<void(const Item&, std::function<void()>)> start,
+                std::function<void()> allDone)
+{
+    auto q = std::make_shared<LimitedQueue<Item>>();
+    q->pending = std::move(items);
+    q->limit = std::max(1, limit);
+    q->start = std::move(start);
+    q->allDone = std::move(allDone);
+    pumpQueue(q);
+}
+
+} // namespace
 
 // ----------------- Public -----------------
 
@@ -33,9 +171,8 @@ void AppImageManager::setAppImageList(const QList<AppImageMetadata*>& list)
 {
     m_appImageList->clear();
 
-    for (auto* metadata : list) {
+    for (auto* metadata : list)
         m_appImageList->addMetadata(metadata);
-    }
 
     emit appImageListChanged();
 }
@@ -56,28 +193,37 @@ void AppImageManager::setAppImageMetadata(AppImageMetadata* value) {
     emit appImageMetadataChanged(m_appImageMetadata);
 }
 
+// The property setters below can be called from any thread; the change is applied (and the
+// signal emitted) on the manager's own thread.
+
 bool AppImageManager::loadingAppImageList() const { return m_loadingAppImageList; }
 void AppImageManager::setLoadingAppImageList(bool value) {
-    if (m_loadingAppImageList == value)
-        return;
-    m_loadingAppImageList = value;
-    emit loadingAppImageListChanged(value);
+    runOnThreadOf(this, [this, value]() {
+        if (m_loadingAppImageList == value)
+            return;
+        m_loadingAppImageList = value;
+        emit loadingAppImageListChanged(value);
+    });
 }
 
 bool AppImageManager::loadingAppImage() const { return m_loadingAppImage; }
 void AppImageManager::setLoadingAppImage(bool value) {
-    if (m_loadingAppImage == value)
-        return;
-    m_loadingAppImage = value;
-    emit loadingAppImageChanged(value);
+    runOnThreadOf(this, [this, value]() {
+        if (m_loadingAppImage == value)
+            return;
+        m_loadingAppImage = value;
+        emit loadingAppImageChanged(value);
+    });
 }
 
 bool AppImageManager::updating() const { return m_updating; }
 void AppImageManager::setUpdating(bool value) {
-    if (m_updating == value)
-        return;
-    m_updating = value;
-    emit updatingChanged(value);
+    runOnThreadOf(this, [this, value]() {
+        if (m_updating == value)
+            return;
+        m_updating = value;
+        emit updatingChanged(value);
+    });
 }
 
 AppImageManager::AppState AppImageManager::state() const {
@@ -85,48 +231,11 @@ AppImageManager::AppState AppImageManager::state() const {
 }
 
 void AppImageManager::setState(AppState value) {
-    if (m_state == value)
-        return;
-    m_state = value;
-    emit stateChanged(value);
-}
-
-QFuture<void> AppImageManager::registerSelf()
-{
-    return QtConcurrent::run([=, this]() {
-        setLoadingAppImage(true);
-        try {
-            QString path = appImagePath();
-            if(!path.isEmpty())
-            {
-                AppImageUtil util(path);
-                QString integratedDesktopPath = util.integratedDesktopPath(path);
-
-                // Check if not already integrated
-                if(integratedDesktopPath.isEmpty())
-                {
-                    QString newPath = util.registerAppImage();
-
-                    // If we integrated successfully, close and restart the app.
-                    if(!newPath.isEmpty())
-                    {
-                        QProcess::startDetached(newPath);
-                        QCoreApplication::quit();
-                    }
-                }
-                else
-                {
-                    ErrorManager::instance()->reportError("BarryAppLauncher is already registered in the desktop menu.");
-                }
-            }
-            else
-            {
-                ErrorManager::instance()->reportError("Unable to find appimage: " + path);
-            }
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
-        }
-        setLoadingAppImage(false);
+    runOnThreadOf(this, [this, value]() {
+        if (m_state == value)
+            return;
+        m_state = value;
+        emit stateChanged(value);
     });
 }
 
@@ -135,93 +244,112 @@ void AppImageManager::requestModal(ModalTypes modal, QVariant data)
     emit modalRequested(modal, data);
 }
 
+// ----------------- Loading -----------------
+
 QFuture<void> AppImageManager::loadAppImageList()
 {
-    // If a load is already in progress, return the existing future
-    if (!m_loadFuture.isCanceled() && m_loadFuture.isRunning()) {
+    // Coalesce: if a load is already in flight, hand back its future.
+    if (m_loadFuture.isRunning())
         return m_loadFuture;
-    }
 
-    auto promise = QSharedPointer<QPromise<void>>::create();
-    m_loadFuture = promise->future(); // store the future for re-use
+    auto promise = std::make_shared<QPromise<void>>();
+    m_loadFuture = promise->future();
 
     setLoadingAppImageList(true);
 
-    QPointer<AppImageManager> self(this); // use QPointer for safe capture
+    QPointer<AppImageManager> self(this);
 
     QThreadPool::globalInstance()->start([self, promise]() {
-        if (!self) return; // check if object was deleted
+        QList<AppImageUtilMetadata> utilList;
+        bool ok = true;
 
         try {
-            auto utilList = AppImageUtil::getRegisteredList();
+            utilList = AppImageUtil::getRegisteredList();
 
-            // load icons
-            MemoryImageProvider::instance()->clearImages();
-            for (const auto& app : utilList) {
-                QImage image(app.iconPath);
-                MemoryImageProvider::instance()->setImage(app.path, image);
-            }
-
-            // update appList on GUI thread
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [self, utilList, promise]() {
-                if (!self) return; // safe null check
-
-                QList<AppImageMetadata*> appList;
-                for (const auto& app : utilList) {
-                    auto* meta = AppImageMetadata::createFromUtil(app, self);
-                    meta->setIcon(MemoryImageProvider::instance()->getUrl(app.path));
-                    appList.append(meta);
-                }
-
-                self->setAppImageList(appList);
-                self->setLoadingAppImageList(false);
-                promise->finish();
-            }, Qt::QueuedConnection);
-
-        } catch (const std::exception &e) {
+            auto* images = MemoryImageProvider::instance();
+            images->clearImages();
+            for (const auto& app : std::as_const(utilList))
+                images->setImage(app.path, QImage(app.iconPath));
+        } catch (const std::exception& e) {
             ErrorManager::instance()->reportError(e.what());
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [self, promise]() {
-                if (self) {
-                    self->setLoadingAppImageList(false);
-                }
-                promise->finish();
-            }, Qt::QueuedConnection);
+            ok = false;
         }
+
+        // Always finish the promise (even if the manager is gone), otherwise anything
+        // waiting on the future, and every later load, would hang.
+        QMetaObject::invokeMethod(QGuiApplication::instance(), [self, utilList, ok, promise]() {
+            if (self) {
+                if (ok) {
+                    QList<AppImageMetadata*> appList;
+                    appList.reserve(utilList.size());
+                    for (const auto& app : utilList) {
+                        auto* meta = AppImageMetadata::createFromUtil(app, self);
+                        meta->setIcon(MemoryImageProvider::instance()->getUrl(app.path));
+                        appList.append(meta);
+                    }
+                    self->setAppImageList(appList);
+                }
+                self->setLoadingAppImageList(false);
+            }
+            promise->finish();
+        }, Qt::QueuedConnection);
     });
 
     return m_loadFuture;
 }
-
 
 QFuture<void> AppImageManager::loadAppImageMetadata(const QUrl& url) {
     return loadAppImageMetadata(url.toLocalFile());
 }
 
 QFuture<void> AppImageManager::loadAppImageMetadata(const QString& path) {
-    return QtConcurrent::run([=, this]() {
-        setLoadingAppImage(true);
+    return runBusy(this, [this, path]() {
         AppImageUtil util(path);
-        try {
-            AppImageUtilMetadata metadata = util.metadata();
-            if(!metadata.iconPath.isEmpty())
-            {
-                QImage image(metadata.iconPath);
-                MemoryImageProvider::instance()->removeImage(path);
-                MemoryImageProvider::instance()->setImage(path, image);
-            }
-            QMetaObject::invokeMethod(QGuiApplication::instance(), [=, this]() {
-                auto* appImageMetadata = AppImageMetadata::createFromUtil(metadata, this);
-                if(!metadata.iconPath.isEmpty())
-                {
-                    appImageMetadata->setIcon(MemoryImageProvider::instance()->getUrl(path));
-                }
-                setAppImageMetadata(appImageMetadata);
-            });
-            setState(AppInfo);
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
+        const AppImageUtilMetadata metadata = util.metadata();
+
+        const bool hasIcon = !metadata.iconPath.isEmpty();
+        if (hasIcon) {
+            auto* images = MemoryImageProvider::instance();
+            images->removeImage(path);
+            images->setImage(path, QImage(metadata.iconPath));
         }
-        setLoadingAppImage(false);
+
+        // Everything the UI observes is applied together on the GUI thread.
+        runOnThreadOf(this, [this, metadata, path, hasIcon]() {
+            auto* appImageMetadata = AppImageMetadata::createFromUtil(metadata, this);
+            if (hasIcon)
+                appImageMetadata->setIcon(MemoryImageProvider::instance()->getUrl(path));
+            setAppImageMetadata(appImageMetadata);
+            setState(AppInfo);
+        });
+    });
+}
+
+// ----------------- Actions -----------------
+
+QFuture<void> AppImageManager::registerSelf()
+{
+    return runBusy(this, [this]() {
+        const QString path = appImagePath();
+        if (path.isEmpty()) {
+            ErrorManager::instance()->reportError("Unable to locate the running AppImage.");
+            return;
+        }
+
+        if (!AppImageUtil::integratedDesktopPath(path).isEmpty()) {
+            ErrorManager::instance()->reportError("BarryAppLauncher is already registered in the desktop menu.");
+            return;
+        }
+
+        AppImageUtil util(path);
+        const QString newPath = util.registerAppImage();
+        if (newPath.isEmpty())
+            return;
+
+        // Integrated successfully: relaunch from the new location and close this instance.
+        QProcess::startDetached(newPath);
+        QMetaObject::invokeMethod(QCoreApplication::instance(), []() { QCoreApplication::quit(); },
+                                  Qt::QueuedConnection);
     });
 }
 
@@ -233,38 +361,27 @@ void AppImageManager::launchAppImage(const QUrl& url, const bool useTerminal)
 void AppImageManager::launchAppImage(const QString& path, const bool useTerminal)
 {
     try {
-        bool success = false;
-        if(!useTerminal)
-        {
-            success = QProcess::startDetached(path);
-        }
-        else
-        {
-            success = TerminalUtil::launchInTerminal(path);
-        }
-
-        if(!success)
-        {
+        const bool success = useTerminal ? TerminalUtil::launchInTerminal(path)
+                                         : QProcess::startDetached(path);
+        if (!success)
             ErrorManager::instance()->reportError("Failed to launch appimage.");
-        }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         ErrorManager::instance()->reportError(e.what());
     }
 }
 
 void AppImageManager::openDesktopFileInTextEditor(const QUrl& url)
 {
-    launchAppImage(url.toLocalFile());
+    // (This used to call launchAppImage(), which would try to execute the .desktop file.)
+    openDesktopFileInTextEditor(url.toLocalFile());
 }
 
 void AppImageManager::openDesktopFileInTextEditor(const QString& path)
 {
     try {
-        if(!TextEditorUtil::launchInTextEditor(path))
-        {
+        if (!TextEditorUtil::launchInTextEditor(path))
             ErrorManager::instance()->reportError("Failed to open desktop file.");
-        }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         ErrorManager::instance()->reportError(e.what());
     }
 }
@@ -276,20 +393,14 @@ QFuture<void> AppImageManager::registerAppImage(const QUrl& url)
 
 QFuture<void> AppImageManager::registerAppImage(const QString& path)
 {
-    return QtConcurrent::run([=, this]() {
-        setLoadingAppImage(true);
-        try {
-            AppImageUtil util(path);
-            QString newPath = util.registerAppImage();
-            if(!newPath.isEmpty())
-            {
-                loadAppImageMetadata(newPath);
-                loadAppImageList();
-            }
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
-        }
-        setLoadingAppImage(false);
+    return runBusy(this, [this, path]() {
+        AppImageUtil util(path);
+        const QString newPath = util.registerAppImage();
+        if (newPath.isEmpty())
+            return;
+
+        loadAppImageMetadata(newPath);
+        reloadListLater(this);
     });
 }
 
@@ -300,26 +411,16 @@ QFuture<void> AppImageManager::unregisterAppImage(const QUrl& url, bool deleteAp
 
 QFuture<void> AppImageManager::unregisterAppImage(const QString& path, bool deleteAppImage)
 {
-    return QtConcurrent::run([=, this]() {
-        setLoadingAppImage(true);
-        try {
-            AppImageUtil util(path);
-            if(util.unregisterAppImage(deleteAppImage))
-            {
-                loadAppImageList();
-                if(deleteAppImage)
-                {
-                    setState(AppList);
-                }
-                else
-                {
-                    loadAppImageMetadata(path);
-                }
-            }
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
-        }
-        setLoadingAppImage(false);
+    return runBusy(this, [this, path, deleteAppImage]() {
+        AppImageUtil util(path);
+        if (!util.unregisterAppImage(deleteAppImage))
+            return;
+
+        reloadListLater(this);
+        if (deleteAppImage)
+            setState(AppList);
+        else
+            loadAppImageMetadata(path);
     });
 }
 
@@ -330,127 +431,109 @@ QFuture<void> AppImageManager::unlockAppImage(const QUrl& url)
 
 QFuture<void> AppImageManager::unlockAppImage(const QString& path)
 {
-    return QtConcurrent::run([=, this]() {
-        setLoadingAppImage(true);
-        try {
-            if(AppImageUtil::makeExecutable(path))
-            {
-                loadAppImageMetadata(path);
-            }
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
-        }
-        setLoadingAppImage(false);
+    return runBusy(this, [this, path]() {
+        if (AppImageUtil::makeExecutable(path))
+            loadAppImageMetadata(path);
     });
 }
 
 QFuture<void> AppImageManager::saveUpdateSettings()
 {
-    return QtConcurrent::run([=, this]() {
-        setLoadingAppImage(true);
-        try {
-            QPointer<AppImageMetadata> metadata = m_appImageMetadata;
-            if (!metadata)
-                return;
+    QPointer<AppImageMetadata> metadata = m_appImageMetadata;
+    if (!metadata)
+        return QtFuture::makeReadyVoidFuture();
 
-            UpdaterSettings settings = getUpdaterSettings(metadata);
+    // Read the QML-facing object here on the GUI thread; only the file I/O goes to the worker.
+    const QString desktopFilePath = metadata->desktopFilePath();
+    const QString updateType = metadata->updateType();
+    const UpdaterSettings settings = getUpdaterSettings(metadata);
 
-            bool saved = AppImageUtil::saveUpdaterSettings(
-                metadata->desktopFilePath(),
-                metadata->updateType(),
-                settings
-                );
+    return runBusy(this, [metadata, desktopFilePath, updateType, settings]() {
+        if (!AppImageUtil::saveUpdaterSettings(desktopFilePath, updateType, settings))
+            return;
 
-            if (saved && metadata) {
-                QMetaObject::invokeMethod(metadata, "setUpdateDirty", Qt::QueuedConnection, Q_ARG(bool, false));
-            }
-        } catch (const std::exception &e) {
-            ErrorManager::instance()->reportError(e.what());
-        }
-        setLoadingAppImage(false);
+        if (auto* target = metadata.data())
+            QMetaObject::invokeMethod(target, "setUpdateDirty", Qt::QueuedConnection, Q_ARG(bool, false));
     });
 }
 
+void AppImageManager::refreshDesktopFile()
+{
+    if (!m_appImageMetadata)
+        return;
+
+    // Mounting the AppImage can take a while, so this no longer blocks the GUI thread.
+    const QString path = m_appImageMetadata->path();
+    runBusy(this, [this, path]() {
+        if (!AppImageUtil::refreshDesktopFile(path))
+            return;
+
+        loadAppImageMetadata(path);
+        reloadListLater(this);
+    });
+}
+
+// ----------------- Updates -----------------
+
 void AppImageManager::checkForUpdate()
 {
-    setLoadingAppImage(true);
+    busyBegin(this);
     try {
-        loadMetadataUpdaterReleases(m_appImageMetadata, [this]() { setLoadingAppImage(false); });
-    } catch (const std::exception &e) {
+        loadMetadataUpdaterReleases(m_appImageMetadata, [this]() { busyEnd(this); });
+    } catch (const std::exception& e) {
         ErrorManager::instance()->reportError(e.what());
-        setLoadingAppImage(false);
+        busyEnd(this);
     }
 }
 
 void AppImageManager::checkForAllUpdates()
 {
-    loadAppImageList().then([this] {
+    loadAppImageList().then(this, [this]() {
         setLoadingAppImageList(true);
 
-        auto queue = std::make_shared<std::deque<AppImageMetadata*>>(
-            m_appImageList->items().begin(),
-            m_appImageList->items().end()
-            );
-
-        const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
-        auto running = std::make_shared<int>(0);
-        auto next = std::make_shared<std::function<void()>>();
-        QPointer<AppImageManager> self(this);
-        *next = [self, queue, running, maxConcurrent, next]() mutable {
-
-            if (!queue->empty() && *running < maxConcurrent) {
-
-                auto* metadata = queue->front();
-                queue->pop_front();
-
-                (*running)++;
-
-                self->loadMetadataUpdaterReleases(metadata, [self, running, next]() mutable {
-
-                    if (!self)
-                        return;
-
-                    (*running)--;
-
-                    QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
-                });
-
-                QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
-
-                return;
-            }
-
-            if (queue->empty() && *running == 0) {
-                self->setLoadingAppImageList(false);
-                self->m_appImageList->updateAllItems();
-            }
-        };
-
-        for (int i = 0; i < maxConcurrent; ++i)
-            (*next)();
+        runLimited<GuardedMetadata>(
+            toGuarded(m_appImageList->items()),
+            SettingsManager::instance()->updateConcurrency(),
+            [this](const GuardedMetadata& item, std::function<void()> done) {
+                if (!item) {
+                    done();
+                    return;
+                }
+                loadMetadataUpdaterReleases(item, std::move(done));
+            },
+            [this]() {
+                setLoadingAppImageList(false);
+                m_appImageList->updateAllItems();
+            });
     });
 }
 
 void AppImageManager::updateAppImage(const QString& downloadUrl, const QString& version, const QString& date)
 {
+    GuardedMetadata metadata = m_appImageMetadata;
+    if (!metadata) {
+        ErrorManager::instance()->reportError("No AppImage selected.");
+        return;
+    }
+
+    // Capture the path now: the selected metadata object can be replaced mid-update.
+    const QString path = metadata->path();
+
     setUpdating(true);
     try {
-        AppImageUtil::updateAppImage(m_appImageMetadata->path(), downloadUrl, version, date,
-                                     [this](bool success) {
-                                         if(success) {
-                                             loadAppImageMetadata(m_appImageMetadata->path());
+        AppImageUtil::updateAppImage(path, downloadUrl, version, date,
+                                     [this, path](bool success) {
+                                         if (success) {
+                                             loadAppImageMetadata(path);
                                              loadAppImageList();
                                          }
-
                                          setUpdating(false);
                                      },
-                                     [this](UpdateState state, qint64 received, qint64 total) {
-                                         m_appImageMetadata->setUpdateProgressState(state);
-                                         m_appImageMetadata->setUpdateBytesReceived(received);
-                                         m_appImageMetadata->setUpdateBytesTotal(total);
-                                     }
-                                     );
-    } catch (const std::exception &e) {
+                                     [metadata](UpdateState state, qint64 received, qint64 total) {
+                                         if (metadata)
+                                             applyProgress(metadata, state, received, total);
+                                     });
+    } catch (const std::exception& e) {
         ErrorManager::instance()->reportError(e.what());
         setUpdating(false);
     }
@@ -458,76 +541,35 @@ void AppImageManager::updateAppImage(const QString& downloadUrl, const QString& 
 
 void AppImageManager::updateAllAppImages()
 {
+    if (m_updating)
+        return;
+
     setUpdating(true);
 
-    auto queue = std::make_shared<std::deque<AppImageMetadata*>>(
-        m_appImageList->items().begin(), m_appImageList->items().end()
-        );
-    const int maxConcurrent = std::max(1, SettingsManager::instance()->updateConcurrency());
-    auto running = std::make_shared<int>(0);
-
-    auto next = std::make_shared<std::function<void()>>();
-
-    *next = [this, queue, running, maxConcurrent, next]() mutable {
-        if (!queue->empty() && *running < maxConcurrent) {
-            auto* metadata = queue->front();
-            queue->pop_front();
-
-            auto* release = getSelectedRelease(metadata);
+    runLimited<GuardedMetadata>(
+        toGuarded(m_appImageList->items()),
+        SettingsManager::instance()->updateConcurrency(),
+        [this](const GuardedMetadata& item, std::function<void()> done) {
+            auto* release = item ? getSelectedRelease(item) : nullptr;
             if (!release) {
-                QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
+                done();
                 return;
             }
-
-            (*running)++;
-            auto future = updateAppImageAsync(metadata, release);
-
-            future.then([running, next, queue]() mutable {
-                (*running)--;
-                QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
+            updateAppImageAsync(item, release).then(this, [done]() { done(); });
+        },
+        [this]() {
+            const auto items = m_appImageList->items();
+            const bool anyFailed = std::any_of(items.begin(), items.end(), [](auto* item) {
+                return item->updateProgressState() == AppImageMetadata::UpdateProgressState::Failed;
             });
 
-            QMetaObject::invokeMethod(qApp, [next]() { (*next)(); }, Qt::QueuedConnection);
-            return;
-        }
-
-        if (queue->empty() && *running == 0) {
-            bool anyFailed = false;
-            for (auto* item : m_appImageList->items()) {
-                if (item->updateProgressState() == AppImageMetadata::UpdateProgressState::Failed) {
-                    anyFailed = true;
-                    break;
-                }
-            }
-
-            if (!anyFailed) {
+            // Keep the per-item failure state visible; only reload when everything succeeded.
+            if (!anyFailed)
                 loadAppImageList();
-            }
 
             setUpdating(false);
-        }
-    };
-
-    for (int i = 0; i < maxConcurrent; ++i)
-        (*next)();
+        });
 }
-
-
-void AppImageManager::refreshDesktopFile()
-{
-    setLoadingAppImage(true);
-    try {
-        if(AppImageUtil::refreshDesktopFile(m_appImageMetadata->path())) {
-            loadAppImageMetadata(m_appImageMetadata->path());
-            loadAppImageList();
-        }
-    } catch (const std::exception &e) {
-        ErrorManager::instance()->reportError(e.what());
-        setLoadingAppImage(false);
-    }
-    setLoadingAppImage(false);
-}
-
 
 // ----------------- Private -----------------
 
@@ -538,8 +580,7 @@ AppImageManager::AppImageManager(QObject *parent)
 const QRegularExpression AppImageManager::invalidChars(R"([/\\:*?"<>|])");
 
 QString AppImageManager::appImagePath() {
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    QString path = env.value("APPIMAGE");
+    const QString path = qEnvironmentVariable("APPIMAGE");
     return QFile::exists(path) ? path : QString();
 }
 
@@ -553,62 +594,63 @@ UpdaterSettings AppImageManager::getUpdaterSettings(AppImageMetadata* metadata)
     settings.downloadPattern = metadata->updateDownloadPattern();
     settings.dateField = metadata->updateDateField();
 
-    for (const auto& filter : metadata->getUpdateFilters()) {
+    for (const auto& filter : metadata->getUpdateFilters())
         settings.filters.append({filter->field(), filter->pattern()});
-    }
 
     return settings;
 }
 
 void AppImageManager::loadMetadataUpdaterReleases(AppImageMetadata* appImageMetadata, std::function<void()> callback)
 {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+    // False positive: this copy of `callback` is captured by the connect() lambda below. Qt
+    // heap-allocates the slot object and owns it for the lifetime of the connection (freed when
+    // the single-shot connection fires or `updater` is destroyed), which the analyzer can't see.
+    auto finish = [callback]() { if (callback) callback(); };
+
     QPointer<AppImageMetadata> metadata = appImageMetadata;
-    if (!metadata || metadata->updateType().isEmpty())
-    {
-        if (callback) callback();
+    if (!metadata || metadata->updateType().isEmpty()) {
+        finish();
         return;
     }
 
-    UpdaterSettings settings = getUpdaterSettings(metadata);
     auto* updater = UpdaterFactory::create(metadata->updateType(),
-                                           settings,
+                                           getUpdaterSettings(metadata),
                                            metadata->updateCurrentVersion(),
                                            metadata->updateCurrentDate());
+    if (!updater) {
+        finish();
+        return;
+    }
 
-    connect(updater, &IUpdater::updatesReady, this, [this, updater, metadata, callback]() {
-        if (!metadata) {
-            updater->deleteLater();
-            if (callback) callback();
-            return;
-        }
-
-        metadata->clearUpdaterReleases();
-        bool markedLatest = false;
-        for (const auto &r : updater->releases()) {
-            auto* releaseModel = new UpdaterReleaseModel(metadata);
-            releaseModel->setVersion(r.version);
-            releaseModel->setDate(r.date);
-            releaseModel->setDownload(r.download);
-            releaseModel->setIsNew(r.isNew);
-            releaseModel->setIsSelected(r.isNew && r.isLatest);
-            metadata->addUpdaterRelease(releaseModel);
+    connect(updater, &IUpdater::updatesReady, this, [updater, metadata, finish]() {
+        if (metadata) {
+            metadata->clearUpdaterReleases();
+            for (const auto& r : updater->releases()) {
+                auto* releaseModel = new UpdaterReleaseModel(metadata);
+                releaseModel->setVersion(r.version);
+                releaseModel->setDate(r.date);
+                releaseModel->setDownload(r.download);
+                releaseModel->setIsNew(r.isNew);
+                releaseModel->setIsSelected(r.isNew && r.isLatest);
+                metadata->addUpdaterRelease(releaseModel);
+            }
         }
         updater->deleteLater();
-        if (callback) callback();
-    });
+        finish();
+    }, Qt::SingleShotConnection);
 
     updater->fetchUpdatesAsync();
 }
 
 QFuture<void> AppImageManager::loadMetadataUpdaterReleasesAsync(AppImageMetadata* appImage)
 {
-    auto promise = QSharedPointer<QPromise<void>>::create();
+    auto promise = std::make_shared<QPromise<void>>();
+    QFuture<void> future = promise->future();
 
-    loadMetadataUpdaterReleases(appImage, [promise]() {
-        promise->finish();
-    });
+    loadMetadataUpdaterReleases(appImage, [promise]() { promise->finish(); });
 
-    return promise->future();
+    return future;
 }
 
 UpdaterReleaseModel* AppImageManager::getSelectedRelease(AppImageMetadata* metadata) const
@@ -617,7 +659,7 @@ UpdaterReleaseModel* AppImageManager::getSelectedRelease(AppImageMetadata* metad
     if (!releases.count || !releases.at)
         return nullptr;
 
-    int count = releases.count(&releases);
+    const int count = releases.count(&releases);
     for (int i = 0; i < count; ++i) {
         auto* release = releases.at(&releases, i);
         if (release && release->isSelected())
@@ -631,27 +673,26 @@ QFuture<void> AppImageManager::updateAppImageAsync(AppImageMetadata* metadata, U
     auto promise = std::make_shared<QPromise<void>>();
     QFuture<void> future = promise->future();
 
+    GuardedMetadata guarded = metadata;
+    // Copy what we need: clearUpdaterReleases() deletes the release model.
+    const QString newVersion = release->version();
+
     AppImageUtil::updateAppImage(metadata->path(),
                                  release->download(),
-                                 release->version(),
+                                 newVersion,
                                  release->date(),
-                                 [promise, metadata, this](bool) mutable {
-                                     if(metadata->updateProgressState() == AppImageMetadata::Success)
-                                     {
-                                         auto selectedRelease = metadata->getSelectedRelease();
-                                         if(selectedRelease != nullptr)
-                                         {
-                                             metadata->setVersion(selectedRelease->version());
-                                         }
-                                         metadata->clearUpdaterReleases();
+                                 [promise, guarded, newVersion](bool success) {
+                                     if (success && guarded) {
+                                         guarded->setVersion(newVersion);
+                                         guarded->clearUpdaterReleases();
                                      }
                                      promise->finish();
                                  },
-                                 [promise, metadata, this](UpdateState state, qint64 received, qint64 total) mutable {
-                                     metadata->setUpdateProgressState(state);
-                                     metadata->setUpdateBytesReceived(received);
-                                     metadata->setUpdateBytesTotal(total);
-                                     m_appImageList->updateItem(metadata);
+                                 [this, guarded](UpdateState state, qint64 received, qint64 total) {
+                                     if (!guarded)
+                                         return;
+                                     applyProgress(guarded, state, received, total);
+                                     m_appImageList->updateItem(guarded);
                                  });
 
     return future;

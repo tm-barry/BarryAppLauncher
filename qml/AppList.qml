@@ -5,6 +5,8 @@ import QtQuick.Layouts
 import "utils"
 
 Item {
+    id: root
+
     Component.onCompleted: {
         if (!AppImageManager.loadingAppImageList
                 && AppImageManager.appImageList.count === 0) {
@@ -14,91 +16,120 @@ Item {
 
     FormatterUtil { id: formatter }
 
+    // Load the icon font once instead of once per release-menu delegate.
+    FontLoader {
+        id: fontAwesome
+        source: "/assets/fonts/fa-6-solid-900.otf"
+    }
+
     ColumnLayout {
         anchors.fill: parent
-        spacing: 10
         anchors.margins: 10
+        spacing: 10
 
         RowLayout {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 650
             Layout.alignment: Qt.AlignHCenter
-            Layout.minimumWidth: 460
-            Layout.maximumWidth: 460
-            Layout.preferredWidth: 460
+            spacing: 8
 
-            RowLayout {
-                id: rowLayout
-                Layout.alignment: Qt.AlignRight
+            ColorButton {
+                id: checkForUpdatesBtn
+                text: AppImageManager.appImageList.hasAnyNewRelease
+                      ? qsTr("Check Again") : qsTr("Check for Updates")
+                Layout.preferredWidth: 140
+                enabled: !AppImageManager.loadingAppImageList
+                         && !AppImageManager.updating
+                onClicked: AppImageManager.checkForAllUpdates()
+                Accessible.name: qsTr("Check for updates")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Check all registered AppImages for updates")
+            }
 
-                ColorButton {
-                    id: checkForUpdatesBtn
-                    text: "Check for Updates"
-                    Layout.preferredWidth: 130
-                    enabled: !AppImageManager.loadingAppImageList
-                             && !AppImageManager.updating
-                    visible: !AppImageManager.appImageList.hasAnyNewRelease
-                    onClicked: {
-                        AppImageManager.checkForAllUpdates()
-                    }
-                }
+            ColorButton {
+                id: updateAllBtn
+                text: qsTr("Update All")
+                Layout.preferredWidth: 100
+                visible: AppImageManager.appImageList.hasAnyNewRelease
+                enabled: !AppImageManager.loadingAppImageList
+                         && !AppImageManager.updating
+                onClicked: AppImageManager.updateAllAppImages()
+                Accessible.name: qsTr("Update all AppImages")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Install the selected updates")
+            }
 
-                ColorButton {
-                    id: updateAllBtn
-                    text: "Update All"
-                    Layout.preferredWidth: 85
-                    visible: AppImageManager.appImageList.hasAnyNewRelease
-                    enabled: !AppImageManager.loadingAppImageList
-                             && !AppImageManager.updating
-                    onClicked: {
-                        AppImageManager.updateAllAppImages()
-                    }
-                }
+            Item { Layout.fillWidth: true }
 
-                IconButton {
-                    text: "\uf2d0"
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: checkForUpdatesBtn.height
-                    onClicked: {
-                        SettingsManager.appListCompactView = !SettingsManager.appListCompactView
-                    }
-                    ToolTip.visible: hovered
-                    ToolTip.text: SettingsManager.appListCompactView ? "Default View" : "Compact View"
-                }
+            IconButton {
+                text: "\uf2d0"
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: checkForUpdatesBtn.height
+                onClicked: SettingsManager.appListCompactView =
+                           !SettingsManager.appListCompactView
+                Accessible.name: SettingsManager.appListCompactView
+                                  ? qsTr("Switch to default view")
+                                  : qsTr("Switch to compact view")
+                ToolTip.visible: hovered
+                ToolTip.text: SettingsManager.appListCompactView
+                              ? qsTr("Default View") : qsTr("Compact View")
+            }
 
-                IconButton {
-                    text: "\uf021"
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: checkForUpdatesBtn.height
-                                            || updateAllBtn.height
-                    enabled: !AppImageManager.loadingAppImageList
-                             && !AppImageManager.updating
-                    onClicked: {
-                        AppImageManager.loadAppImageList()
-                    }
-                }
+            IconButton {
+                text: "\uf021"
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: checkForUpdatesBtn.height
+                enabled: !AppImageManager.loadingAppImageList
+                         && !AppImageManager.updating
+                onClicked: AppImageManager.loadAppImageList()
+                Accessible.name: qsTr("Reload registered AppImages")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Reload registered AppImages")
             }
         }
 
-        Item {
-            Layout.preferredHeight: 50
-            visible: !AppImageManager.loadingAppImageList
-                     && AppImageManager.appImageList.count === 0
+        // Loading is shown independently of the empty state so an empty model
+        // during a scan is not mistaken for a genuinely empty app list.
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 650
+            Layout.alignment: Qt.AlignHCenter
+            Layout.fillHeight: true
+            visible: AppImageManager.loadingAppImageList
+            spacing: 12
+
+            Item { Layout.fillHeight: true }
+
+            BusyIndicator {
+                running: AppImageManager.loadingAppImageList
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Label {
+                text: qsTr("Loading registered AppImages…")
+                Layout.alignment: Qt.AlignHCenter
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Item { Layout.fillHeight: true }
         }
 
         ColumnLayout {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 650
             Layout.alignment: Qt.AlignHCenter
+            Layout.fillHeight: true
             visible: !AppImageManager.loadingAppImageList
                      && AppImageManager.appImageList.count === 0
-            Layout.minimumWidth: 460
-            Layout.maximumWidth: 460
-            Layout.preferredWidth: 460
             spacing: 20
 
+            Item { Layout.fillHeight: true }
+
             Label {
-                text: qsTr("No registered appimages found. Change the default appimage location in preferences or open an appimage to register.")
+                text: qsTr("No registered AppImages found. Change the default AppImage location in preferences or open an AppImage to register.")
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignCenter
             }
 
             RowLayout {
@@ -119,6 +150,8 @@ Item {
                                    AppImageManager.OpenDialog)
                 }
             }
+
+            Item { Layout.fillHeight: true }
         }
 
         SortFilterProxyModel {
@@ -126,7 +159,7 @@ Item {
             model: AppImageManager.appImageList
 
             sorters: [
-                RoleSorter{
+                RoleSorter {
                     roleName: "hasNewRelease"
                     priority: 0
                     sortOrder: "DescendingOrder"
@@ -139,31 +172,31 @@ Item {
         }
 
         ListView {
+            id: appListView
+            Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.maximumWidth: 650
             Layout.alignment: Qt.AlignHCenter
-            Layout.minimumWidth: 460
-            Layout.maximumWidth: 460
             spacing: 5
             clip: true
             model: sortedAppImages
+            visible: !AppImageManager.loadingAppImageList
+                     && AppImageManager.appImageList.count > 0
+
+            // Keep only one release menu open. Closing it on scroll avoids
+            // menus becoming detached from recycled ListView delegates.
+            property var openUpdateMenu: null
 
             section.property: "hasNewRelease"
             section.criteria: ViewSection.FullString
 
             onContentYChanged: {
-                forceCloseMenus()
-            }
-
-            function forceCloseMenus() {
-                for (var i = 0; i < count; i++) {
-                    var delegate = itemAtIndex(i)
-                    if (delegate?.updateOptionsMenu?.visible) {
-                        delegate.updateOptionsMenu.close()
-                    }
-                }
+                if (openUpdateMenu)
+                    openUpdateMenu.close()
             }
 
             section.delegate: Rectangle {
+                required property string section
                 width: ListView.view.width
                 height: 32
                 color: "transparent"
@@ -171,83 +204,130 @@ Item {
                 Label {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
-                    font.bold: true
-                    text: section === "true" ? qsTr("Updates Available") : qsTr(
-                                                   "Registered")
+                    font: Qt.font({ bold: true })
+                    text: parent.section === "true"
+                          ? qsTr("Updates Available") : qsTr("Registered")
                 }
             }
 
             delegate: ItemDelegate {
+                id: appDelegate
                 width: ListView.view.width
 
-                property Menu updateOptionsMenu: updateOptionsMenuInternal
-
                 onClicked: {
-                    if (!AppImageManager.updating) {
+                    if (!AppImageManager.updating)
                         AppImageManager.loadAppImageMetadata(model.path)
-                    }
                 }
 
                 background: Rectangle {
-                    property color backgroundColor: Qt.lighter(palette.base, 2.2)
-                    property color hoverColor: Qt.darker(backgroundColor, 1.1)
-                    property color pressedColor: Qt.darker(backgroundColor, 1.3)
-                    property color disabledColor: Qt.darker(backgroundColor, 1.4)
+                    property color normalColor: Qt.lighter(appDelegate.palette.base, 2.2)
+                    property color hoverColor: Qt.darker(normalColor, 1.1)
+                    property color pressedColor: Qt.darker(normalColor, 1.3)
+                    property color disabledColor: Qt.darker(normalColor, 1.4)
 
                     radius: 8
-                    color: !parent.enabled ? disabledColor : parent.down ? pressedColor : parent.hovered ? hoverColor : backgroundColor
+                    color: !appDelegate.enabled ? disabledColor
+                           : appDelegate.down ? pressedColor
+                           : appDelegate.hovered ? hoverColor : normalColor
                 }
 
                 contentItem: RowLayout {
                     id: appItemListItem
-                    anchors.fill: parent
                     spacing: SettingsManager.appListCompactView ? 5 : 10
                     anchors.leftMargin: 10
                     anchors.rightMargin: 10
 
-                    property var selectedRelease: updaterReleases.find(release => release.isSelected)
+                    property var selectedRelease: updaterReleases.find(
+                                                      release => release.isSelected)
                     property bool hasSelected: !!selectedRelease
 
-                    Image {
-                        source: model.icon
-                        width: SettingsManager.appListCompactView ? 32 : 48
-                        height: SettingsManager.appListCompactView ? 32 : 48
-                        sourceSize.width: width
-                        sourceSize.height: height
-                        fillMode: Image.PreserveAspectFit
+                    Item {
+                        Layout.preferredWidth: SettingsManager.appListCompactView ? 32 : 48
+                        Layout.preferredHeight: SettingsManager.appListCompactView ? 32 : 48
+
+                        Image {
+                            id: iconImage
+                            anchors.fill: parent
+                            source: model.icon
+                            sourceSize.width: width
+                            sourceSize.height: height
+                            fillMode: Image.PreserveAspectFit
+                            visible: status === Image.Ready
+                        }
+
+                        // A simple fallback keeps broken/missing icon paths from
+                        // leaving an empty area in the application row.
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: appDelegate.palette.mid
+                            opacity: 0.18
+                            visible: iconImage.status !== Image.Ready
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "◈"
+                            font.pixelSize: SettingsManager.appListCompactView ? 21 : 30
+                            color: appDelegate.palette.text
+                            opacity: 0.55
+                            visible: iconImage.status !== Image.Ready
+                        }
+
 
                         IconButton {
                             id: updateOptionsBtn
                             enabled: !AppImageManager.updating
                             visible: hasNewRelease
                             text: "\uf35b"
-                            palette.buttonText: appItemListItem.hasSelected ? "#28a745" : undefined
+                            palette.buttonText: appItemListItem.hasSelected
+                                               ? "#28a745" : undefined
                             width: SettingsManager.appListCompactView ? 20 : 24
                             height: SettingsManager.appListCompactView ? 20 : 24
                             anchors.bottom: parent.bottom
                             anchors.right: parent.right
                             anchors.bottomMargin: -5
+                            Accessible.name: qsTr("Choose update version")
+                            ToolTip.visible: hovered
+                            ToolTip.text: qsTr("Choose which version to install")
                             onClicked: {
-                                updateOptionsMenuInternal.y = updateOptionsBtn.y + 30
+                                if (appListView.openUpdateMenu
+                                        && appListView.openUpdateMenu !== updateOptionsMenuInternal) {
+                                    appListView.openUpdateMenu.close()
+                                }
+                                appListView.openUpdateMenu = updateOptionsMenuInternal
                                 updateOptionsMenuInternal.open()
                             }
                         }
 
                         Menu {
                             id: updateOptionsMenuInternal
+                            x: Math.max(0, updateOptionsBtn.x
+                                         + updateOptionsBtn.width - width)
+                            y: updateOptionsBtn.y + updateOptionsBtn.height
+                            width: 190
+                            height: Math.min(releaseList.contentHeight, 210)
 
-                            ListView {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
+                            onClosed: {
+                                if (appListView.openUpdateMenu === updateOptionsMenuInternal)
+                                    appListView.openUpdateMenu = null
+                            }
+
+                            contentItem: ListView {
+                                id: releaseList
                                 clip: true
                                 model: updaterReleases
                                 spacing: 0
-                                height: Math.min(contentHeight, 210)
+                                implicitHeight: contentHeight
 
                                 delegate: MenuItem {
+                                    id: releaseMenuItem
+                                    width: releaseList.width
+
                                     onTriggered: {
                                         const initialValue = isSelected
-                                        updaterReleases.forEach(release => release.isSelected = false)
+                                        updaterReleases.forEach(release =>
+                                            release.isSelected = false)
                                         isSelected = !initialValue
                                     }
 
@@ -256,23 +336,19 @@ Item {
 
                                         Text {
                                             text: isSelected ? "\uf00c" : ""
-                                            color: parent.palette.buttonText
+                                            color: releaseMenuItem.palette.buttonText
                                             Layout.preferredWidth: 16
-                                            horizontalAlignment: Text.Left
+                                            horizontalAlignment: Text.AlignLeft
                                             verticalAlignment: Text.AlignVCenter
                                             font.family: fontAwesome.name
-                                            FontLoader {
-                                                id: fontAwesome
-                                                source: "/assets/fonts/fa-6-solid-900.otf"
-                                            }
                                         }
 
                                         Text {
                                             text: isNew ? version + " *" : version
-                                            color: parent.palette.buttonText
+                                            color: releaseMenuItem.palette.buttonText
                                             font.bold: isNew
                                             Layout.fillWidth: true
-                                            horizontalAlignment: Text.Left
+                                            horizontalAlignment: Text.AlignLeft
                                             verticalAlignment: Text.AlignVCenter
                                         }
                                     }
@@ -286,32 +362,31 @@ Item {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
 
-                        RowLayout{
+                        RowLayout {
                             spacing: 10
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
 
                             Label {
                                 text: name
-                                font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
-                                font.bold: true
+                                font: Qt.font({ pixelSize: SettingsManager.appListCompactView ? 12 : 14, bold: true })
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignLeft
                             }
 
                             Label {
-                                text: appItemListItem.selectedRelease?.version ?? updateCurrentVersion ?? version
-                                font.pixelSize: SettingsManager.appListCompactView ? 12 : 14
-                                font.bold: appItemListItem.hasSelected
-                                opacity: 0.6
+                                text: appItemListItem.selectedRelease?.version
+                                      ?? updateCurrentVersion ?? version
+                                font: Qt.font({ pixelSize: SettingsManager.appListCompactView ? 12 : 14, bold: appItemListItem.hasSelected })
+                                opacity: 0.75
                                 horizontalAlignment: Text.AlignRight
                             }
                         }
 
                         Label {
                             text: comment
-                            font.pixelSize: SettingsManager.appListCompactView ? 11 : 13
+                            font: Qt.font({ pixelSize: SettingsManager.appListCompactView ? 11 : 13 })
                             visible: comment && (!AppImageManager.updating || !hasNewRelease)
                             elide: Text.ElideRight
                             Layout.fillWidth: true
@@ -329,16 +404,18 @@ Item {
                                 anchors.fill: parent
                                 from: 0
                                 to: 1
-                                value: updateBytesTotal > 0 ? updateBytesReceived / updateBytesTotal : 0
+                                value: updateBytesTotal > 0
+                                       ? updateBytesReceived / updateBytesTotal : 0
                                 indeterminate: updateBytesTotal < 0
                             }
 
                             Text {
                                 anchors.centerIn: parent
                                 text: updateBytesTotal > 0
-                                      ? formatter.getUpdateDownloadText(updateBytesReceived, updateBytesTotal)
+                                      ? formatter.getUpdateDownloadText(updateBytesReceived,
+                                                                        updateBytesTotal)
                                       : formatter.getUpdateProgressText(updateProgressState)
-                                color: "white"
+                                color: appDelegate.palette.text
                                 font.pixelSize: SettingsManager.appListCompactView ? 10 : 12
                             }
                         }

@@ -76,7 +76,18 @@ public:
         m_currentDate = currentDate;
     }
 
-    virtual ~IUpdater() = default;
+    virtual ~IUpdater()
+    {
+        if (m_activeReply) {
+            // Prevent abort() below from re-entering this object: the reply's
+            // finished handler would otherwise emit updatesReady() (and report
+            // a spurious error) from inside this destructor.
+            disconnect(m_activeReply, nullptr, this, nullptr);
+            m_activeReply->abort();
+            m_activeReply->deleteLater();
+            m_activeReply = nullptr;
+        }
+    }
 
     const QList<UpdaterRelease>& releases() const { return m_releases; }
 
@@ -117,6 +128,8 @@ public:
             reply = NetworkUtil::networkManager()->get(req);
         }
 
+        m_activeReply = reply;
+
         connect(reply, &QNetworkReply::finished, this, [this, reply]() {
             int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             QByteArray data;
@@ -138,6 +151,9 @@ public:
             else {
                 data = reply->readAll();
             }
+
+            if (m_activeReply == reply)
+                m_activeReply = nullptr;
 
             reply->deleteLater();
 
@@ -228,6 +244,7 @@ protected:
     QString m_currentDate;
     bool m_headersOnly = false;
     QList<UpdaterRelease> m_releases;
+    QNetworkReply *m_activeReply = nullptr;
 };
 
 class UpdaterFactory

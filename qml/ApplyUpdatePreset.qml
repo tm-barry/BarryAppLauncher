@@ -87,8 +87,7 @@ ApplicationWindow {
 
                         Label {
                             text: qsTr("Template URL")
-                            font.bold: true
-                            font.pixelSize: 14
+                            font: Qt.font({ bold: true, pixelSize: 14 })
                         }
                         TransparentTextArea {
                             text: templateUrl
@@ -114,8 +113,7 @@ ApplicationWindow {
                                 spacing: 5
                                 Label {
                                     text: "Value for {" + modelData + "}"
-                                    font.bold: true
-                                    font.pixelSize: 14
+                                    font: Qt.font({ bold: true, pixelSize: 14 })
                                 }
                                 RoundedTextArea {
                                     text: placeholderValues[modelData] || ""
@@ -145,8 +143,7 @@ ApplicationWindow {
 
                         Label {
                             text: qsTr("Preview URL")
-                            font.bold: true
-                            font.pixelSize: 14
+                            font: Qt.font({ bold: true, pixelSize: 14 })
                         }
                         TransparentTextArea {
                             text: previewString

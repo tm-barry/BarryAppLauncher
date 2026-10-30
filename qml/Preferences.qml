@@ -76,8 +76,7 @@ ApplicationWindow {
 
             Label {
                 text: qsTr("General")
-                font.bold: true
-                font.pixelSize: 14
+                font: Qt.font({ bold: true, pixelSize: 14 })
                 Layout.alignment: Qt.AlignHCenter
             }
             RoundedGroupBox {
@@ -91,7 +90,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("AppImage default location")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
                     RowLayout {
                         spacing: 5
@@ -144,7 +143,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Move/Copy appimages")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
                     RowLayout {
                         spacing: 5
@@ -170,7 +169,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Terminal Override")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
                     RowLayout {
                         spacing: 5
@@ -214,7 +213,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Text Editor Override")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
                     RowLayout {
                         spacing: 5
@@ -267,7 +266,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Register Self")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     Label {
@@ -289,8 +288,7 @@ ApplicationWindow {
 
             Label {
                 text: qsTr("Updater")
-                font.bold: true
-                font.pixelSize: 14
+                font: Qt.font({ bold: true, pixelSize: 14 })
                 Layout.alignment: Qt.AlignHCenter
             }
             RoundedGroupBox {
@@ -304,7 +302,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Keep Backup")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
                     RowLayout {
                         spacing: 5
@@ -335,7 +333,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Update Concurrency")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
                     RowLayout {
                         spacing: 5
@@ -367,7 +365,7 @@ ApplicationWindow {
 
                     Label {
                         text: qsTr("Update Headers")
-                        font.bold: true
+                        font: Qt.font({ bold: true })
                     }
 
                     RowLayout {
@@ -464,7 +462,7 @@ ApplicationWindow {
                                                 onClicked: row.masked = !row.masked
                                                 Layout.preferredHeight: headerValueField.height
                                                 Layout.preferredWidth: 24
-                                                font.family: fontAwesome.name
+                                                font: Qt.font({ family: fontAwesome.name })
                                             }
                                         }
                                     }
@@ -474,7 +472,7 @@ ApplicationWindow {
                                         Layout.preferredWidth: 24
                                         Layout.preferredHeight: 24
                                         backgroundColor: "#C43D3D"
-                                        font.family: fontAwesome.name
+                                        font: Qt.font({ family: fontAwesome.name })
                                         Layout.alignment: Qt.AlignVCenter
                                         onClicked: headersModel.remove(index)
                                     }
