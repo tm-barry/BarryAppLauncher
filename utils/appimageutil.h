@@ -175,6 +175,7 @@ public:
 private:
     const QString m_path;
     QString m_mountPath;
+    QByteArray m_mountOutput;
     QString m_tempExtractDir;
     QProcess* m_process;
     static const QRegularExpression execLineRegex;

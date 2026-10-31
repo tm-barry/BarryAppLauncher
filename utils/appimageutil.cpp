@@ -22,6 +22,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QSharedPointer>
@@ -31,7 +32,13 @@
 #include <QUrl>
 #include <QUuid>
 
+#include <QLoggingCategory>
+
 #include <stdexcept>
+
+// Mount diagnostics. Silent by default (only critical messages show); enable with e.g.
+//   QT_LOGGING_RULES="barry.appimage.mount.*=true" ./BarryAppLauncher
+Q_LOGGING_CATEGORY(lcMount, "barry.appimage.mount", QtCriticalMsg)
 
 // ----------------- Local helpers -----------------
 
@@ -50,6 +57,17 @@ bool looksLikeZip(const QString& path)
 {
     QFile file(path);
     return file.open(QIODevice::ReadOnly) && file.read(4) == QByteArray("PK\x03\x04", 4);
+}
+
+// Environment for child AppImage processes. If this launcher is itself an AppImage (or is
+// started from an IDE), variables such as APPIMAGE / APPDIR / LD_LIBRARY_PATH would leak into
+// the child and can change how its runtime behaves, so strip them.
+QProcessEnvironment cleanChildEnvironment()
+{
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    for (const char* key : {"APPIMAGE", "APPDIR", "ARGV0", "OWD", "LD_LIBRARY_PATH", "LD_PRELOAD"})
+        env.remove(QString::fromLatin1(key));
+    return env;
 }
 
 // Reverses AppImageUtil::escapeDesktopValue (and handles the standard desktop-entry escapes).
@@ -220,6 +238,7 @@ const bool AppImageUtil::makeExecutable(const QString& path)
 void AppImageUtil::mountAppImageAsync()
 {
     unmountAppImage();
+    m_mountOutput.clear();
 
     if (!isExecutable(m_path)) {
         ErrorManager::instance()->reportError("File is not executable: " + m_path);
@@ -231,14 +250,20 @@ void AppImageUtil::mountAppImageAsync()
     m_process->setProgram(m_path);
     m_process->setArguments({"--appimage-mount"});
     m_process->setProcessChannelMode(QProcess::MergedChannels);
+    // Behave like a clean terminal run: no inherited stdin pipe, no leaked AppImage environment.
+    m_process->setStandardInputFile(QProcess::nullDevice());
+    m_process->setProcessEnvironment(cleanChildEnvironment());
 
     connect(m_process, &QProcess::readyReadStandardOutput, this, &AppImageUtil::onMountStdoutReady);
     connect(m_process, &QProcess::finished, this, &AppImageUtil::onMountFinished);
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart)
+        if (error == QProcess::FailedToStart) {
+            qCWarning(lcMount) << "failed to start:" << (m_process ? m_process->errorString() : QString());
             onMountFinished(-1, QProcess::CrashExit);
+        }
     });
 
+    qCDebug(lcMount) << "starting" << m_path << "--appimage-mount";
     m_process->start();
 }
 
@@ -263,9 +288,15 @@ bool AppImageUtil::mountAppImage(int mountTimeoutMs)
         if (!m_tempExtractDir.isEmpty())
             return;
 
-        ErrorManager::instance()->reportError("AppImage mount timed out.");
+        qCWarning(lcMount) << "timed out after" << mountTimeoutMs << "ms. process state:"
+                           << (m_process ? int(m_process->state()) : -1)
+                           << "mountPath:" << m_mountPath
+                           << "output:" << m_mountOutput
+                           << "- falling back to extraction";
+
+        // Stop the silent mount attempt, then extract instead. mountFinished ends the loop.
         unmountAppImage();
-        loop.quit();
+        extractAppImage();
     });
 
     mountAppImageAsync();
@@ -285,13 +316,30 @@ void AppImageUtil::onMountStdoutReady()
     if (!m_process || !m_mountPath.isEmpty())
         return;
 
-    // The runtime prints the mount directory; take the last line that is an existing absolute path.
-    const QStringList lines = QString::fromUtf8(m_process->readAllStandardOutput())
+    const QByteArray data = m_process->readAllStandardOutput();
+    m_mountOutput += data;
+    qCDebug(lcMount) << "stdout:" << data;
+
+    // Only look at complete lines, so a half-received path is never accepted.
+    const int lastNewline = m_mountOutput.lastIndexOf('\n');
+    if (lastNewline < 0)
+        return;
+
+    // The runtime prints the mount directory; take the last line that is an absolute path.
+    const QStringList lines = QString::fromUtf8(m_mountOutput.left(lastNewline))
                                   .split('\n', Qt::SkipEmptyParts);
 
     for (auto it = lines.crbegin(); it != lines.crend(); ++it) {
         const QString candidate = it->trimmed();
-        if (candidate.startsWith('/') && QDir(candidate).exists()) {
+        const bool exists = candidate.startsWith('/') && QDir(candidate).exists();
+        // The runtime may print the path slightly before the directory is ready, so also
+        // accept its own ".mount_" naming and let getMountedDesktopPath() poll for contents.
+        const bool looksLikeMount = candidate.startsWith('/')
+                                    && QFileInfo(candidate).fileName().startsWith(".mount_");
+        qCDebug(lcMount) << "candidate:" << candidate
+                         << "exists:" << exists << "looksLikeMount:" << looksLikeMount;
+
+        if (exists || looksLikeMount) {
             m_mountPath = candidate;
             disconnect(m_process, &QProcess::readyReadStandardOutput, this, &AppImageUtil::onMountStdoutReady);
             emit mountFinished(true);
@@ -300,11 +348,17 @@ void AppImageUtil::onMountStdoutReady()
     }
 }
 
-void AppImageUtil::onMountFinished(int /*exitCode*/, QProcess::ExitStatus /*status*/)
+void AppImageUtil::onMountFinished(int exitCode, QProcess::ExitStatus status)
 {
     // Already mounted: the process exiting is expected during unmount.
     if (!m_mountPath.isEmpty())
         return;
+
+    qCWarning(lcMount) << "process ended before a mount path was found. exitCode:" << exitCode
+                       << "status:" << int(status)
+                       << "error:" << (m_process ? m_process->errorString() : QString())
+                       << "output:" << m_mountOutput
+                       << "- falling back to extraction";
 
     // Mount failed (commonly: no FUSE). Fall back to extracting.
     if (m_process) {
@@ -330,6 +384,8 @@ void AppImageUtil::extractAppImage()
     m_process->setProgram(m_path);
     m_process->setArguments({"--appimage-extract"});
     m_process->setProcessChannelMode(QProcess::MergedChannels);
+    m_process->setStandardInputFile(QProcess::nullDevice());
+    m_process->setProcessEnvironment(cleanChildEnvironment());
     m_process->setWorkingDirectory(tempDir);
 
     connect(m_process, &QProcess::finished, this, &AppImageUtil::onExtractFinished);
@@ -338,6 +394,7 @@ void AppImageUtil::extractAppImage()
             onExtractFinished(-1, QProcess::CrashExit);
     });
 
+    qCDebug(lcMount) << "extracting to" << tempDir;
     m_process->start();
 }
 
@@ -418,6 +475,7 @@ void AppImageUtil::unmountAppImage()
 
     m_mountPath.clear();
     m_tempExtractDir.clear();
+    m_mountOutput.clear();
 }
 
 // ----------------- Integration lookup -----------------
@@ -485,7 +543,7 @@ QString AppImageUtil::getMountedDesktopPath()
         return {};
 
     // A FUSE mount can take a moment to populate; an extracted tree is ready immediately.
-    const int attempts = m_tempExtractDir.isEmpty() ? 20 : 1;
+    const int attempts = m_tempExtractDir.isEmpty() ? 100 : 1;   // up to ~5 s for a FUSE mount
     for (int i = 0; i < attempts; ++i) {
         // Fresh QDir each time: QDir caches its listing and would never see new files.
         const QDir mountDir(m_mountPath);

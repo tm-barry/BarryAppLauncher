@@ -1056,8 +1056,6 @@ IUpdater* CliHandler::fetchReleasesAsync(
     std::function<void(QList<UpdaterRelease>, bool)> callback)
 {
     if (appimage.updateType.isEmpty()) {
-        ErrorManager::instance()->reportWarning(
-            QString("No update type set for '%1'").arg(appimage.name));
         callback({}, true);
         return nullptr;
     }
