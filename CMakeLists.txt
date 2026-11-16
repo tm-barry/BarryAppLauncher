@@ -29,6 +29,16 @@ set(ENABLE_ZLIB ON CACHE BOOL TRUE FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_TEST OFF CACHE BOOL "" FORCE)
 
+# Only the library is needed, not the bsdtar/bsdcpio/bsdcat/bsdunzip command line tools.
+# (They are compiled with -Werror and fail on newer compilers, e.g. bsdtar.c.)
+set(ENABLE_TAR OFF CACHE BOOL "" FORCE)
+set(ENABLE_CPIO OFF CACHE BOOL "" FORCE)
+set(ENABLE_CAT OFF CACHE BOOL "" FORCE)
+set(ENABLE_UNZIP OFF CACHE BOOL "" FORCE)
+
+# Not needed (zip extraction doesn't use LZ4), and avoids a runtime dependency on liblz4.so
+set(ENABLE_LZ4 OFF CACHE BOOL "" FORCE)
+
 # libarchive
 FetchContent_Declare(
   libarchive
