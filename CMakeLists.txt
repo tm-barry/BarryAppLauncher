@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(BarryAppLauncher VERSION 0.9.9 LANGUAGES CXX)
+project(BarryAppLauncher VERSION 0.9.10 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,6 +28,16 @@ set(ENABLE_ZLIB ON CACHE BOOL TRUE FORCE)
 # libarchive
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(ENABLE_TEST OFF CACHE BOOL "" FORCE)
+
+# Only the library is needed, not the bsdtar/bsdcpio/bsdcat/bsdunzip command line tools.
+# (They are compiled with -Werror and fail on newer compilers, e.g. bsdtar.c.)
+set(ENABLE_TAR OFF CACHE BOOL "" FORCE)
+set(ENABLE_CPIO OFF CACHE BOOL "" FORCE)
+set(ENABLE_CAT OFF CACHE BOOL "" FORCE)
+set(ENABLE_UNZIP OFF CACHE BOOL "" FORCE)
+
+# Not needed (zip extraction doesn't use LZ4), and avoids a runtime dependency on liblz4.so
+set(ENABLE_LZ4 OFF CACHE BOOL "" FORCE)
 
 # libarchive
 FetchContent_Declare(

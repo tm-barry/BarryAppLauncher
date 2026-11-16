@@ -25,6 +25,7 @@
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QSet>
 #include <QSharedPointer>
 #include <QThread>
 #include <QThreadPool>
@@ -44,7 +45,11 @@ Q_LOGGING_CATEGORY(lcMount, "barry.appimage.mount", QtCriticalMsg)
 
 namespace {
 
-QMutex g_desktopScanMutex;
+QMutex& desktopScanMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
 
 // Strips quotes and wraps in quotes only when the path contains spaces (for Exec= lines).
 QString quotePath(QString path)
@@ -140,6 +145,14 @@ QHash<QString, QString> readDesktopEntry(const QString& path, QString* rawConten
             entries.insert(key, unescapeDesktopValue(line.mid(eq + 1).trimmed()));
     }
     return entries;
+}
+
+// True if the desktop file carries this app's integration marker (X-AppImage-BAL=true).
+// Used to prefer our own desktop files over ones an AppImage creates for itself.
+bool hasBalMarker(const QString& desktopPath)
+{
+    const QHash<QString, QString> entry = readDesktopEntry(desktopPath);
+    return entry.value("X-AppImage-BAL").compare("true", Qt::CaseInsensitive) == 0;
 }
 
 // Calls visit(desktopFilePath, execParts) for the first Exec= line of every .desktop file in
@@ -480,18 +493,31 @@ void AppImageUtil::unmountAppImage()
 
 // ----------------- Integration lookup -----------------
 
+// Finds the desktop file that integrates `path`. A desktop file carrying our
+// X-AppImage-BAL marker always wins and ends the scan immediately; a foreign desktop file
+// (e.g. one the AppImage installed for itself) is only used when no marked file exists.
 const QString AppImageUtil::integratedDesktopPath(const QString& path)
 {
-    QMutexLocker locker(&g_desktopScanMutex);
+    QMutexLocker locker(&desktopScanMutex());
 
-    QString result;
+    QString marked;
+    QString fallback;
+
     forEachDesktopExec(getSearchPaths(), [&](const QString& desktopFile, const QStringList& execParts) {
         if (!execParts.contains(path))
             return false;
-        result = desktopFile;
-        return true;
+
+        if (hasBalMarker(desktopFile)) {
+            marked = desktopFile;
+            return true;                    // ours: stop scanning
+        }
+
+        if (fallback.isEmpty())
+            fallback = desktopFile;         // remember the first foreign match
+        return false;
     });
-    return result;
+
+    return marked.isEmpty() ? fallback : marked;
 }
 
 // ----------------- Metadata -----------------
@@ -710,16 +736,35 @@ const QList<AppImageUtilMetadata> AppImageUtil::getRegisteredList()
         QStringList() << "*.AppImage" << "*.appimage",
         QDir::Files | QDir::NoSymLinks);
 
-    // Scan the desktop directories once instead of once per AppImage.
+    // Scan the desktop directories once instead of once per AppImage. A desktop file with our
+    // X-AppImage-BAL marker takes priority over any foreign one referencing the same path, and
+    // once a path is mapped to a marked file it is never looked at again.
     QHash<QString, QString> desktopByExecPath;
+    QSet<QString> markedPaths;   // exec paths already resolved to a marked desktop file
     {
-        QMutexLocker locker(&g_desktopScanMutex);
+        QMutexLocker locker(&desktopScanMutex());
         forEachDesktopExec(getSearchPaths(), [&](const QString& desktopFile, const QStringList& execParts) {
+            // Only read the file again if it could still change something.
+            bool markerChecked = false;
+            bool marked = false;
+
             for (const QString& part : execParts) {
-                if (part.startsWith('/') && !desktopByExecPath.contains(part))
+                if (!part.startsWith('/') || markedPaths.contains(part))
+                    continue;   // not a path, or already resolved to our file
+
+                if (!markerChecked) {
+                    marked = hasBalMarker(desktopFile);
+                    markerChecked = true;
+                }
+
+                if (marked) {
+                    desktopByExecPath.insert(part, desktopFile);   // overrides any foreign entry
+                    markedPaths.insert(part);
+                } else if (!desktopByExecPath.contains(part)) {
                     desktopByExecPath.insert(part, desktopFile);
+                }
             }
-            return false;
+            return false;   // keep scanning: other AppImages may still need mapping
         });
     }
 
